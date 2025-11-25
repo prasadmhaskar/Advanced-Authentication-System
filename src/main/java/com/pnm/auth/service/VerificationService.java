@@ -1,6 +1,8 @@
 package com.pnm.auth.service;
 
+import com.pnm.auth.dto.request.EmailVerificationRequest;
 import com.pnm.auth.entity.User;
+import jakarta.validation.Valid;
 
 public interface VerificationService {
 
