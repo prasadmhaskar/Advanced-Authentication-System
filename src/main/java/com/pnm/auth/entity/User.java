@@ -49,4 +49,9 @@ public class User {
     public void onUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+
+    private String provider;      // GOOGLE / GITHUB / LOCAL
+    private String providerId;    // Google sub / GitHub id
+    private String profilePicture;
+
 }

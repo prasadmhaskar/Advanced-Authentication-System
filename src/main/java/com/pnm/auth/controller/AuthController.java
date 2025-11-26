@@ -1,8 +1,6 @@
 package com.pnm.auth.controller;
 
-import com.pnm.auth.dto.request.EmailVerificationRequest;
-import com.pnm.auth.dto.request.LoginRequest;
-import com.pnm.auth.dto.request.RegisterRequest;
+import com.pnm.auth.dto.request.*;
 import com.pnm.auth.dto.response.AuthResponse;
 import com.pnm.auth.service.AuthService;
 import com.pnm.auth.service.VerificationService;
@@ -36,5 +34,25 @@ public class AuthController {
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         AuthResponse response = authService.login(loginRequest);
         return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> verifyRefreshToken(@Valid @RequestBody RefreshTokenRequest refreshTokenRequest){
+        AuthResponse response = authService.refreshToken(refreshTokenRequest);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<String> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+
+        authService.forgotPassword(request.getEmail());
+        return ResponseEntity.ok("Password reset link sent to email");
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest resetPasswordRequest) {
+
+        authService.resetPassword(resetPasswordRequest);
+        return ResponseEntity.ok("Password updated successfully");
     }
 }
