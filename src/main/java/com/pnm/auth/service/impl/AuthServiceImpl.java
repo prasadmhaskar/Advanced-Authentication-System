@@ -7,6 +7,7 @@ import com.pnm.auth.dto.request.ResetPasswordRequest;
 import com.pnm.auth.dto.response.AuthResponse;
 import com.pnm.auth.entity.User;
 import com.pnm.auth.entity.VerificationToken;
+import com.pnm.auth.enums.AuthProviderType;
 import com.pnm.auth.exception.InvalidCredentialsException;
 import com.pnm.auth.exception.InvalidTokenException;
 import com.pnm.auth.exception.UserAlreadyExistsException;
@@ -17,12 +18,17 @@ import com.pnm.auth.service.AuthService;
 import com.pnm.auth.service.EmailService;
 import com.pnm.auth.service.VerificationService;
 import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.util.OAuth2Util;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,7 +41,7 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final JwtUtil jwtUtil;
     private final VerificationTokenRepository verificationTokenRepository;
-
+    private final OAuth2Util oAuth2Util;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -144,5 +150,33 @@ public class AuthServiceImpl implements AuthService {
         // 7. Delete token after use (important)
         verificationTokenRepository.delete(verificationToken);
 
+    }
+
+    public AuthResponse handleOAuth2LoginRequest(OAuth2User oAuth2User, String registrationId) {
+        AuthProviderType providerType = oAuth2Util.getProviderTypeFromRegistrationId(registrationId);
+        String providerId = oAuth2Util.determineProviderIdFromOAuth2User(oAuth2User, registrationId);
+
+        User user = userRepository.findByProviderIdAndAuthProviderType(providerId, providerType).orElse(null);
+        String email = oAuth2User.getAttribute("email");
+        User emailUser = (email != null) ? userRepository.findByEmail(email).orElse(null) : null;
+
+        if (user == null && emailUser == null) {
+            // Create new user
+            String username = oAuth2Util.determineUsernameFromOAuth2User(oAuth2User, registrationId);
+            user = new User();
+            user.setFullName(username);
+            user.setPassword(username);
+            user.setEmail(email);
+            user.setProviderId(providerId);
+            user.setAuthProviderType(providerType);
+            user.setRoles(List.of("USER"));
+            userRepository.save(user);
+        } else if (user == null && emailUser != null) {
+            // Email exists
+            throw new UserAlreadyExistsException("The email: "+email+" is already registered. Do you want to merge both accounts?");
+        }
+        String newAccessToken = jwtUtil.generateAccessToken(user);
+        String newRefreshToken = jwtUtil.generateRefreshToken(user);
+        return new AuthResponse("Login successful using OAuth2", newAccessToken, newRefreshToken);
     }
 }

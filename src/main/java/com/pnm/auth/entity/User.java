@@ -1,5 +1,6 @@
 package com.pnm.auth.entity;
 
+import com.pnm.auth.enums.AuthProviderType;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -50,8 +51,8 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
-    private String provider;      // GOOGLE / GITHUB / LOCAL
-    private String providerId;    // Google sub / GitHub id
+    private String providerId;
+    private AuthProviderType authProviderType;
     private String profilePicture;
 
 }
