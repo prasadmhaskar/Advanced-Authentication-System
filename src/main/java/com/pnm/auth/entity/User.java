@@ -52,7 +52,7 @@ public class User {
     }
 
     private String providerId;
+    @Enumerated(EnumType.STRING)
     private AuthProviderType authProviderType;
-    private String profilePicture;
 
 }

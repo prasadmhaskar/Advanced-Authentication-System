@@ -6,6 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -18,6 +19,7 @@ import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final UserDetailsService userDetailsService;
@@ -26,11 +28,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
+        log.debug("JwtAuthenticationFilter.shouldNotFilter: Checking path={}", path);
 
-        return path.startsWith("/api/auth/login") ||
+        boolean skip = path.startsWith("/api/auth/login") ||
                 path.startsWith("/api/auth/register") ||
                 path.startsWith("/api/auth/verify") ||
                 path.startsWith("/api/auth/refresh");
+
+        if (skip) {
+            log.info("JwtAuthenticationFilter: Skipping filter for path={}", path);
+        }
+
+        return skip;
     }
 
     @Override
@@ -39,27 +48,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        log.debug("JwtAuthenticationFilter: doFilterInternal started for URI={}", request.getRequestURI());
+
         String authHeader = request.getHeader("Authorization");
         String jwt = null;
         String username = null;
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             jwt = authHeader.substring(7);
+            log.debug("JwtAuthenticationFilter: Bearer token detected tokenPrefix={}", jwt.length() > 10 ? jwt.substring(0, 10) : jwt);
 
             try {
                 username = jwtUtil.extractUsername(jwt);
+                log.info("JwtAuthenticationFilter: Username extracted from token={}", username);
             } catch (Exception e) {
-                // Invalid or expired token → just skip authentication
+                log.warn("JwtAuthenticationFilter: Failed to extract username from token. Reason={}", e.getMessage());
             }
+        } else {
+            log.debug("JwtAuthenticationFilter: No valid Authorization header found");
         }
 
         // Authentication block
         if (username != null &&
                 SecurityContextHolder.getContext().getAuthentication() == null) {
 
+            log.info("JwtAuthenticationFilter: Loading userDetails for username={}", username);
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
             if (!jwtUtil.isTokenExpired(jwt)) {
+                log.info("JwtAuthenticationFilter: Token is valid. Authenticating user={}", username);
 
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(
@@ -73,10 +90,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 );
 
                 SecurityContextHolder.getContext().setAuthentication(authToken);
+            } else {
+                log.warn("JwtAuthenticationFilter: Token is expired for username={}", username);
             }
         }
 
-        // ALWAYS continue filter chain
+        log.debug("JwtAuthenticationFilter: Continuing filter chain for URI={}", request.getRequestURI());
         filterChain.doFilter(request, response);
     }
 }
+

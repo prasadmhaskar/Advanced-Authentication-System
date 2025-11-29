@@ -1,10 +1,9 @@
 package com.pnm.auth.service.impl;
 
-import com.pnm.auth.dto.request.LoginRequest;
-import com.pnm.auth.dto.request.RefreshTokenRequest;
-import com.pnm.auth.dto.request.RegisterRequest;
-import com.pnm.auth.dto.request.ResetPasswordRequest;
+import com.pnm.auth.dto.request.*;
 import com.pnm.auth.dto.response.AuthResponse;
+import com.pnm.auth.dto.response.UserDetailsResponse;
+import com.pnm.auth.entity.RefreshToken;
 import com.pnm.auth.entity.User;
 import com.pnm.auth.entity.VerificationToken;
 import com.pnm.auth.enums.AuthProviderType;
@@ -12,28 +11,24 @@ import com.pnm.auth.exception.InvalidCredentialsException;
 import com.pnm.auth.exception.InvalidTokenException;
 import com.pnm.auth.exception.UserAlreadyExistsException;
 import com.pnm.auth.exception.UserNotFoundException;
+import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.AuthService;
 import com.pnm.auth.service.EmailService;
 import com.pnm.auth.service.VerificationService;
 import com.pnm.auth.util.JwtUtil;
-import com.pnm.auth.util.OAuth2Util;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
@@ -41,15 +36,17 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final JwtUtil jwtUtil;
     private final VerificationTokenRepository verificationTokenRepository;
-    private final OAuth2Util oAuth2Util;
     private final PasswordEncoder passwordEncoder;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Override
     public AuthResponse register(RegisterRequest request) {
 
         String email = request.getEmail().trim().toLowerCase();
+        log.info("AuthService.register(): started for email={}", email);
 
         if (userRepository.findByEmail(email).isPresent()) {
+            log.warn("AuthService.register(): failed, email={} already exists", email);
             throw new UserAlreadyExistsException("The email: " + email + " is already registered. Login using your email");
         }
         else {
@@ -59,11 +56,15 @@ public class AuthServiceImpl implements AuthService {
             user.setEmail(email);
             user.setPassword(passwordEncoder.encode(request.getPassword()));
             user.setRoles(List.of("USER"));
+            user.setAuthProviderType(AuthProviderType.EMAIL);
             userRepository.save(user);
+            log.info("AuthService.register(): user saved email={}", email);
             //Creating verification token
             String token = verificationService.createVerificationToken(user, "EMAIL_VERIFICATION");
             //Sending email to user with verification link
             emailService.sendVerificationEmail(user.getEmail(), token);
+            log.info("AuthService.register(): verification email sent to email={}", email);
+            log.info("AuthService.register(): finished for email={}", email);
             return new AuthResponse("Registration successful. Please verify email.", null, null);
 
         }
@@ -72,69 +73,131 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse login(LoginRequest request) {
         String email = request.getEmail().trim().toLowerCase();
+        log.info("AuthService.login(): started for email={}", email);
         //Check user in db
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("AuthService.login(): user not found email={}", email);
+                    return new UserNotFoundException("User not found with email: " + email);
+                });
 
         //Check password matches or not
         if(!passwordEncoder.matches(request.getPassword(), user.getPassword())){
+            log.warn("AuthService.login(): incorrect password for email={}", email);
             throw new InvalidCredentialsException("Wrong password. Please enter correct password");
         }
 
         //Check email is verified or not
         if(!user.getEmailVerified()){
+            log.warn("AuthService.login(): email not verified email={}", email);
             throw new InvalidTokenException("Verify email first");
         }
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
+
+        //Delete all tokens related to user
+        refreshTokenRepository.deleteAllByUserId(user.getId());
+
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setToken(newRefreshToken);
+        refreshToken.setUser(user);
+        refreshToken.setCreatedAt(LocalDateTime.now());
+        refreshTokenRepository.save(refreshToken);
+
+        log.info("AuthService.login(): successful for email={} (refresh_token_saved)", email);
         return new AuthResponse("Login successful", newAccessToken, newRefreshToken);
 
     }
 
     @Override
-    public AuthResponse refreshToken(RefreshTokenRequest refreshToken) {
+    public AuthResponse refreshToken(RefreshTokenRequest refreshTokenRequest) {
 
-        String token = refreshToken.getRefreshToken();
+        String oldToken = refreshTokenRequest.getRefreshToken();
+        log.info("AuthService.refreshToken(): started (tokenPrefix={})", oldToken.substring(0, 10));
 
-        // Check expiration
-        if(jwtUtil.isTokenExpired(token)){
-        throw new InvalidTokenException("Token is expired");
+        // 1. Check DB record
+        RefreshToken tokenEntity = refreshTokenRepository.findByToken(oldToken)
+                .orElseThrow(() -> {
+                    log.warn("AuthService.refreshToken(): invalid tokenPrefix={}", oldToken.substring(0, 10));
+                    return new InvalidTokenException("Invalid refresh token");
+                });
+
+        // 2. Check expiration
+        if (jwtUtil.isTokenExpired(oldToken)) {
+            refreshTokenRepository.delete(tokenEntity);
+            log.warn("AuthService.refreshToken(): expired token deleted tokenPrefix={}", oldToken.substring(0, 10));
+            throw new InvalidTokenException("Refresh token is expired");
         }
 
-        // Extract email from refresh token
-        String email = jwtUtil.extractUsername(token);
+        // 3. Extract email
+        String email = jwtUtil.extractUsername(oldToken);
+        log.info("AuthService.refreshToken(): extracted email={}", email);
 
-        // Load user from DB
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
+        // 4. Fetch user
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("AuthService.refreshToken(): user not found email={}", email);
+                    return new UserNotFoundException("User not found with email: " + email);
+                });
 
-        // Generate new tokens
+        // 5. Generate NEW tokens
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
-        return new AuthResponse("Token refreshed successfully", newAccessToken, newRefreshToken);
 
+        // 6. Delete old refresh token (important!!)
+        refreshTokenRepository.delete(tokenEntity);
+
+        // 7. Save the *new refresh token*
+        RefreshToken newTokenEntity = new RefreshToken();
+        newTokenEntity.setToken(newRefreshToken);
+        newTokenEntity.setUser(user);
+        newTokenEntity.setCreatedAt(LocalDateTime.now());
+
+        refreshTokenRepository.save(newTokenEntity);
+
+        // 8. Return tokens
+        log.info("AuthService.refreshToken(): rotated token successfully for email={}", email);
+        return new AuthResponse("Token refreshed successfully", newAccessToken, newRefreshToken);
     }
+
 
     @Override
     public void forgotPassword(String email) {
 
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new UserNotFoundException("User not found with email: " + email));
+        log.info("AuthService.forgotPassword(): started for email={}", email);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("AuthService.forgotPassword(): user not found email={}", email);
+                    return new UserNotFoundException("User not found with email: " + email);
+                });
         String token = verificationService.createVerificationToken(user, "PASSWORD_RESET");
         emailService.sendPasswordResetEmail(user.getEmail(), token);
+
+        log.info("AuthService.forgotPassword(): reset email sent to email={}", email);
     }
 
     @Override
     public void resetPassword(ResetPasswordRequest request) {
-        String token = request.getToken();
+
+        log.info("AuthService.resetPassword() started");
 
         // 1. Validate token
-        VerificationToken verificationToken = verificationTokenRepository.findByToken(token).orElseThrow(() -> new InvalidTokenException("Invalid token"));
+        VerificationToken verificationToken = verificationTokenRepository.findByToken(request.getToken())
+                .orElseThrow(() -> {
+                    log.warn("AuthService.resetPassword(): invalid token");
+                    return new InvalidTokenException("Invalid token");
+                });
 
         // 2. Check type
         if (!verificationToken.getType().equals("PASSWORD_RESET")){
+            log.warn("AuthService.resetPassword(): token type mismatch");
             throw new InvalidTokenException("Token type mismatch");
         }
 
         // 3. Check expiration
         if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())){
+            log.warn("AuthService.resetPassword(): token expired");
             throw new InvalidTokenException("Token expired");
         }
 
@@ -150,33 +213,93 @@ public class AuthServiceImpl implements AuthService {
         // 7. Delete token after use (important)
         verificationTokenRepository.delete(verificationToken);
 
+        log.info("AuthService.resetPassword(): successful for userId={}", user.getId());
+
     }
 
-    public AuthResponse handleOAuth2LoginRequest(OAuth2User oAuth2User, String registrationId) {
-        AuthProviderType providerType = oAuth2Util.getProviderTypeFromRegistrationId(registrationId);
-        String providerId = oAuth2Util.determineProviderIdFromOAuth2User(oAuth2User, registrationId);
 
-        User user = userRepository.findByProviderIdAndAuthProviderType(providerId, providerType).orElse(null);
-        String email = oAuth2User.getAttribute("email");
-        User emailUser = (email != null) ? userRepository.findByEmail(email).orElse(null) : null;
 
-        if (user == null && emailUser == null) {
-            // Create new user
-            String username = oAuth2Util.determineUsernameFromOAuth2User(oAuth2User, registrationId);
-            user = new User();
-            user.setFullName(username);
-            user.setPassword(username);
-            user.setEmail(email);
-            user.setProviderId(providerId);
-            user.setAuthProviderType(providerType);
-            user.setRoles(List.of("USER"));
-            userRepository.save(user);
-        } else if (user == null && emailUser != null) {
-            // Email exists
-            throw new UserAlreadyExistsException("The email: "+email+" is already registered. Do you want to merge both accounts?");
+    @Override
+    public UserDetailsResponse userDetailsFromAccessToken(String token) {
+
+        log.info("AuthService.userDetailsFromAccessToken(): started");
+
+        if (token == null) {
+            log.warn("AuthService.userDetailsFromAccessToken(): missing Authorization header");
+            throw new InvalidTokenException("Missing or invalid Authorization header");
         }
-        String newAccessToken = jwtUtil.generateAccessToken(user);
-        String newRefreshToken = jwtUtil.generateRefreshToken(user);
-        return new AuthResponse("Login successful using OAuth2", newAccessToken, newRefreshToken);
+
+        // Check expiration
+        if (jwtUtil.isTokenExpired(token)) {
+            log.warn("AuthService.userDetailsFromAccessToken(): token expired");
+            throw new InvalidTokenException("Access token expired");
+        }
+
+        // Extract email from access token
+        String email = jwtUtil.extractUsername(token);
+        log.info("AuthService.userDetailsFromAccessToken(): extracted email={}", email);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("AuthService.userDetailsFromAccessToken(): user not found email={}", email);
+                    return new UserNotFoundException("User not found with email: " + email);
+                });
+
+        log.info("AuthService.userDetailsFromAccessToken(): success email={}", email);
+        return new UserDetailsResponse(
+                user.getFullName(),
+                user.getEmail(),
+                user.getRoles(),
+                user.getAuthProviderType(),
+                user.getCreatedAt(),
+                user.getUpdatedAt()
+        );
+    }
+
+    @Override
+    public void logout(String refreshToken) {
+        log.info("AuthService.logout(): started tokenPrefix={}", refreshToken.substring(0, 10));
+        refreshTokenRepository.deleteByToken(refreshToken);
+        log.info("AuthService.logout(): finished");
+    }
+
+    @Override
+    public void linkOAuthAccount(LinkOAuthRequest request) {
+
+        log.info("AuthService.linkOAuthAccount(): started provider={}", request.getProviderType());
+
+        String token = request.getAccessToken();
+
+        if (jwtUtil.isTokenExpired(token)) {
+            log.warn("AuthService.linkOAuthAccount(): token expired");
+            throw new InvalidTokenException("Token expired");
+        }
+
+        String email = jwtUtil.extractUsername(token);
+        log.info("AuthService.linkOAuthAccount(): extracted email={}", email);
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("AuthService.linkOAuthAccount(): user not found email={}", email);
+                    return new UserNotFoundException("User not found");
+                });
+
+        // If already linked with another provider
+        if (user.getProviderId() != null &&
+                user.getAuthProviderType() != null &&
+                !user.getProviderId().equals(request.getProviderId())) {
+            log.warn("AuthService.linkOAuthAccount(): provider conflict for email={}", email);
+            throw new UserAlreadyExistsException("This account is already linked with another provider");
+        }
+
+        // Link the provider
+        user.setProviderId(request.getProviderId());
+        user.setAuthProviderType(request.getProviderType());
+
+        userRepository.save(user);
+
+        log.info("AuthService.linkOAuthAccount(): successfully linked provider={} for email={}",
+                request.getProviderType(), email);
     }
 }
+
