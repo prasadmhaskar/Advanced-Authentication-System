@@ -1,4 +1,4 @@
-package com.pnm.auth.util;
+package com.pnm.auth.security;
 
 import com.pnm.auth.entity.User;
 import io.jsonwebtoken.Claims;
@@ -89,7 +89,7 @@ public class JwtUtil {
 
     // ------------------------- CLAIMS -------------------------
 
-    private Claims extractAllClaims(String token) {
+    public Claims extractAllClaims(String token) {
         try {
             log.debug("JwtUtil.extractAllClaims: Parsing claims tokenPrefix={}", safePrefix(token));
             return Jwts.parser()
@@ -124,4 +124,9 @@ public class JwtUtil {
         if (token == null) return "null";
         return token.length() > 10 ? token.substring(0, 10) : token;
     }
+
+    public long getExpirationTimestamp(String token) {
+        return extractAllClaims(token).getExpiration().getTime();
+    }
+
 }

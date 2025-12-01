@@ -1,6 +1,9 @@
-package com.pnm.auth.filter;
+package com.pnm.auth.security.filter;
 
-import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.entity.User;
+import com.pnm.auth.repository.UserRepository;
+import com.pnm.auth.security.JwtUtil;
+import com.pnm.auth.util.BlacklistedTokenStore;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,6 +27,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final UserDetailsService userDetailsService;
     private final JwtUtil jwtUtil;
+    private final UserRepository userRepository;
+    private final BlacklistedTokenStore blacklistedTokenStore;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -74,6 +79,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             log.info("JwtAuthenticationFilter: Loading userDetails for username={}", username);
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+
+            User user = userRepository.findByEmail(username).orElse(null);
+            if (user != null && !user.isActive()) {
+                log.warn("Blocked user attempted JWT access: {}", username);
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            // ⭐ NEW: Check blacklisted token
+            if (blacklistedTokenStore.isBlacklisted(jwt)) {
+                log.warn("JwtAuthenticationFilter: Blocked JWT (blacklisted) tokenPrefix={}",
+                        jwt.length() > 10 ? jwt.substring(0,10) : jwt);
+                filterChain.doFilter(request, response);
+                return;
+            }
 
             if (!jwtUtil.isTokenExpired(jwt)) {
                 log.info("JwtAuthenticationFilter: Token is valid. Authenticating user={}", username);

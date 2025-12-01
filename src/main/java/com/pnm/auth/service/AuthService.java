@@ -1,11 +1,7 @@
 package com.pnm.auth.service;
 
 import com.pnm.auth.dto.request.*;
-import com.pnm.auth.dto.response.AuthResponse;
-import com.pnm.auth.dto.response.UserDetailsResponse;
-import jakarta.validation.constraints.NotBlank;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.core.user.OAuth2User;
+import com.pnm.auth.dto.response.*;
 
 
 public interface AuthService {
@@ -22,7 +18,8 @@ public interface AuthService {
 
     UserDetailsResponse userDetailsFromAccessToken(String token);
 
-    void logout( String refreshToken);
+    void logout(String accessToken, String refreshToken);
 
     void linkOAuthAccount(LinkOAuthRequest request);
+
 }

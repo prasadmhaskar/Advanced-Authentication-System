@@ -51,6 +51,9 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
+    @Column(nullable = false)
+    private boolean active = true;
+
     private String providerId;
     @Enumerated(EnumType.STRING)
     private AuthProviderType authProviderType;

@@ -1,18 +1,19 @@
-package com.pnm.auth.service.impl;
+package com.pnm.auth.security.oauth;
 
 import com.pnm.auth.dto.response.AuthResponse;
 import com.pnm.auth.entity.RefreshToken;
 import com.pnm.auth.entity.User;
 import com.pnm.auth.enums.AuthProviderType;
+import com.pnm.auth.exception.InvalidCredentialsException;
 import com.pnm.auth.exception.UserAlreadyExistsException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.util.JwtUtil;
-import com.pnm.auth.util.OAuth2Util;
+import com.pnm.auth.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,13 +22,15 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class OAuth2Service {
+public class OAuth2ServiceImpl implements OAuth2Service {
 
     private final OAuth2Util oAuth2Util;
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final RefreshTokenRepository refreshTokenRepository;
 
+    @Override
+    @Transactional
     public AuthResponse handleOAuth2LoginRequest(OAuth2User oAuth2User, String registrationId) {
 
         log.info("OAuth2Service.handleOAuth2LoginRequest(): started provider={} ", registrationId);
@@ -66,6 +69,11 @@ public class OAuth2Service {
                 user.setEmail(email);
                 userRepository.save(user);
             }
+        }
+
+        if (user != null && !user.isActive()) {
+            log.warn("OAuth2Service.handleOAuth2LoginRequest(): Blocked user trying to login for email={}", email);
+            throw new InvalidCredentialsException("Your account has been blocked. Contact support.");
         }
 
         String accessToken = jwtUtil.generateAccessToken(user);

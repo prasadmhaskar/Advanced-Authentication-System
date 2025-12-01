@@ -17,11 +17,14 @@ import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.AuthService;
 import com.pnm.auth.service.EmailService;
 import com.pnm.auth.service.VerificationService;
-import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.security.JwtUtil;
+import com.pnm.auth.util.BlacklistedTokenStore;
+import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,8 +41,10 @@ public class AuthServiceImpl implements AuthService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final BlacklistedTokenStore blacklistedTokenStore;
 
     @Override
+    @Transactional
     public AuthResponse register(RegisterRequest request) {
 
         String email = request.getEmail().trim().toLowerCase();
@@ -55,7 +60,7 @@ public class AuthServiceImpl implements AuthService {
             user.setFullName(request.getFullName());
             user.setEmail(email);
             user.setPassword(passwordEncoder.encode(request.getPassword()));
-            user.setRoles(List.of("USER"));
+            user.setRoles(List.of("ROLE_USER"));
             user.setAuthProviderType(AuthProviderType.EMAIL);
             userRepository.save(user);
             log.info("AuthService.register(): user saved email={}", email);
@@ -70,7 +75,9 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+
     @Override
+    @Transactional
     public AuthResponse login(LoginRequest request) {
         String email = request.getEmail().trim().toLowerCase();
         log.info("AuthService.login(): started for email={}", email);
@@ -85,6 +92,11 @@ public class AuthServiceImpl implements AuthService {
         if(!passwordEncoder.matches(request.getPassword(), user.getPassword())){
             log.warn("AuthService.login(): incorrect password for email={}", email);
             throw new InvalidCredentialsException("Wrong password. Please enter correct password");
+        }
+
+        if (!user.isActive()) {
+            log.warn("AuthService.login(): Blocked user trying to login for email={}", email);
+            throw new InvalidCredentialsException("Your account has been blocked. Contact support.");
         }
 
         //Check email is verified or not
@@ -109,7 +121,9 @@ public class AuthServiceImpl implements AuthService {
 
     }
 
+
     @Override
+    @Transactional
     public AuthResponse refreshToken(RefreshTokenRequest refreshTokenRequest) {
 
         String oldToken = refreshTokenRequest.getRefreshToken();
@@ -139,6 +153,11 @@ public class AuthServiceImpl implements AuthService {
                     log.warn("AuthService.refreshToken(): user not found email={}", email);
                     return new UserNotFoundException("User not found with email: " + email);
                 });
+
+        if (!user.isActive()) {
+            log.warn("AuthService.refreshToken(): Blocked user trying to login for email={}", email);
+            throw new InvalidTokenException("Your account has been blocked. Contact support.");
+        }
 
         // 5. Generate NEW tokens
         String newAccessToken = jwtUtil.generateAccessToken(user);
@@ -177,7 +196,9 @@ public class AuthServiceImpl implements AuthService {
         log.info("AuthService.forgotPassword(): reset email sent to email={}", email);
     }
 
+
     @Override
+    @Transactional
     public void resetPassword(ResetPasswordRequest request) {
 
         log.info("AuthService.resetPassword() started");
@@ -218,8 +239,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
 
-
     @Override
+    @Transactional(readOnly = true)
     public UserDetailsResponse userDetailsFromAccessToken(String token) {
 
         log.info("AuthService.userDetailsFromAccessToken(): started");
@@ -256,14 +277,31 @@ public class AuthServiceImpl implements AuthService {
         );
     }
 
+
     @Override
-    public void logout(String refreshToken) {
-        log.info("AuthService.logout(): started tokenPrefix={}", refreshToken.substring(0, 10));
+    public void logout(String accessToken, String refreshToken) {
+
+        log.info("AuthService.logout(): started");
+
+        // 1️⃣ Extract access token expiry
+        Claims claims = jwtUtil.extractAllClaims(accessToken);
+        long expiry = claims.getExpiration().getTime();
+
+        // 2️⃣ Blacklist access token UNTIL it expires
+        blacklistedTokenStore.blacklistToken(accessToken, expiry);
+        log.info("AuthService.logout(): Access token blacklisted until={}", expiry);
+
+        // 3️⃣ Delete refresh token from DB
         refreshTokenRepository.deleteByToken(refreshToken);
+        log.info("AuthService.logout(): Refresh token deleted");
+
         log.info("AuthService.logout(): finished");
     }
 
+
+
     @Override
+    @Transactional
     public void linkOAuthAccount(LinkOAuthRequest request) {
 
         log.info("AuthService.linkOAuthAccount(): started provider={}", request.getProviderType());

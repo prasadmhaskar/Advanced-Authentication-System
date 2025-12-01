@@ -1,64 +1,94 @@
 package com.pnm.auth.exception;
 
-import com.pnm.auth.dto.response.ErrorResponse;
+import com.pnm.auth.dto.response.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.context.request.ServletWebRequest;
-import org.springframework.web.context.request.WebRequest;
 
-import java.time.LocalDateTime;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {
 
-    private ErrorResponse buildResponse(String message, HttpStatus status, WebRequest request) {
-        return ErrorResponse.builder()
-                .message(message)
-                .status(status.value())
-                .path(((ServletWebRequest) request).getRequest().getRequestURI())
-                .timestamp(LocalDateTime.now())
-                .build();
-    }
-
     @ExceptionHandler(UserNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleUserNotFound(UserNotFoundException ex, WebRequest request) {
-        log.warn("UserNotFoundException: {}", ex.getMessage());
-        return new ResponseEntity<>(buildResponse(ex.getMessage(), HttpStatus.NOT_FOUND, request), HttpStatus.NOT_FOUND);
+    public ResponseEntity<ApiResponse<Void>> handleUserNotFound(
+            UserNotFoundException ex, HttpServletRequest request) {
+
+        log.warn("UserNotFoundException: {} at path={}", ex.getMessage(), request.getRequestURI());
+        ApiResponse<Void> body = ApiResponse.error(
+                ex.getMessage(),
+                "USER_NOT_FOUND",
+                request.getRequestURI()
+        );
+        return new ResponseEntity<>(body, HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<ErrorResponse> handleUserExists(UserAlreadyExistsException ex, WebRequest request) {
-        log.warn("UserAlreadyExistsException: {}", ex.getMessage());
-        return new ResponseEntity<>(buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST, request), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<ApiResponse<Void>> handleUserExists(
+            UserAlreadyExistsException ex, HttpServletRequest request) {
+
+        log.warn("UserAlreadyExistsException: {} at path={}", ex.getMessage(), request.getRequestURI());
+        ApiResponse<Void> body = ApiResponse.error(
+                ex.getMessage(),
+                "USER_ALREADY_EXISTS",
+                request.getRequestURI()
+        );
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(InvalidTokenException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidToken(InvalidTokenException ex, WebRequest request) {
-        log.warn("InvalidTokenException: {}", ex.getMessage());
-        return new ResponseEntity<>(buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST, request), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<ApiResponse<Void>> handleInvalidToken(
+            InvalidTokenException ex, HttpServletRequest request) {
+
+        log.warn("InvalidTokenException: {} at path={}", ex.getMessage(), request.getRequestURI());
+        ApiResponse<Void> body = ApiResponse.error(
+                ex.getMessage(),
+                "INVALID_TOKEN",
+                request.getRequestURI()
+        );
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidCredentials(InvalidCredentialsException ex, WebRequest request) {
-        log.warn("InvalidCredentialsException: {}", ex.getMessage());
-        return new ResponseEntity<>(buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST, request), HttpStatus.BAD_REQUEST);
+    public ResponseEntity<ApiResponse<Void>> handleInvalidCredentials(
+            InvalidCredentialsException ex, HttpServletRequest request) {
+
+        log.warn("InvalidCredentialsException: {} at path={}", ex.getMessage(), request.getRequestURI());
+        ApiResponse<Void> body = ApiResponse.error(
+                ex.getMessage(),
+                "INVALID_CREDENTIALS",
+                request.getRequestURI()
+        );
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(EmailSendFailedException.class)
-    public ResponseEntity<ErrorResponse> handleEmailError(EmailSendFailedException ex, WebRequest request) {
-        log.error("EmailSendFailedException: {}", ex.getMessage());
-        return new ResponseEntity<>(buildResponse(ex.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR, request), HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<ApiResponse<Void>> handleFailedToSendEmail(
+            EmailSendFailedException ex, HttpServletRequest request) {
+
+        log.error("EmailSendFailedException: {} at path={}", ex.getMessage(), request.getRequestURI());
+        ApiResponse<Void> body = ApiResponse.error(
+                ex.getMessage(),
+                "EMAIL_SEND_FAILED",
+                request.getRequestURI()
+        );
+        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    // Fallback for any other exception
+    // Generic fallback
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex, WebRequest request) {
-        log.error("Unhandled exception: {}", ex.getMessage(), ex);
-        return new ResponseEntity<>(buildResponse("Something went wrong", HttpStatus.INTERNAL_SERVER_ERROR, request), HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<ApiResponse<Void>> handleGeneral(
+            Exception ex, HttpServletRequest request) {
+
+        log.error("Unhandled exception at path={}", request.getRequestURI(), ex);
+        ApiResponse<Void> body = ApiResponse.error(
+                "Internal server error",
+                "INTERNAL_ERROR",
+                request.getRequestURI()
+        );
+        return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
-

@@ -1,4 +1,4 @@
-package com.pnm.auth.util;
+package com.pnm.auth.security.oauth;
 
 import com.pnm.auth.enums.AuthProviderType;
 import lombok.RequiredArgsConstructor;

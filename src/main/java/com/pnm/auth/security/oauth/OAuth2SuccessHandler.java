@@ -1,9 +1,9 @@
-package com.pnm.auth.oauth2;
+package com.pnm.auth.security.oauth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.AuthResponse;
 
-import com.pnm.auth.service.impl.OAuth2Service;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,7 +24,7 @@ import java.io.IOException;
 public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final ObjectMapper objectMapper;
-    private final OAuth2Service oAuth2Service;
+    private final OAuth2ServiceImpl oAuth2ServiceImpl;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -41,12 +41,23 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         String registrationId = token.getAuthorizedClientRegistrationId();
         log.info("OAuth2SuccessHandler: Provider={}", registrationId);
 
-        AuthResponse authResponse = oAuth2Service.handleOAuth2LoginRequest(oAuth2User, registrationId);
-        log.info("OAuth2SuccessHandler: OAuth2Service returned AuthResponse");
+        AuthResponse authResponse = oAuth2ServiceImpl.handleOAuth2LoginRequest(oAuth2User, registrationId);
+//        log.info("OAuth2SuccessHandler: OAuth2Service returned AuthResponse");
+//
+//        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+//        response.getWriter().write(objectMapper.writeValueAsString(authResponse));
+//
+//        log.info("OAuth2SuccessHandler: AuthResponse written to client");
+
+        ApiResponse<AuthResponse> apiResponse = ApiResponse.success(
+                authResponse.getMessage(),
+                authResponse,
+                request.getRequestURI()
+        );
 
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write(objectMapper.writeValueAsString(authResponse));
+        response.getWriter().write(objectMapper.writeValueAsString(apiResponse));
 
-        log.info("OAuth2SuccessHandler: AuthResponse written to client");
+        log.info("OAuth2SuccessHandler: Response sent for OAuth provider={}", registrationId);
     }
 }
