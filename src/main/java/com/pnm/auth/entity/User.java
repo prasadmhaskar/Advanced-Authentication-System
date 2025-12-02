@@ -58,4 +58,6 @@ public class User {
     @Enumerated(EnumType.STRING)
     private AuthProviderType authProviderType;
 
+    private boolean mfaEnabled = false;
+
 }

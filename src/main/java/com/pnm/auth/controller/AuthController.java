@@ -11,8 +11,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -181,4 +183,46 @@ public class AuthController {
         );
         return ResponseEntity.ok(body);
     }
+
+    @PostMapping("/change-password")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public ResponseEntity<ApiResponse<AuthResponse>> changePassword(@RequestBody @Valid ChangePasswordRequest changePasswordRequest,
+                                                      HttpServletRequest request){
+        log.info("AuthController.changePassword(): started");
+        String token = jwtUtil.resolveToken(request);
+        AuthResponse response = authService.changePassword(token, changePasswordRequest.getOldPassword(),changePasswordRequest.getNewPassword());
+        log.info("AuthController.changePassword(): finished");
+        ApiResponse<AuthResponse> body = ApiResponse.success(
+                response.getMessage(),
+                response,
+                request.getRequestURI()
+        );
+        return ResponseEntity.ok(body);
+    }
+
+    @PutMapping("/update-profile")
+    public ResponseEntity<ApiResponse<UserDetailsResponse>> updateProfile(
+            @RequestBody @Valid UpdateProfileRequest updateProfileRequest,
+            HttpServletRequest request) {
+
+        // 1. Extract token from header
+        // 2. Call service
+        // 3. Wrap response in ApiResponse
+
+        return null;
+    }
+
+    @PostMapping("verify-mfa")
+    public ResponseEntity<ApiResponse<AuthResponse>> verifyMfaOtp(@RequestBody @Valid MfaTokenVerifyRequest mfaTokenVerifyRequest, HttpServletRequest request){
+        log.info("AuthController.verifyMfaOtp(): started");
+        AuthResponse response = authService.verifyOtp(mfaTokenVerifyRequest);
+        log.info("AuthController.verifyMfaOtp(): finished");
+        ApiResponse<AuthResponse> body = ApiResponse.success(
+                response.getMessage(),
+                response,
+                request.getRequestURI()
+        );
+        return ResponseEntity.ok(body);
+    }
+
 }

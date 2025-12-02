@@ -48,7 +48,9 @@ public class EmailServiceImpl implements EmailService {
         log.info("EmailService.sendPasswordResetEmail: Sent password reset email to {}", toEmail);
     }
 
-    private void sendEmail(String toEmail, String subject, String body) {
+
+    @Override
+    public void sendEmail(String toEmail, String subject, String body) {
         log.info("EmailService.sendEmail: Email sending to={}",toEmail);
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(toEmail);
@@ -57,6 +59,18 @@ public class EmailServiceImpl implements EmailService {
         message.setFrom("noreply@project1.com");
         mailSender.send(message);
         log.info("EmailService.sendEmail: Email sent to={}",toEmail);
+    }
+
+    @Override
+    public void sendMfaOtpEmail(String toEmail, String otp) {
+
+        log.info("EmailService.sendMfaOtpEmail(): sending MFA OTP to {}", toEmail);
+
+        String subject = "Your MFA Verification Code";
+        String body = "Your OTP for login is: " + otp + "\nIt will expire in 5 minutes.";
+
+        sendEmail(toEmail, subject, body);
+
     }
 }
 

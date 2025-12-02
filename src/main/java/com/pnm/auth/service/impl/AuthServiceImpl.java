@@ -3,6 +3,7 @@ package com.pnm.auth.service.impl;
 import com.pnm.auth.dto.request.*;
 import com.pnm.auth.dto.response.AuthResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
+import com.pnm.auth.entity.MfaToken;
 import com.pnm.auth.entity.RefreshToken;
 import com.pnm.auth.entity.User;
 import com.pnm.auth.entity.VerificationToken;
@@ -11,6 +12,7 @@ import com.pnm.auth.exception.InvalidCredentialsException;
 import com.pnm.auth.exception.InvalidTokenException;
 import com.pnm.auth.exception.UserAlreadyExistsException;
 import com.pnm.auth.exception.UserNotFoundException;
+import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
@@ -26,6 +28,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -42,6 +45,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
     private final BlacklistedTokenStore blacklistedTokenStore;
+    private final MfaTokenRepository mfaTokenRepository;
 
     @Override
     @Transactional
@@ -70,7 +74,7 @@ public class AuthServiceImpl implements AuthService {
             emailService.sendVerificationEmail(user.getEmail(), token);
             log.info("AuthService.register(): verification email sent to email={}", email);
             log.info("AuthService.register(): finished for email={}", email);
-            return new AuthResponse("Registration successful. Please verify email.", null, null);
+            return new AuthResponse("Registration successful. Please verify email.", null, null, null);
 
         }
     }
@@ -104,6 +108,41 @@ public class AuthServiceImpl implements AuthService {
             log.warn("AuthService.login(): email not verified email={}", email);
             throw new InvalidTokenException("Verify email first");
         }
+
+        // -----------------------------
+        // 2FA / MFA CHECK
+        // -----------------------------
+        if (user.isMfaEnabled()) {
+            log.info("AuthService.login(): MFA enabled for email={}", email);
+
+            mfaTokenRepository.markAllUnusedTokensAsUsed(user.getId());
+
+            // 1. Generate 6-digit OTP
+            SecureRandom secureRandom = new SecureRandom();
+            String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
+
+            // 2. Create MFA token entity
+            MfaToken mfaToken = new MfaToken();
+            mfaToken.setUser(user);
+            mfaToken.setOtp(otp);
+            mfaToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
+            mfaToken.setUsed(false);
+
+            mfaTokenRepository.save(mfaToken);
+
+            // 3. Send OTP email
+            emailService.sendMfaOtpEmail(user.getEmail(), otp);
+
+            log.info("AuthService.login(): MFA OTP generated for email={} (mfaTokenId={})", email, mfaToken.getId());
+            // 4. Return MFA_REQUIRED response
+            return new AuthResponse(
+                    "MFA_REQUIRED",
+                    null,
+                    null,
+                    mfaToken.getId()   // <--- IMPORTANT: pass MFA token ID
+            );
+        }
+
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
@@ -117,7 +156,7 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenRepository.save(refreshToken);
 
         log.info("AuthService.login(): successful for email={} (refresh_token_saved)", email);
-        return new AuthResponse("Login successful", newAccessToken, newRefreshToken);
+        return new AuthResponse("Login successful", newAccessToken, newRefreshToken, null);
 
     }
 
@@ -176,7 +215,7 @@ public class AuthServiceImpl implements AuthService {
 
         // 8. Return tokens
         log.info("AuthService.refreshToken(): rotated token successfully for email={}", email);
-        return new AuthResponse("Token refreshed successfully", newAccessToken, newRefreshToken);
+        return new AuthResponse("Token refreshed successfully", newAccessToken, newRefreshToken, null);
     }
 
 
@@ -299,7 +338,6 @@ public class AuthServiceImpl implements AuthService {
     }
 
 
-
     @Override
     @Transactional
     public void linkOAuthAccount(LinkOAuthRequest request) {
@@ -339,5 +377,135 @@ public class AuthServiceImpl implements AuthService {
         log.info("AuthService.linkOAuthAccount(): successfully linked provider={} for email={}",
                 request.getProviderType(), email);
     }
+
+    @Override
+    @Transactional
+    public AuthResponse changePassword(String token, String oldPassword, String newPassword) {
+
+        if (jwtUtil.isTokenExpired(token)) {
+            log.warn("AuthService.changePassword(): token expired");
+            throw new InvalidTokenException("Token expired");
+        }
+
+            String email = jwtUtil.extractUsername(token);
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> {
+                        log.warn("AuthService.changePassword(): user not found email={}", email);
+                        return new UserNotFoundException("User not found with email: " + email);
+                    });
+
+            if (!passwordEncoder.matches(oldPassword, user.getPassword())){
+                log.warn("AuthService.changePassword(): old password mismatch for email={}", email);
+                throw new InvalidCredentialsException("Old password is wrong enter correct password");
+            }
+
+            user.setPassword(passwordEncoder.encode(newPassword));
+            userRepository.save(user);
+            log.info("AuthService.changePassword(): password updated for email={}", email);
+
+
+        // Delete all old refresh tokens
+        refreshTokenRepository.deleteAllByUserId(user.getId());
+        log.info("AuthService.changePassword(): deleted all old refresh tokens for email={}", email);
+
+
+        // Extract access token expiry
+        Claims claims = jwtUtil.extractAllClaims(token);
+        long expiry = claims.getExpiration().getTime();
+
+        // Blacklist the old access token
+        blacklistedTokenStore.blacklistToken(token, expiry);
+        log.info("AuthService.changePassword(): Access token blacklisted until={} for email={}", expiry, email);
+
+        // Create new tokens
+        String newAccessToken = jwtUtil.generateAccessToken(user);
+        String newRefreshToken = jwtUtil.generateRefreshToken(user);
+        log.info("AuthService.changePassword(): created new accessToken and refreshToken for email={}",email);
+
+        // Save refresh token to DB
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setToken(newRefreshToken);
+        refreshToken.setUser(user);
+        refreshToken.setCreatedAt(LocalDateTime.now());
+        refreshTokenRepository.save(refreshToken);
+
+        log.info("AuthService.changePassword(): completed successfully for email={}", email);
+        return new AuthResponse("Password changed successfully", newAccessToken, newRefreshToken, null);
+
+    }
+
+
+    @Override
+    @Transactional
+    public UserDetailsResponse updateProfile(String token, UpdateProfileRequest request) {
+
+        // 1. Validate token
+        // 2. Extract email
+        // 3. Fetch user
+        // 4. Update fullName
+        // 5. Save user
+        // 6. Return UserDetailsResponse
+
+        return null;
+    }
+
+    @Override
+    public AuthResponse verifyOtp(MfaTokenVerifyRequest request) {
+
+        log.info("AuthService.verifyOtp(): started for id={}", request.getId());
+
+        // 1. Fetch token
+        MfaToken mfaToken = mfaTokenRepository.findByIdAndUsedFalse(request.getId())
+                .orElseThrow(() -> {
+                    log.warn("AuthService.verifyOtp(): MfaToken not found for id={}", request.getId());
+                    return new InvalidTokenException("Token not found");
+                });
+
+        // 2. Expired?
+        if (mfaToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            log.warn("AuthService.verifyOtp(): token is expired for id={}", request.getId());
+            throw new InvalidTokenException("Token is expired");
+        }
+
+        // 3. OTP mismatch
+        String submittedOtp = request.getOtp().trim();
+        if (!mfaToken.getOtp().equals(submittedOtp)) {
+            log.warn("AuthService.verifyOtp(): wrong OTP entered for id={}", request.getId());
+            throw new InvalidCredentialsException("Wrong OTP. Please enter correct OTP");
+        }
+
+        // 4. Mark token as used
+        mfaToken.setUsed(true);
+        mfaTokenRepository.save(mfaToken);
+
+        // 5. Fetch user
+        User user = mfaToken.getUser();
+
+        log.info("AuthService.verifyOtp(): user verified email={}", user.getEmail());
+
+        // 6. Create new tokens
+        String accessToken = jwtUtil.generateAccessToken(user);
+        String refreshTokenStr = jwtUtil.generateRefreshToken(user);
+
+        // Remove old refresh tokens
+        refreshTokenRepository.deleteAllByUserId(user.getId());
+
+        // Save new refresh token
+        RefreshToken refreshToken = new RefreshToken();
+        refreshToken.setToken(refreshTokenStr);
+        refreshToken.setUser(user);
+        refreshToken.setCreatedAt(LocalDateTime.now());
+        refreshTokenRepository.save(refreshToken);
+
+        log.info("AuthService.verifyOtp(): completed for email={}", user.getEmail());
+
+        return new AuthResponse(
+                "Otp verified successfully",
+                accessToken,
+                refreshTokenStr,
+                null
+        );
+    }
+
 }
 

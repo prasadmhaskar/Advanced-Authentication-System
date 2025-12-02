@@ -83,6 +83,6 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
         log.info("OAuth2Service.handleOAuth2LoginRequest(): successful for email={}", user.getEmail());
 
-        return new AuthResponse("Login successful using OAuth2", accessToken, refreshToken);
+        return new AuthResponse("Login successful using OAuth2", accessToken, refreshToken, null);
     }
 }
