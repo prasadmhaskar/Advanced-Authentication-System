@@ -41,4 +41,5 @@ public class UserAdminResponse {
                 .active(user.isActive())
                 .build();
     }
+
 }

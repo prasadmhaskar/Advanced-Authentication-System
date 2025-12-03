@@ -9,6 +9,8 @@ import com.pnm.auth.exception.UserAlreadyExistsException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.security.JwtUtil;
+import com.pnm.auth.service.LoginActivityService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -28,10 +30,11 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final LoginActivityService loginActivityService;
 
     @Override
     @Transactional
-    public AuthResponse handleOAuth2LoginRequest(OAuth2User oAuth2User, String registrationId) {
+    public AuthResponse handleOAuth2LoginRequest(OAuth2User oAuth2User, String registrationId, HttpServletRequest request) {
 
         log.info("OAuth2Service.handleOAuth2LoginRequest(): started provider={} ", registrationId);
         AuthProviderType authProviderType = oAuth2Util.getProviderTypeFromRegistrationId(registrationId);
@@ -39,6 +42,12 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         String email = oAuth2User.getAttribute("email");
         log.info("OAuth2Service.handleOAuth2LoginRequest(): login attempt email={} providerId={} providerType={}",
                 email, providerId, authProviderType);
+
+
+        // Extract IP + device early for both success/failure logs
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null) ip = request.getRemoteAddr();
+        String userAgent = request.getHeader("User-Agent");
 
         User user = userRepository.findByProviderIdAndAuthProviderType(providerId, authProviderType).orElse(null);
         User emailUser = (email != null) ? userRepository.findByEmail(email).orElse(null) : null;
@@ -49,8 +58,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             String username = oAuth2Util.determineUsernameFromOAuth2User(oAuth2User, registrationId);
             user = new User();
             user.setFullName(username);
-            String randomPassword = UUID.randomUUID().toString();
-            user.setPassword(randomPassword);
+            user.setPassword(UUID.randomUUID().toString());
             user.setEmail(email);
             user.setProviderId(providerId);
             user.setAuthProviderType(authProviderType);
@@ -60,6 +68,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         } else if (user == null && emailUser != null) {
             // Email exists
             log.warn("OAuth2Service.handleOAuth2LoginRequest(): account exists for email={} (needs merging)", email);
+            loginActivityService.recordFailure(email, ip, userAgent, "OAuth2 login failed: account exists but not linked");
             throw new UserAlreadyExistsException("The email: "+email+" is already registered. Do you want to merge both accounts?");
         } else {
             // Existing OAuth2 user (user != null)
@@ -73,8 +82,13 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
         if (user != null && !user.isActive()) {
             log.warn("OAuth2Service.handleOAuth2LoginRequest(): Blocked user trying to login for email={}", email);
+            loginActivityService.recordFailure(email, ip, userAgent, "OAuth2 login failed: blocked user");
             throw new InvalidCredentialsException("Your account has been blocked. Contact support.");
         }
+
+
+        //SUCCESS: Record login activity
+        loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
 
         String accessToken = jwtUtil.generateAccessToken(user);
         String refreshToken = jwtUtil.generateRefreshToken(user);

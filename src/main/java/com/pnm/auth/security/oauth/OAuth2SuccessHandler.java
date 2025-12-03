@@ -41,7 +41,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         String registrationId = token.getAuthorizedClientRegistrationId();
         log.info("OAuth2SuccessHandler: Provider={}", registrationId);
 
-        AuthResponse authResponse = oAuth2ServiceImpl.handleOAuth2LoginRequest(oAuth2User, registrationId);
+        AuthResponse authResponse = oAuth2ServiceImpl.handleOAuth2LoginRequest(oAuth2User, registrationId, request);
 //        log.info("OAuth2SuccessHandler: OAuth2Service returned AuthResponse");
 //
 //        response.setContentType(MediaType.APPLICATION_JSON_VALUE);

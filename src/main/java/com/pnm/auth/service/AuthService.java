@@ -10,7 +10,7 @@ public interface AuthService {
 
     AuthResponse register(RegisterRequest request);
 
-    AuthResponse login(LoginRequest request);
+    AuthResponse login(LoginRequest request, String ip, String userAgent);
 
     AuthResponse refreshToken(RefreshTokenRequest refreshToken);
 
@@ -28,5 +28,5 @@ public interface AuthService {
 
     UserDetailsResponse updateProfile(String accessToken, UpdateProfileRequest request);
 
-    AuthResponse verifyOtp(@Valid MfaTokenVerifyRequest mfaTokenVerifyRequest);
+    AuthResponse verifyOtp(@Valid MfaTokenVerifyRequest mfaTokenVerifyRequest, String ip, String userAgent);
 }

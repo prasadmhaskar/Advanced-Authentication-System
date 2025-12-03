@@ -37,11 +37,13 @@ public class CorsConfig {
         log.info("CorsConfig: Credentials allowed -> {}", config.getAllowCredentials());
 
         // Exposed headers
-        config.setExposedHeaders(List.of("Authorization"));
+        config.setExposedHeaders(List.of("Authorization",
+                "X-Refresh-Token",
+                "X-Request-Id"));
         log.info("CorsConfig: Exposed headers -> {}", config.getExposedHeaders());
 
         // Preflight cache time
-        config.setMaxAge(3600L);
+        config.setMaxAge(86400L);
         log.info("CorsConfig: MaxAge (preflight caching) -> {} seconds", config.getMaxAge());
 
         // Apply to all paths

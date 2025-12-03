@@ -11,7 +11,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,6 +36,7 @@ public class AuthController {
         log.info("AuthController.register(): Finished for email={}", registerRequest.getEmail());
 
         ApiResponse<AuthResponse> body = ApiResponse.success(
+                "USER_REGISTERED",
                 response.getMessage(),
                 response,
                 request.getRequestURI()
@@ -45,7 +45,7 @@ public class AuthController {
     }
 
     @GetMapping("/verify")
-    public ResponseEntity<ApiResponse<String>> verifyEmail(
+    public ResponseEntity<ApiResponse<Void>> verifyEmail(
             @RequestParam("token") String token,
             HttpServletRequest request) {
 
@@ -53,9 +53,10 @@ public class AuthController {
         verificationService.validateToken(token, "EMAIL_VERIFICATION");
         log.info("AuthController.verifyEmail(): Finished");
 
-        ApiResponse<String> body = ApiResponse.success(
+        ApiResponse<Void> body = ApiResponse.success(
+                "EMAIL_VERIFIED",
                 "Email verification successful",
-                "Email verification successful",
+                null,
                 request.getRequestURI()
         );
         return ResponseEntity.ok(body);
@@ -67,10 +68,16 @@ public class AuthController {
             HttpServletRequest request) {
 
         log.info("AuthController.login(): Started for email={}", loginRequest.getEmail());
-        AuthResponse response = authService.login(loginRequest);
+
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null) ip = request.getRemoteAddr();           //Fetching ip
+        String userAgent = request.getHeader("User-Agent");     //fetching browser/device info
+
+        AuthResponse response = authService.login(loginRequest, ip, userAgent);
         log.info("AuthController.login(): Finished for email={}", loginRequest.getEmail());
 
         ApiResponse<AuthResponse> body = ApiResponse.success(
+                "USER_LOGGED_IN",
                 response.getMessage(),
                 response,
                 request.getRequestURI()
@@ -88,6 +95,7 @@ public class AuthController {
         log.info("AuthController.verifyRefreshToken(): Finished");
 
         ApiResponse<AuthResponse> body = ApiResponse.success(
+                "TOKEN_REFRESHED",
                 response.getMessage(),
                 response,
                 request.getRequestURI()
@@ -105,6 +113,7 @@ public class AuthController {
         log.info("AuthController.forgotPassword(): Finished for email={}", req.getEmail());
 
         ApiResponse<Void> body = ApiResponse.success(
+                "PASSWORD_RESET_LINK_SENT",
                 "Password reset link sent to email",
                 null,
                 request.getRequestURI()
@@ -122,6 +131,7 @@ public class AuthController {
         log.info("AuthController.resetPassword(): Finished");
 
         ApiResponse<Void> body = ApiResponse.success(
+                "PASSWORD_RESET_SUCCESS",
                 "Password updated successfully",
                 null,
                 request.getRequestURI()
@@ -139,6 +149,7 @@ public class AuthController {
         log.info("AuthController.fetchUserDetails(): Finished for email={}", response.getEmail());
 
         ApiResponse<UserDetailsResponse> body = ApiResponse.success(
+                "USER_DETAILS_FETCHED",
                 "User details fetched successfully",
                 response,
                 request.getRequestURI()
@@ -158,6 +169,7 @@ public class AuthController {
         log.info("AuthController.logout(): Finished");
 
         ApiResponse<Void> body = ApiResponse.success(
+                "LOGOUT_SUCCESS",
                 "Logged out successfully.",
                 null,
                 request.getRequestURI()
@@ -177,6 +189,7 @@ public class AuthController {
         log.info("AuthController.linkOAuth(): Finished");
 
         ApiResponse<Void> body = ApiResponse.success(
+                "OAUTH_LINKED",
                 "OAuth account linked successfully",
                 null,
                 request.getRequestURI()
@@ -193,6 +206,7 @@ public class AuthController {
         AuthResponse response = authService.changePassword(token, changePasswordRequest.getOldPassword(),changePasswordRequest.getNewPassword());
         log.info("AuthController.changePassword(): finished");
         ApiResponse<AuthResponse> body = ApiResponse.success(
+                "PASSWORD_CHANGED",
                 response.getMessage(),
                 response,
                 request.getRequestURI()
@@ -215,9 +229,14 @@ public class AuthController {
     @PostMapping("verify-mfa")
     public ResponseEntity<ApiResponse<AuthResponse>> verifyMfaOtp(@RequestBody @Valid MfaTokenVerifyRequest mfaTokenVerifyRequest, HttpServletRequest request){
         log.info("AuthController.verifyMfaOtp(): started");
-        AuthResponse response = authService.verifyOtp(mfaTokenVerifyRequest);
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null) ip = request.getRemoteAddr();           //Fetching ip
+        String userAgent = request.getHeader("User-Agent");
+        //fetching browser/device info
+        AuthResponse response = authService.verifyOtp(mfaTokenVerifyRequest, ip, userAgent);
         log.info("AuthController.verifyMfaOtp(): finished");
         ApiResponse<AuthResponse> body = ApiResponse.success(
+                "MFA_OTP_VERIFIED",
                 response.getMessage(),
                 response,
                 request.getRequestURI()

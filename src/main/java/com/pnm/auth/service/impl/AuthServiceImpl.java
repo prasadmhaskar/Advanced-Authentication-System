@@ -18,6 +18,7 @@ import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.AuthService;
 import com.pnm.auth.service.EmailService;
+import com.pnm.auth.service.LoginActivityService;
 import com.pnm.auth.service.VerificationService;
 import com.pnm.auth.security.JwtUtil;
 import com.pnm.auth.util.BlacklistedTokenStore;
@@ -46,6 +47,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final BlacklistedTokenStore blacklistedTokenStore;
     private final MfaTokenRepository mfaTokenRepository;
+    private final LoginActivityService loginActivityService;
 
     @Override
     @Transactional
@@ -82,7 +84,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public AuthResponse login(LoginRequest request) {
+    public AuthResponse login(LoginRequest request, String ip, String userAgent) {
         String email = request.getEmail().trim().toLowerCase();
         log.info("AuthService.login(): started for email={}", email);
         //Check user in db
@@ -94,6 +96,8 @@ public class AuthServiceImpl implements AuthService {
 
         //Check password matches or not
         if(!passwordEncoder.matches(request.getPassword(), user.getPassword())){
+            //Record activity for wrong password
+            loginActivityService.recordFailure(user.getEmail(), ip, userAgent, "Wrong password entered");
             log.warn("AuthService.login(): incorrect password for email={}", email);
             throw new InvalidCredentialsException("Wrong password. Please enter correct password");
         }
@@ -108,6 +112,9 @@ public class AuthServiceImpl implements AuthService {
             log.warn("AuthService.login(): email not verified email={}", email);
             throw new InvalidTokenException("Verify email first");
         }
+
+        //Storing login activity before MFA
+        loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
 
         // -----------------------------
         // 2FA / MFA CHECK
@@ -142,6 +149,8 @@ public class AuthServiceImpl implements AuthService {
                     mfaToken.getId()   // <--- IMPORTANT: pass MFA token ID
             );
         }
+
+
 
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
@@ -450,29 +459,39 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public AuthResponse verifyOtp(MfaTokenVerifyRequest request) {
+    public AuthResponse verifyOtp(MfaTokenVerifyRequest request, String ip, String userAgent) {
 
         log.info("AuthService.verifyOtp(): started for id={}", request.getId());
 
         // 1. Fetch token
         MfaToken mfaToken = mfaTokenRepository.findByIdAndUsedFalse(request.getId())
                 .orElseThrow(() -> {
+                    loginActivityService.recordFailure(null, ip, userAgent, "OTP token not found or already used");
                     log.warn("AuthService.verifyOtp(): MfaToken not found for id={}", request.getId());
                     return new InvalidTokenException("Token not found");
                 });
 
         // 2. Expired?
         if (mfaToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            log.warn("AuthService.verifyOtp(): token is expired for id={}", request.getId());
+            loginActivityService.recordFailure(
+                    mfaToken.getUser().getEmail(),
+                    ip,
+                    userAgent,
+                    "OTP expired"
+            );
+            log.warn("AuthService.verifyOtp(): OTP expired id={}", request.getId());
             throw new InvalidTokenException("Token is expired");
         }
 
         // 3. OTP mismatch
         String submittedOtp = request.getOtp().trim();
         if (!mfaToken.getOtp().equals(submittedOtp)) {
+            //Record activity for wrong password
+            loginActivityService.recordFailure(mfaToken.getUser().getEmail(), ip, userAgent, "Wrong OTP entered");
             log.warn("AuthService.verifyOtp(): wrong OTP entered for id={}", request.getId());
             throw new InvalidCredentialsException("Wrong OTP. Please enter correct OTP");
         }
+
 
         // 4. Mark token as used
         mfaToken.setUsed(true);
@@ -480,6 +499,9 @@ public class AuthServiceImpl implements AuthService {
 
         // 5. Fetch user
         User user = mfaToken.getUser();
+
+        //Record LoginActivity after successful otp verification
+        loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
 
         log.info("AuthService.verifyOtp(): user verified email={}", user.getEmail());
 
