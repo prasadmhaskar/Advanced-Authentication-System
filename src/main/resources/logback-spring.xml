@@ -1,0 +1,55 @@
+<configuration>
+
+    <appender name="myConsoleAppender" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>
+                %d{yy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg %n
+            </pattern>
+        </encoder>
+    </appender>
+
+    <appender name="myFileAppender" class="ch.qos.logback.core.FileAppender">
+        <file>
+            advAuthSys.log
+        </file>
+        <encoder>
+            <pattern>
+                %d{yy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg %n
+            </pattern>
+        </encoder>
+    </appender>
+
+    <appender name="JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/app.json</file>
+
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>logs/app-%d{yyyy-MM-dd}.json</fileNamePattern>
+            <maxHistory>14</maxHistory>
+        </rollingPolicy>
+
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+
+                <timestamp />
+
+                <logLevel />
+
+                <loggerName />
+
+                <message />
+
+                <stackTrace />
+
+                <mdc />
+
+            </providers>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="JSON"/>
+        <appender-ref ref="myConsoleAppender"/>
+        <appender-ref ref="myFileAppender"/>
+    </root>
+
+</configuration>

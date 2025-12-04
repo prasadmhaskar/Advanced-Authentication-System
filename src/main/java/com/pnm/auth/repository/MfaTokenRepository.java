@@ -24,5 +24,4 @@ public interface MfaTokenRepository extends JpaRepository<MfaToken, Long> {
     @Query("SELECT t FROM MfaToken t WHERE t.user.id = :userId AND t.used = false AND t.expiresAt > :now")
     List<MfaToken> findValidTokens(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
-
 }

@@ -16,6 +16,9 @@ import com.pnm.auth.specification.LoginActivitySpecification;
 import com.pnm.auth.specification.UserSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -33,11 +36,22 @@ public class AdminServiceImpl implements AdminService {
     private final UserRepository userRepository;
     private final LoginActivityRepository loginActivityRepository;
 
+    // TODO: private final AuditService auditService;
+    // TODO: private final IpDeviceIntelligenceService ipService;
+    // TODO: private final AdminAnalyticsService adminAnalyticsService;
+
+
+    // ============================================================
+    //  1. GET USERS WITH FILTERS + PAGINATION
+    // ============================================================
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "users.list", key = "#page + '-' + #size + '-' + #filter")
     public PagedResponse<UserAdminResponse> getUsers(int page, int size, UserFilterRequest filter) {
 
-        Pageable pageable = PageRequest.of(page, size);
+        log.info("AdminService.getUsers(): started page={} size={}", page, size);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
         Page<User> userPage = userRepository.findAll(
                 UserSpecification.filter(filter),
@@ -48,6 +62,8 @@ public class AdminServiceImpl implements AdminService {
                 .stream()
                 .map(UserAdminResponse::fromEntity)
                 .toList();
+
+        log.info("AdminService.getUsers(): fetched {} users", content.size());
 
         return PagedResponse.<UserAdminResponse>builder()
                 .content(content)
@@ -60,50 +76,109 @@ public class AdminServiceImpl implements AdminService {
     }
 
 
+    // ============================================================
+    //  2. DELETE USER
+    // ============================================================
     @Override
     @Transactional
+    @CacheEvict(value = {"users.list", "users"}, allEntries = true)
     public void deleteUser(Long id) {
-        if (!userRepository.existsById(id)) {
-            log.warn("AdminService.deleteUser(): User not found with id={}", id);
-            throw new UserNotFoundException("User not found");
-        }
-        userRepository.deleteById(id);
-        log.info("AdminService.deleteUser(): User deleted successfully with id={}", id);
+
+        log.info("AdminService.deleteUser(): started for id={}", id);
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("AdminService.deleteUser(): user not found id={}", id);
+                    return new UserNotFoundException("User not found with id=" + id);
+                });
+
+        userRepository.delete(user);
+
+        log.info("AdminService.deleteUser(): deleted user id={}", id);
+
+        // TODO: auditService.recordUserDeletion(id);
     }
 
 
+    // ============================================================
+    //  3. BLOCK USER
+    // ============================================================
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "users", allEntries = true),
+            @CacheEvict(value = "users.list", allEntries = true)
+    })
     public void blockUser(Long id) {
+
+        log.info("AdminService.blockUser(): started id={}", id);
+
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+                .orElseThrow(() -> {
+                    log.warn("AdminService.blockUser(): user not found id={}", id);
+                    return new UserNotFoundException("User not found with id=" + id);
+                });
+
+        if (!user.isActive()) {
+            log.info("AdminService.blockUser(): user already blocked id={}", id);
+            return;
+        }
 
         user.setActive(false);
         userRepository.save(user);
 
-        log.info("AdminService.blockUser(): User blocked id={}", id);
+        log.info("AdminService.blockUser(): user blocked id={}", id);
+
+        // TODO: auditService.recordUserBlock(id);
     }
 
+
+    // ============================================================
+    //  4. UNBLOCK USER
+    // ============================================================
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "users", allEntries = true),
+            @CacheEvict(value = "users.list", allEntries = true)
+    })
     public void unblockUser(Long id) {
+
+        log.info("AdminService.unblockUser(): started id={}", id);
+
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
+                .orElseThrow(() -> {
+                    log.warn("AdminService.unblockUser(): user not found id={}", id);
+                    return new UserNotFoundException("User not found with id=" + id);
+                });
+
+        if (user.isActive()) {
+            log.info("AdminService.unblockUser(): user already active id={}", id);
+            return;
+        }
 
         user.setActive(true);
         userRepository.save(user);
 
-        log.info("AdminService.unblockUser(): User unblocked id={}", id);
+        log.info("AdminService.unblockUser(): user unblocked id={}", id);
+
+        // TODO: auditService.recordUserUnblock(id);
     }
 
 
-    @Transactional(readOnly = true)
+    // ============================================================
+    //  5. LOGIN ACTIVITY LIST
+    // ============================================================
     @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "loginActivities", key = "#page + '-' + #size + '-' + #filter")
     public PagedResponse<LoginActivityResponse> getLoginActivities(
             int page,
             int size,
             LoginActivityFilterRequest filter
     ) {
+
+        log.info("AdminService.getLoginActivities(): started page={} size={}", page, size);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
@@ -117,6 +192,8 @@ public class AdminServiceImpl implements AdminService {
                 .map(LoginActivityResponse::fromEntity)
                 .toList();
 
+        log.info("AdminService.getLoginActivities(): fetched {} records", content.size());
+
         return PagedResponse.<LoginActivityResponse>builder()
                 .content(content)
                 .page(activityPage.getNumber())
@@ -128,21 +205,24 @@ public class AdminServiceImpl implements AdminService {
     }
 
 
-
-    @Transactional
+    // ============================================================
+    //  6. GET SINGLE LOGIN ACTIVITY BY ID
+    // ============================================================
     @Override
+    @Transactional(readOnly = true)
+    @Cacheable(value = "loginActivity", key = "#id")
     public LoginActivityResponse getActivityById(Long id) {
 
-        log.info("AdminService.getActivityById(): started");
+        log.info("AdminService.getActivityById(): started id={}", id);
 
-        LoginActivity activity = loginActivityRepository.findById(id).orElseThrow(() ->{
-            log.warn("AdminService.getActivityById(): no activity found for id={}",id);
-            throw new ResourceNotFoundException("Login activity not found");
-        });
+        LoginActivity activity = loginActivityRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.warn("AdminService.getActivityById(): not found id={}", id);
+                    return new ResourceNotFoundException("Login activity not found with id=" + id);
+                });
 
-        log.info("AdminService.getActivityById(): returned activity for id={}",id);
+        log.info("AdminService.getActivityById(): returned id={}", id);
+
         return LoginActivityResponse.fromEntity(activity);
     }
-
-
 }

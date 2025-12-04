@@ -1,7 +1,8 @@
 package com.pnm.auth.config;
 
 import com.pnm.auth.security.filter.JwtAuthenticationFilter;
-import com.pnm.auth.security.filter.RateLimiterFilter;
+import com.pnm.auth.security.filter.RedisRateLimiterFilter;
+import com.pnm.auth.security.filter.RequestLoggingFilter;
 import com.pnm.auth.security.oauth.OAuth2SuccessHandler;
 import com.pnm.auth.security.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +30,8 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtFilter;
     private final UserDetailsServiceImpl userDetailsServiceImpl;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
-    private final RateLimiterFilter rateLimiterFilter;
+    private final RedisRateLimiterFilter redisRateLimiterFilter;
+    private final RequestLoggingFilter requestLoggingFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -53,13 +55,12 @@ public class SecurityConfig {
                                     "/api/auth/login",
                                     "/api/auth/verify",
                                     "/api/auth/refresh",
+                                    "/api/auth/forgot-password",
                                     "/oauth2/**",
-                                    "/login/oauth2/**",
-                                    "/api/auth/logout"
+                                    "/login/oauth2/**"
                             )
                             .permitAll()
-                            .anyRequest()
-                            .authenticated();
+                            .anyRequest().authenticated();
                 })
                 .sessionManagement(session -> {
                     log.info("SecurityConfig: Setting session to STATELESS");
@@ -75,7 +76,8 @@ public class SecurityConfig {
 
                     oauth2.successHandler(oAuth2SuccessHandler);
                 })
-                .addFilterBefore(rateLimiterFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(redisRateLimiterFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         log.info("SecurityConfig: SecurityFilterChain built successfully");

@@ -50,6 +50,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 //        log.info("OAuth2SuccessHandler: AuthResponse written to client");
 
         ApiResponse<AuthResponse> apiResponse = ApiResponse.success(
+                "OAUTH2_LOGIN_SUCCESSFUL",
                 authResponse.getMessage(),
                 authResponse,
                 request.getRequestURI()

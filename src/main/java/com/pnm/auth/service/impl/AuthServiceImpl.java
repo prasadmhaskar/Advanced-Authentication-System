@@ -25,6 +25,9 @@ import com.pnm.auth.util.BlacklistedTokenStore;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,8 +52,12 @@ public class AuthServiceImpl implements AuthService {
     private final MfaTokenRepository mfaTokenRepository;
     private final LoginActivityService loginActivityService;
 
+//    TODO: private final AuditService auditService;                // for future auditing
+//     TODO: private final IpDeviceIntelligenceService ipService;   // for future IP/device intelligence
+
     @Override
     @Transactional
+    @CacheEvict(value = {"users.list"}, allEntries = true)
     public AuthResponse register(RegisterRequest request) {
 
         String email = request.getEmail().trim().toLowerCase();
@@ -60,7 +67,6 @@ public class AuthServiceImpl implements AuthService {
             log.warn("AuthService.register(): failed, email={} already exists", email);
             throw new UserAlreadyExistsException("The email: " + email + " is already registered. Login using your email");
         }
-        else {
             User user = new User();
 
             user.setFullName(request.getFullName());
@@ -70,15 +76,18 @@ public class AuthServiceImpl implements AuthService {
             user.setAuthProviderType(AuthProviderType.EMAIL);
             userRepository.save(user);
             log.info("AuthService.register(): user saved email={}", email);
+
             //Creating verification token
             String token = verificationService.createVerificationToken(user, "EMAIL_VERIFICATION");
+
             //Sending email to user with verification link
             emailService.sendVerificationEmail(user.getEmail(), token);
             log.info("AuthService.register(): verification email sent to email={}", email);
             log.info("AuthService.register(): finished for email={}", email);
-            return new AuthResponse("Registration successful. Please verify email.", null, null, null);
-
-        }
+            return new AuthResponse("Registration successful. Please verify email.",
+                    null,
+                    null,
+                    null);
     }
 
 
@@ -90,7 +99,7 @@ public class AuthServiceImpl implements AuthService {
         //Check user in db
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("AuthService.login(): user not found email={}", email);
+                    log.warn("AuthService.login(): user not found with email={}", email);
                     return new UserNotFoundException("User not found with email: " + email);
                 });
 
@@ -113,8 +122,6 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidTokenException("Verify email first");
         }
 
-        //Storing login activity before MFA
-        loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
 
         // -----------------------------
         // 2FA / MFA CHECK
@@ -139,8 +146,8 @@ public class AuthServiceImpl implements AuthService {
 
             // 3. Send OTP email
             emailService.sendMfaOtpEmail(user.getEmail(), otp);
-
             log.info("AuthService.login(): MFA OTP generated for email={} (mfaTokenId={})", email, mfaToken.getId());
+
             // 4. Return MFA_REQUIRED response
             return new AuthResponse(
                     "MFA_REQUIRED",
@@ -150,8 +157,7 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
-
-
+        // Non-MFA user: generate tokens and record successful login
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
@@ -164,9 +170,14 @@ public class AuthServiceImpl implements AuthService {
         refreshToken.setCreatedAt(LocalDateTime.now());
         refreshTokenRepository.save(refreshToken);
 
-        log.info("AuthService.login(): successful for email={} (refresh_token_saved)", email);
-        return new AuthResponse("Login successful", newAccessToken, newRefreshToken, null);
+        // Record successful login
+        loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
 
+        log.info("AuthService.login(): successful for email={} (refresh_token_saved)", email);
+        return new AuthResponse("Login successful",
+                newAccessToken,
+                newRefreshToken,
+                null);
     }
 
 
@@ -175,27 +186,27 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse refreshToken(RefreshTokenRequest refreshTokenRequest) {
 
         String oldToken = refreshTokenRequest.getRefreshToken();
-        log.info("AuthService.refreshToken(): started (tokenPrefix={})", oldToken.substring(0, 10));
+        log.info("AuthService.refreshToken(): started (tokenPrefix={})", safeTokenPrefix(oldToken));
 
-        // 1. Check DB record
+        // Check DB record
         RefreshToken tokenEntity = refreshTokenRepository.findByToken(oldToken)
                 .orElseThrow(() -> {
-                    log.warn("AuthService.refreshToken(): invalid tokenPrefix={}", oldToken.substring(0, 10));
+                    log.warn("AuthService.refreshToken(): invalid tokenPrefix={}", safeTokenPrefix(oldToken));
                     return new InvalidTokenException("Invalid refresh token");
                 });
 
-        // 2. Check expiration
+        // Check expiration
         if (jwtUtil.isTokenExpired(oldToken)) {
             refreshTokenRepository.delete(tokenEntity);
-            log.warn("AuthService.refreshToken(): expired token deleted tokenPrefix={}", oldToken.substring(0, 10));
+            log.warn("AuthService.refreshToken(): expired token deleted tokenPrefix={}", safeTokenPrefix(oldToken));
             throw new InvalidTokenException("Refresh token is expired");
         }
 
-        // 3. Extract email
+        // Extract email
         String email = jwtUtil.extractUsername(oldToken);
         log.info("AuthService.refreshToken(): extracted email={}", email);
 
-        // 4. Fetch user
+        // Fetch user
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("AuthService.refreshToken(): user not found email={}", email);
@@ -207,14 +218,14 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidTokenException("Your account has been blocked. Contact support.");
         }
 
-        // 5. Generate NEW tokens
+        // Rotate tokens (refresh token rotation)
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        // 6. Delete old refresh token (important!!)
+        // Delete old refresh token (important!!)
         refreshTokenRepository.delete(tokenEntity);
 
-        // 7. Save the *new refresh token*
+        // Save new refresh token
         RefreshToken newTokenEntity = new RefreshToken();
         newTokenEntity.setToken(newRefreshToken);
         newTokenEntity.setUser(user);
@@ -222,15 +233,16 @@ public class AuthServiceImpl implements AuthService {
 
         refreshTokenRepository.save(newTokenEntity);
 
-        // 8. Return tokens
+        // Return tokens
         log.info("AuthService.refreshToken(): rotated token successfully for email={}", email);
         return new AuthResponse("Token refreshed successfully", newAccessToken, newRefreshToken, null);
     }
 
 
     @Override
-    public void forgotPassword(String email) {
+    public void forgotPassword(String rawEmail) {
 
+        String email = rawEmail.trim().toLowerCase();
         log.info("AuthService.forgotPassword(): started for email={}", email);
 
         User user = userRepository.findByEmail(email)
@@ -251,44 +263,42 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("AuthService.resetPassword() started");
 
-        // 1. Validate token
+        // Validate token
         VerificationToken verificationToken = verificationTokenRepository.findByToken(request.getToken())
                 .orElseThrow(() -> {
                     log.warn("AuthService.resetPassword(): invalid token");
                     return new InvalidTokenException("Invalid token");
                 });
 
-        // 2. Check type
+        // Check type
         if (!verificationToken.getType().equals("PASSWORD_RESET")){
             log.warn("AuthService.resetPassword(): token type mismatch");
             throw new InvalidTokenException("Token type mismatch");
         }
 
-        // 3. Check expiration
+        // Check expiration
         if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())){
             log.warn("AuthService.resetPassword(): token expired");
             throw new InvalidTokenException("Token expired");
         }
 
-        // 4. Load user from DB
+        // Load user from DB
         User user = verificationToken.getUser();
-
-        // 5. Encode new password
+        // Encode new password
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-
-        // 6. Save user
+        // Save updated user
         userRepository.save(user);
 
-        // 7. Delete token after use (important)
+        // Delete token after use (important)
         verificationTokenRepository.delete(verificationToken);
 
         log.info("AuthService.resetPassword(): successful for userId={}", user.getId());
-
     }
 
 
     @Override
     @Transactional(readOnly = true)
+    @Cacheable(value = "users", key = "@jwtUtil.extractUsername(#token)")
     public UserDetailsResponse userDetailsFromAccessToken(String token) {
 
         log.info("AuthService.userDetailsFromAccessToken(): started");
@@ -315,6 +325,7 @@ public class AuthServiceImpl implements AuthService {
                 });
 
         log.info("AuthService.userDetailsFromAccessToken(): success email={}", email);
+
         return new UserDetailsResponse(
                 user.getFullName(),
                 user.getEmail(),
@@ -327,21 +338,28 @@ public class AuthServiceImpl implements AuthService {
 
 
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "users", key = "@jwtUtil.extractUsername(#accessToken)"),
+            @CacheEvict(value = "users.list", allEntries = true)
+    })
     public void logout(String accessToken, String refreshToken) {
 
         log.info("AuthService.logout(): started");
 
-        // 1️⃣ Extract access token expiry
+        // Extract access token expiry
         Claims claims = jwtUtil.extractAllClaims(accessToken);
         long expiry = claims.getExpiration().getTime();
 
-        // 2️⃣ Blacklist access token UNTIL it expires
+        // Blacklist access token UNTIL it expires
         blacklistedTokenStore.blacklistToken(accessToken, expiry);
         log.info("AuthService.logout(): Access token blacklisted until={}", expiry);
 
-        // 3️⃣ Delete refresh token from DB
+        // Delete refresh token from DB
         refreshTokenRepository.deleteByToken(refreshToken);
         log.info("AuthService.logout(): Refresh token deleted");
+
+        // TODO: loginActivityService.recordLogoutSuccess(...);
+        // TODO: auditService.recordLogout(...);
 
         log.info("AuthService.logout(): finished");
     }
@@ -349,6 +367,10 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "users", key = "@jwtUtil.extractUsername(#request.accessToken)"),
+            @CacheEvict(value = "users.list", allEntries = true)
+    })
     public void linkOAuthAccount(LinkOAuthRequest request) {
 
         log.info("AuthService.linkOAuthAccount(): started provider={}", request.getProviderType());
@@ -389,6 +411,10 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "users", key = "@jwtUtil.extractUsername(#token)"),
+            @CacheEvict(value = "users.list", allEntries = true)
+    })
     public AuthResponse changePassword(String token, String oldPassword, String newPassword) {
 
         if (jwtUtil.isTokenExpired(token)) {
@@ -418,11 +444,9 @@ public class AuthServiceImpl implements AuthService {
         log.info("AuthService.changePassword(): deleted all old refresh tokens for email={}", email);
 
 
-        // Extract access token expiry
+        // Blacklist old access token
         Claims claims = jwtUtil.extractAllClaims(token);
         long expiry = claims.getExpiration().getTime();
-
-        // Blacklist the old access token
         blacklistedTokenStore.blacklistToken(token, expiry);
         log.info("AuthService.changePassword(): Access token blacklisted until={} for email={}", expiry, email);
 
@@ -440,7 +464,6 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("AuthService.changePassword(): completed successfully for email={}", email);
         return new AuthResponse("Password changed successfully", newAccessToken, newRefreshToken, null);
-
     }
 
 
@@ -463,7 +486,7 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("AuthService.verifyOtp(): started for id={}", request.getId());
 
-        // 1. Fetch token
+        // Fetch token
         MfaToken mfaToken = mfaTokenRepository.findByIdAndUsedFalse(request.getId())
                 .orElseThrow(() -> {
                     loginActivityService.recordFailure(null, ip, userAgent, "OTP token not found or already used");
@@ -471,7 +494,7 @@ public class AuthServiceImpl implements AuthService {
                     return new InvalidTokenException("Token not found");
                 });
 
-        // 2. Expired?
+        // check expiry
         if (mfaToken.getExpiresAt().isBefore(LocalDateTime.now())) {
             loginActivityService.recordFailure(
                     mfaToken.getUser().getEmail(),
@@ -502,7 +525,6 @@ public class AuthServiceImpl implements AuthService {
 
         //Record LoginActivity after successful otp verification
         loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
-
         log.info("AuthService.verifyOtp(): user verified email={}", user.getEmail());
 
         // 6. Create new tokens
@@ -527,6 +549,12 @@ public class AuthServiceImpl implements AuthService {
                 refreshTokenStr,
                 null
         );
+    }
+
+    // Helper to avoid StringIndexOutOfBounds if token is short/null
+    private String safeTokenPrefix(String token) {
+        if (token == null) return "null";
+        return token.length() <= 10 ? token : token.substring(0, 10);
     }
 
 }
