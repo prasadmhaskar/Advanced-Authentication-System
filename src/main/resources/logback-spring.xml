@@ -19,35 +19,35 @@
         </encoder>
     </appender>
 
-    <appender name="JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>logs/app.json</file>
+<!--    <appender name="JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">-->
+<!--        <file>logs/app.json</file>-->
 
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>logs/app-%d{yyyy-MM-dd}.json</fileNamePattern>
-            <maxHistory>14</maxHistory>
-        </rollingPolicy>
+<!--        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">-->
+<!--            <fileNamePattern>logs/app-%d{yyyy-MM-dd}.json</fileNamePattern>-->
+<!--            <maxHistory>14</maxHistory>-->
+<!--        </rollingPolicy>-->
 
-        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
-            <providers>
+<!--        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">-->
+<!--            <providers>-->
 
-                <timestamp />
+<!--                <timestamp />-->
 
-                <logLevel />
+<!--                <logLevel />-->
 
-                <loggerName />
+<!--                <loggerName />-->
 
-                <message />
+<!--                <message />-->
 
-                <stackTrace />
+<!--                <stackTrace />-->
 
-                <mdc />
+<!--                <mdc />-->
 
-            </providers>
-        </encoder>
-    </appender>
+<!--            </providers>-->
+<!--        </encoder>-->
+<!--    </appender>-->
 
     <root level="INFO">
-        <appender-ref ref="JSON"/>
+<!--        <appender-ref ref="JSON"/>-->
         <appender-ref ref="myConsoleAppender"/>
         <appender-ref ref="myFileAppender"/>
     </root>

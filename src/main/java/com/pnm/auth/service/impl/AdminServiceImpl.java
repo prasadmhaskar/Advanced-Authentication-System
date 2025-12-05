@@ -7,9 +7,11 @@ import com.pnm.auth.dto.response.PagedResponse;
 import com.pnm.auth.dto.response.UserAdminResponse;
 import com.pnm.auth.entity.LoginActivity;
 import com.pnm.auth.entity.User;
+import com.pnm.auth.entity.UserIpLog;
 import com.pnm.auth.exception.ResourceNotFoundException;
 import com.pnm.auth.exception.UserNotFoundException;
 import com.pnm.auth.repository.LoginActivityRepository;
+import com.pnm.auth.repository.UserIpLogRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.AdminService;
 import com.pnm.auth.specification.LoginActivitySpecification;
@@ -27,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +38,7 @@ public class AdminServiceImpl implements AdminService {
 
     private final UserRepository userRepository;
     private final LoginActivityRepository loginActivityRepository;
+    private final UserIpLogRepository userIpLogRepository;
 
     // TODO: private final AuditService auditService;
     // TODO: private final IpDeviceIntelligenceService ipService;

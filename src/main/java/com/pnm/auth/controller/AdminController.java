@@ -2,17 +2,16 @@ package com.pnm.auth.controller;
 
 import com.pnm.auth.dto.request.LoginActivityFilterRequest;
 import com.pnm.auth.dto.request.UserFilterRequest;
-import com.pnm.auth.dto.response.ApiResponse;
-import com.pnm.auth.dto.response.LoginActivityResponse;
-import com.pnm.auth.dto.response.PagedResponse;
-import com.pnm.auth.dto.response.UserAdminResponse;
+import com.pnm.auth.dto.response.*;
 import com.pnm.auth.service.AdminService;
+import com.pnm.auth.service.IpMonitoringService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -22,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 public class AdminController {
 
     private final AdminService adminService;
+    private final IpMonitoringService ipMonitoringService;
 
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<PagedResponse<UserAdminResponse>>> getUsers(
@@ -131,8 +131,52 @@ public class AdminController {
 
         return ResponseEntity.ok(body);
     }
+
+
+    @GetMapping("/security/ip/user/{userId}/recent")
+    public ResponseEntity<ApiResponse<List<UserIpLogResponse>>> getRecentIpsForUser(
+            @PathVariable Long userId, HttpServletRequest request
+    ) {
+        List<UserIpLogResponse> recentIps = ipMonitoringService.getRecentIpsForUser(userId);
+
+        ApiResponse<List<UserIpLogResponse>> body = ApiResponse.success(
+                "RECENT_IPS_FETCHED",
+                "Recent IPs fetched for userId " + userId,
+                recentIps,
+                request.getRequestURI()
+        );
+        return ResponseEntity.ok(body);
+    }
+
+
+    @GetMapping("/security/ip/usage")
+    public ResponseEntity<ApiResponse<IpUsageResponse>> getIpUsage(
+            @RequestParam String ip, HttpServletRequest request
+    ) {
+        IpUsageResponse response = ipMonitoringService.countIpUsage(ip);
+
+        ApiResponse<IpUsageResponse> body = ApiResponse.success(
+                "IP_USAGE_FETCHED",
+                "IP usage fetched for ip " + ip,
+                response,
+                request.getRequestURI()
+        );
+        return ResponseEntity.ok(body);
+    }
+
+
+    @GetMapping("/security/ip/log/{id}")
+    public ResponseEntity<ApiResponse<UserIpLogResponse>> getSingleIpLog(
+            @PathVariable Long id, HttpServletRequest request
+    ) {
+        UserIpLogResponse logEntry = ipMonitoringService.getById(id);
+
+        ApiResponse<UserIpLogResponse> body = ApiResponse.success(
+                "IP_LOG_ENTRY_FETCHED",
+                "IP log entry fetched for id " + id,
+                logEntry,
+                request.getRequestURI()
+        );
+        return ResponseEntity.ok(body);
+    }
 }
-
-
-
-

@@ -68,7 +68,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         } else if (user == null && emailUser != null) {
             // Email exists
             log.warn("OAuth2Service.handleOAuth2LoginRequest(): account exists for email={} (needs merging)", email);
-            loginActivityService.recordFailure(email, ip, userAgent, "OAuth2 login failed: account exists but not linked");
+            loginActivityService.recordFailure(email,"OAuth2 login failed: account exists but not linked");
             throw new UserAlreadyExistsException("The email: "+email+" is already registered. Do you want to merge both accounts?");
         } else {
             // Existing OAuth2 user (user != null)
@@ -82,13 +82,13 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
         if (user != null && !user.isActive()) {
             log.warn("OAuth2Service.handleOAuth2LoginRequest(): Blocked user trying to login for email={}", email);
-            loginActivityService.recordFailure(email, ip, userAgent, "OAuth2 login failed: blocked user");
+            loginActivityService.recordFailure(email,"OAuth2 login failed: blocked user");
             throw new InvalidCredentialsException("Your account has been blocked. Contact support.");
         }
 
 
         //SUCCESS: Record login activity
-        loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
+        loginActivityService.recordSuccess(user.getId(), user.getEmail());
 
         String accessToken = jwtUtil.generateAccessToken(user);
         String refreshToken = jwtUtil.generateRefreshToken(user);
