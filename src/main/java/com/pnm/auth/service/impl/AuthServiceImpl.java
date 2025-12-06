@@ -51,6 +51,7 @@ public class AuthServiceImpl implements AuthService {
     private final MfaTokenRepository mfaTokenRepository;
     private final LoginActivityService loginActivityService;
     private final IpMonitoringService ipMonitoringService;
+    private final SuspiciousLoginAlertService suspiciousLoginAlertService;
 
 //    TODO: private final AuditService auditService;                // for future auditing
 //     TODO: private final IpDeviceIntelligenceService ipService;   // for future IP/device intelligence
@@ -84,7 +85,9 @@ public class AuthServiceImpl implements AuthService {
             emailService.sendVerificationEmail(user.getEmail(), token);
             log.info("AuthService.register(): verification email sent to email={}", email);
             log.info("AuthService.register(): finished for email={}", email);
-            return new AuthResponse("Registration successful. Please verify email.",
+            return new AuthResponse(
+                    "REGISTRATION_SUCCESSFUL",
+                    "Registration successful. Please verify email.",
                     null,
                     null,
                     null);
@@ -140,6 +143,7 @@ public class AuthServiceImpl implements AuthService {
             MfaToken mfaToken = new MfaToken();
             mfaToken.setUser(user);
             mfaToken.setOtp(otp);
+            mfaToken.setRiskBased(false);
             mfaToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
             mfaToken.setUsed(false);
 
@@ -152,6 +156,7 @@ public class AuthServiceImpl implements AuthService {
             // 4. Return MFA_REQUIRED response
             return new AuthResponse(
                     "MFA_REQUIRED",
+                    "MFA verification required.",
                     null,
                     null,
                     mfaToken.getId()   // <--- IMPORTANT: pass MFA token ID
@@ -175,6 +180,7 @@ public class AuthServiceImpl implements AuthService {
         // -------------------------
         if (risk >= 80) {
             log.error("HIGH RISK BLOCKED for email={} riskScore={}", email, risk);
+            suspiciousLoginAlertService.sendHighRiskAlert(user, ip, userAgent, reasons);
             loginActivityService.recordFailure(email, "High risk login blocked");
             throw new InvalidCredentialsException("Login blocked due to high risk activity.");
         }
@@ -193,6 +199,7 @@ public class AuthServiceImpl implements AuthService {
             MfaToken mfaToken = new MfaToken();
             mfaToken.setUser(user);
             mfaToken.setOtp(otp);
+            mfaToken.setRiskBased(true);
             mfaToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
             mfaToken.setUsed(false);
             mfaTokenRepository.save(mfaToken);
@@ -201,6 +208,7 @@ public class AuthServiceImpl implements AuthService {
 
             return new AuthResponse(
                     "RISK_OTP_REQUIRED",
+                    "Suspicious login detected. OTP verification required.",
                     null,
                     null,
                     mfaToken.getId()
@@ -228,7 +236,9 @@ public class AuthServiceImpl implements AuthService {
         loginActivityService.recordSuccess(user.getId(), user.getEmail());
 
         log.info("AuthService.login(): successful for email={} (refresh_token_saved)", email);
-        return new AuthResponse("Login successful",
+        return new AuthResponse(
+                "LOGIN_SUCCESS",
+                "Login successful",
                 newAccessToken,
                 newRefreshToken,
                 null);
@@ -289,7 +299,12 @@ public class AuthServiceImpl implements AuthService {
 
         // Return tokens
         log.info("AuthService.refreshToken(): rotated token successfully for email={}", email);
-        return new AuthResponse("Token refreshed successfully", newAccessToken, newRefreshToken, null);
+        return new AuthResponse(
+                "TOKEN_REFRESHED",
+                "Token refreshed successfully",
+                newAccessToken,
+                newRefreshToken,
+                null);
     }
 
 
@@ -517,7 +532,12 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenRepository.save(refreshToken);
 
         log.info("AuthService.changePassword(): completed successfully for email={}", email);
-        return new AuthResponse("Password changed successfully", newAccessToken, newRefreshToken, null);
+        return new AuthResponse(
+                "PASSWORD_CHANGED",
+                "Password changed successfully",
+                newAccessToken,
+                newRefreshToken,
+                null);
     }
 
 
@@ -567,7 +587,6 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidCredentialsException("Wrong OTP. Please enter correct OTP");
         }
 
-
         // 4. Mark token as used
         mfaToken.setUsed(true);
         mfaTokenRepository.save(mfaToken);
@@ -595,8 +614,18 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("AuthService.verifyOtp(): completed for email={}", user.getEmail());
 
+        String message = mfaToken.isRiskBased()
+                ? "Risk-based OTP verified successfully"
+                : "MFA OTP verified successfully";
+
+        String type = mfaToken.isRiskBased()
+                ? "RISK_VERIFIED"
+                : "MFA_VERIFIED";
+
+        // Final response
         return new AuthResponse(
-                "Otp verified successfully",
+                message,
+                type,
                 accessToken,
                 refreshTokenStr,
                 null
