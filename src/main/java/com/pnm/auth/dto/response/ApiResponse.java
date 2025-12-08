@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Getter
 @Setter
@@ -26,8 +27,14 @@ public class ApiResponse<T> {
 
     private T data;
 
-    private List<FieldErrorResponse> errors; // only for validation cases
+    private List<FieldErrorResponse> errors; // only for validation errors
 
+    private Map<String, Object> meta; // ⭐ NEW FIELD
+
+
+    // -----------------------------------------------------
+    // SUCCESS (no meta)
+    // -----------------------------------------------------
     public static <T> ApiResponse<T> success(String code, String message, T data, String path) {
         return ApiResponse.<T>builder()
                 .success(true)
@@ -39,6 +46,26 @@ public class ApiResponse<T> {
                 .build();
     }
 
+    // -----------------------------------------------------
+    // SUCCESS with meta
+    // -----------------------------------------------------
+    public static <T> ApiResponse<T> successWithMeta(
+            String code, String message, T data, String path, Map<String, Object> meta) {
+        return ApiResponse.<T>builder()
+                .success(true)
+                .code(code)
+                .message(message)
+                .data(data)
+                .path(path)
+                .timestamp(Instant.now().toString())
+                .meta(meta)
+                .build();
+    }
+
+
+    // -----------------------------------------------------
+    // ERROR (no meta)
+    // -----------------------------------------------------
     public static <T> ApiResponse<T> error(String code, String message, String path) {
         return ApiResponse.<T>builder()
                 .success(false)
@@ -49,6 +76,29 @@ public class ApiResponse<T> {
                 .build();
     }
 
+    // -----------------------------------------------------
+    // ERROR with meta (⭐ Risk-based OTP will use this)
+    // -----------------------------------------------------
+    public static <T> ApiResponse<T> errorWithMeta(
+            String code,
+            String message,
+            String path,
+            Map<String, Object> meta
+    ) {
+        return ApiResponse.<T>builder()
+                .success(false)
+                .code(code)
+                .message(message)
+                .path(path)
+                .timestamp(Instant.now().toString())
+                .meta(meta)
+                .build();
+    }
+
+
+    // -----------------------------------------------------
+    // VALIDATION ERROR
+    // -----------------------------------------------------
     public static <T> ApiResponse<T> validationError(
             String message,
             String path,
@@ -64,4 +114,5 @@ public class ApiResponse<T> {
                 .build();
     }
 }
+
 

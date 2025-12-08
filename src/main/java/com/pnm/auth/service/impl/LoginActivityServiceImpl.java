@@ -4,6 +4,7 @@ import com.pnm.auth.entity.LoginActivity;
 import com.pnm.auth.entity.User;
 import com.pnm.auth.exception.ResourceNotFoundException;
 import com.pnm.auth.repository.LoginActivityRepository;
+import com.pnm.auth.repository.TrustedDeviceRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.IpMonitoringService;
 import com.pnm.auth.service.LoginActivityService;
@@ -23,6 +24,7 @@ public class LoginActivityServiceImpl implements LoginActivityService {
     private final UserRepository userRepository;
     private final LoginActivityRepository loginActivityRepository;
     private final IpMonitoringService ipMonitoringService;
+    private final TrustedDeviceRepository trustedDeviceRepository;
 
     // ---------------------------------------------
     // SUCCESS

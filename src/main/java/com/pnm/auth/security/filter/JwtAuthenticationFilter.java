@@ -3,6 +3,7 @@ package com.pnm.auth.security.filter;
 import com.pnm.auth.entity.User;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.security.JwtUtil;
+import com.pnm.auth.security.UserDetailsImpl;
 import com.pnm.auth.util.BlacklistedTokenStore;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -78,7 +79,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().getAuthentication() == null) {
 
             log.info("JwtAuthenticationFilter: Loading userDetails for username={}", username);
-            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+            UserDetailsImpl userDetails = (UserDetailsImpl) userDetailsService.loadUserByUsername(username);
 
             User user = userRepository.findByEmail(username).orElse(null);
             if (user != null && !user.isActive()) {

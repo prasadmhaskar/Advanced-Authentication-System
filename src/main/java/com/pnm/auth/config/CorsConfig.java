@@ -20,36 +20,28 @@ public class CorsConfig {
 
         CorsConfiguration config = new CorsConfiguration();
 
-        // Allowed origins
-        config.setAllowedOrigins(List.of("http://localhost:3000"));
-        log.info("CorsConfig: Allowed origins -> {}", config.getAllowedOrigins());
+        // Match dev + prod dynamically
+        config.setAllowedOriginPatterns(List.of(
+                "http://localhost:*",
+                "https://*.yourfrontend.com"
+        ));
 
-        // Allowed headers
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
-        log.info("CorsConfig: Allowed headers -> {}", config.getAllowedHeaders());
+        config.setAllowedHeaders(List.of("*"));
+        config.setAllowedMethods(List.of("*"));
 
-        // Allowed methods
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        log.info("CorsConfig: Allowed methods -> {}", config.getAllowedMethods());
-
-        // Allow sending cookies, tokens
+        // Allow cookies + Authorization header + refresh tokens
         config.setAllowCredentials(true);
-        log.info("CorsConfig: Credentials allowed -> {}", config.getAllowCredentials());
 
-        // Exposed headers
-        config.setExposedHeaders(List.of("Authorization",
+        config.setExposedHeaders(List.of(
+                "Authorization",
                 "X-Refresh-Token",
-                "X-Request-Id"));
-        log.info("CorsConfig: Exposed headers -> {}", config.getExposedHeaders());
+                "X-Request-Id"
+        ));
 
-        // Preflight cache time
-        config.setMaxAge(86400L);
-        log.info("CorsConfig: MaxAge (preflight caching) -> {} seconds", config.getMaxAge());
+        config.setMaxAge(86400L);  // Preflight caching
 
-        // Apply to all paths
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
-        log.info("CorsConfig: CORS applied to all endpoints -> /**");
 
         log.info("CorsConfig: CORS Filter successfully created");
 

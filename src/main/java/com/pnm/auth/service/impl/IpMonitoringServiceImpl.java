@@ -6,6 +6,7 @@ import com.pnm.auth.dto.response.IpUsageResponse;
 import com.pnm.auth.dto.response.UserIpLogResponse;
 import com.pnm.auth.entity.UserIpLog;
 import com.pnm.auth.exception.ResourceNotFoundException;
+import com.pnm.auth.repository.TrustedDeviceRepository;
 import com.pnm.auth.repository.UserIpLogRepository;
 import com.pnm.auth.service.GeoIpService;
 import com.pnm.auth.service.IpMonitoringService;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,6 +29,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
 
     private final UserIpLogRepository repo;
     private final GeoIpService geoIpService;
+    private final TrustedDeviceRepository trustedDeviceRepository;
 
 
     // -------------------------------------------------------
@@ -52,8 +55,8 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         DeviceInfo deviceInfo = UserAgentParser.parse(userAgent);
         String deviceSignature = deviceInfo.getSignature();
 
-        boolean knownDevice = deviceSignature != null
-                && repo.existsByUserIdAndDeviceSignature(userId, deviceSignature);
+        boolean trustedDevice = trustedDeviceRepository
+                .existsByUserIdAndDeviceSignatureAndActiveTrue(userId, deviceSignature);
 
         // ---------------------------
         // 2) Previous login for impossible travel
@@ -81,35 +84,38 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         int riskScore = 0;
         List<String> reasons = new ArrayList<>();
 
-        // Rule: New IP for this user
+// Trusted/untrusted device
+        if (trustedDevice) {
+            riskScore -= 15;
+            reasons.add("TRUSTED_DEVICE");
+        } else {
+            riskScore += 20;
+            reasons.add("UNTRUSTED_DEVICE");
+        }
+
+// New IP
         if (!knownIp) {
             riskScore += 20;
             reasons.add("NEW_IP_FOR_USER");
         }
 
-        // Rule: New device for this user
-        if (!knownDevice && deviceSignature != null) {
-            riskScore += 20;
-            reasons.add("NEW_DEVICE_FOR_USER_" + deviceInfo.getDeviceName());
-        }
-
-        // Rule: IP shared by many accounts (3+)
+// IP used by many accounts
         if (accountsUsingIp >= 3) {
             riskScore += 30;
             reasons.add("IP_USED_BY_MULTIPLE_ACCOUNTS_" + accountsUsingIp);
         }
 
-        // Rule: Device fingerprint shared by many accounts (3+)
+// Device used by many accounts
         if (deviceSignature != null && accountsUsingDevice >= 3) {
             riskScore += 40;
             reasons.add("DEVICE_USED_BY_MULTIPLE_ACCOUNTS_" + accountsUsingDevice);
         }
 
-        // Rule: Impossible travel (country changed too fast)
+// Impossible travel
         if (lastLogin != null && lastLogin.getCountryCode() != null && countryCode != null
                 && !lastLogin.getCountryCode().equalsIgnoreCase(countryCode)) {
 
-            Duration diff = Duration.between(lastLogin.getLoginTime(), java.time.LocalDateTime.now());
+            Duration diff = Duration.between(lastLogin.getLoginTime(), LocalDateTime.now());
             long minutes = Math.abs(diff.toMinutes());
 
             if (minutes <= 60) {
@@ -118,7 +124,9 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
             }
         }
 
-        boolean suspicious = riskScore >= 40 || !reasons.isEmpty();
+
+
+        boolean suspicious = riskScore >= 40;
 
         // ---------------------------
         // 6) Build and save entity

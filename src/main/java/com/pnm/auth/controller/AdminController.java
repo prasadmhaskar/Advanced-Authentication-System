@@ -3,11 +3,17 @@ package com.pnm.auth.controller;
 import com.pnm.auth.dto.request.LoginActivityFilterRequest;
 import com.pnm.auth.dto.request.UserFilterRequest;
 import com.pnm.auth.dto.response.*;
+import com.pnm.auth.entity.AuditLog;
 import com.pnm.auth.service.AdminService;
+import com.pnm.auth.service.AuditService;
 import com.pnm.auth.service.IpMonitoringService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -22,6 +28,7 @@ public class AdminController {
 
     private final AdminService adminService;
     private final IpMonitoringService ipMonitoringService;
+    private final AuditService auditService;
 
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<PagedResponse<UserAdminResponse>>> getUsers(
@@ -179,4 +186,28 @@ public class AdminController {
         );
         return ResponseEntity.ok(body);
     }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<PagedResponse<AuditLogResponse>>> getAuditLogs(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            HttpServletRequest request
+    ) {
+
+        log.info("AuditController.getAuditLogs(): Started page={} size={}", page, size);
+
+        PagedResponse<AuditLogResponse> response = auditService.getAll(page, size);
+
+        ApiResponse<PagedResponse<AuditLogResponse>> body = ApiResponse.success(
+                "AUDIT_LOGS_FETCHED",
+                "Audit logs fetched successfully",
+                response,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.ok(body);
+    }
+
+
+
 }

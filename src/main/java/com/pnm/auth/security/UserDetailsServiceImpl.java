@@ -28,16 +28,12 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
         log.info("UserDetailsServiceImpl: User found email={} roles={}", user.getEmail(), user.getRoles());
 
-        UserDetails details = org.springframework.security.core.userdetails.User
-                .builder()
-                .username(user.getEmail())
-                .password(user.getPassword())
-                .authorities(user.getRoles().toArray(new String[0]))
-                .build();
+        UserDetailsImpl details = new UserDetailsImpl(user);
 
         log.info("UserDetailsServiceImpl.loadUserByUsername: Completed for email={}", email);
 
         return details;
     }
+
 }
 

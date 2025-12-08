@@ -1,12 +1,17 @@
 package com.pnm.auth.controller;
 
+import com.pnm.auth.dto.DeviceInfo;
 import com.pnm.auth.dto.request.*;
 import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.AuthResponse;
+import com.pnm.auth.dto.response.TrustedDeviceResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.service.AuthService;
+import com.pnm.auth.service.TrustedDeviceService;
 import com.pnm.auth.service.VerificationService;
 import com.pnm.auth.security.JwtUtil;
+import com.pnm.auth.util.AuthUtil;
+import com.pnm.auth.util.UserAgentParser;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +20,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -25,6 +32,8 @@ public class AuthController {
     private final AuthService authService;
     private final VerificationService verificationService;
     private final JwtUtil jwtUtil;
+    private final TrustedDeviceService trustedDeviceService;
+    private final AuthUtil authUtil;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
@@ -243,5 +252,55 @@ public class AuthController {
         );
         return ResponseEntity.ok(body);
     }
+
+    @GetMapping("/me/devices")
+    public ResponseEntity<ApiResponse<List<TrustedDeviceResponse>>> getMyTrustedDevices() {
+        Long userId = authUtil.getCurrentUserId();
+        List<TrustedDeviceResponse> devices = trustedDeviceService.getTrustedDevices(userId);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "DEVICES_FETCHED",
+                "Trusted devices fetched successfully",
+                devices,
+                "/api/auth/me/devices"
+        ));
+    }
+
+    @DeleteMapping("/me/devices/{id}")
+    public ResponseEntity<ApiResponse<Void>> removeDevice(@PathVariable Long id) {
+        Long userId = authUtil.getCurrentUserId();
+        trustedDeviceService.removeDevice(userId, id);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "DEVICE_REMOVED",
+                "Device removed successfully",
+                null,
+                "/api/auth/me/devices/" + id
+        ));
+    }
+
+    @PostMapping("/security/trusted-devices/keep-current")
+    public ResponseEntity<ApiResponse<Void>> removeOtherDevices(HttpServletRequest request) {
+
+        Long userId = authUtil.getCurrentUserId();
+        String userAgent = request.getHeader("User-Agent");
+
+        DeviceInfo deviceInfo = UserAgentParser.parse(userAgent);
+        String signature = deviceInfo.getSignature();
+
+        trustedDeviceService.removeAllExceptCurrent(userId, signature);
+
+        ApiResponse<Void> body = ApiResponse.success(
+                "TRUSTED_DEVICES_UPDATED",
+                "All other trusted devices have been removed. Only the current device remains trusted.",
+                null,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.ok(body);
+    }
+
+
+
 
 }

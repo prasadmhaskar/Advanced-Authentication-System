@@ -1,6 +1,5 @@
 package com.pnm.auth.aop;
 
-import com.pnm.auth.util.NoLogging;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.*;
@@ -11,7 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Method;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Aspect
 @Component
@@ -99,8 +97,7 @@ public class ServiceLoggingAspect {
 
     private String toShortString(Object v) {
         try {
-            if (v instanceof Collection) {
-                Collection<?> c = (Collection<?>) v;
+            if (v instanceof Collection<?> c) {
                 return v.getClass().getSimpleName() + "[size=" + c.size() + "]";
             }
             if (v.getClass().isArray()) {

@@ -2,7 +2,7 @@ package com.pnm.auth.security.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pnm.auth.dto.response.ApiResponse;
-import com.pnm.auth.service.RedisRateLimiterService;
+import com.pnm.auth.service.impl.RedisRateLimiterService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

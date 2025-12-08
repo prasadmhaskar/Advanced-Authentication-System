@@ -6,8 +6,7 @@ import com.pnm.auth.entity.MfaToken;
 import com.pnm.auth.entity.RefreshToken;
 import com.pnm.auth.entity.User;
 import com.pnm.auth.enums.AuthProviderType;
-import com.pnm.auth.exception.InvalidCredentialsException;
-import com.pnm.auth.exception.UserAlreadyExistsException;
+import com.pnm.auth.exception.*;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
@@ -95,7 +94,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         if (user != null && !user.isActive()) {
             log.warn("OAuth2Service.handleOAuth2LoginRequest(): Blocked user trying to login for email={}", email);
             loginActivityService.recordFailure(email,"OAuth2 login failed: blocked user");
-            throw new InvalidCredentialsException("Your account has been blocked. Contact support.");
+            throw new AccountBlockedException("Your account has been blocked. Contact support.");
         }
 
         //SUCCESS: Record login activity
@@ -120,7 +119,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             log.error("HIGH RISK BLOCKED for email={} riskScore={}", email, risk);
             suspiciousLoginAlertService.sendHighRiskAlert(user, ip, userAgent, reasons);
             loginActivityService.recordFailure(email, "High risk login blocked");
-            throw new InvalidCredentialsException("Login blocked due to high risk activity.");
+            throw new HighRiskLoginException("Login blocked due to high risk activity.");
         }
 
         if (risk >= 40) {
@@ -141,11 +140,9 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
             emailService.sendMfaOtpEmail(user.getEmail(), otp);
 
-            return new AuthResponse(
-                    "RISK_OTP_REQUIRED",
+            // ⭐ THROW EXCEPTION — not return AuthResponse
+            throw new RiskOtpRequiredException(
                     "Suspicious login detected. OTP verification required.",
-                    null,
-                    null,
                     mfaToken.getId()
             );
             //for verifying opt we will use same controller for which we have used for verifying mfa otp i.e verifyMfaOtp()

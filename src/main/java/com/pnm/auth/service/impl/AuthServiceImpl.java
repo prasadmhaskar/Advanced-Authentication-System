@@ -1,25 +1,18 @@
 package com.pnm.auth.service.impl;
 
+import com.pnm.auth.dto.DeviceInfo;
 import com.pnm.auth.dto.request.*;
 import com.pnm.auth.dto.response.AuthResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.dto.response.UserIpLogResponse;
-import com.pnm.auth.entity.MfaToken;
-import com.pnm.auth.entity.RefreshToken;
-import com.pnm.auth.entity.User;
-import com.pnm.auth.entity.VerificationToken;
+import com.pnm.auth.entity.*;
 import com.pnm.auth.enums.AuthProviderType;
-import com.pnm.auth.exception.InvalidCredentialsException;
-import com.pnm.auth.exception.InvalidTokenException;
-import com.pnm.auth.exception.UserAlreadyExistsException;
-import com.pnm.auth.exception.UserNotFoundException;
-import com.pnm.auth.repository.MfaTokenRepository;
-import com.pnm.auth.repository.RefreshTokenRepository;
-import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.repository.VerificationTokenRepository;
+import com.pnm.auth.exception.*;
+import com.pnm.auth.repository.*;
 import com.pnm.auth.service.*;
 import com.pnm.auth.security.JwtUtil;
 import com.pnm.auth.util.BlacklistedTokenStore;
+import com.pnm.auth.util.UserAgentParser;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -52,6 +45,7 @@ public class AuthServiceImpl implements AuthService {
     private final LoginActivityService loginActivityService;
     private final IpMonitoringService ipMonitoringService;
     private final SuspiciousLoginAlertService suspiciousLoginAlertService;
+    private final TrustedDeviceService trustedDeviceService;
 
 //    TODO: private final AuditService auditService;                // for future auditing
 //     TODO: private final IpDeviceIntelligenceService ipService;   // for future IP/device intelligence
@@ -116,7 +110,7 @@ public class AuthServiceImpl implements AuthService {
 
         if (!user.isActive()) {
             log.warn("AuthService.login(): Blocked user trying to login for email={}", email);
-            throw new InvalidCredentialsException("Your account has been blocked. Contact support.");
+            throw new AccountBlockedException("Your account has been blocked. Contact support.");
         }
 
         //Check email is verified or not
@@ -182,7 +176,7 @@ public class AuthServiceImpl implements AuthService {
             log.error("HIGH RISK BLOCKED for email={} riskScore={}", email, risk);
             suspiciousLoginAlertService.sendHighRiskAlert(user, ip, userAgent, reasons);
             loginActivityService.recordFailure(email, "High risk login blocked");
-            throw new InvalidCredentialsException("Login blocked due to high risk activity.");
+            throw new HighRiskLoginException("Login blocked due to high risk activity.");
         }
 
         // -------------------------
@@ -206,13 +200,9 @@ public class AuthServiceImpl implements AuthService {
 
             emailService.sendMfaOtpEmail(user.getEmail(), otp);
 
-            return new AuthResponse(
-                    "RISK_OTP_REQUIRED",
+            throw new RiskOtpRequiredException(
                     "Suspicious login detected. OTP verification required.",
-                    null,
-                    null,
-                    mfaToken.getId()
-            );
+                    mfaToken.getId());
 
             //for verifying opt we will use same controller for which we have used for verifying mfa otp i.e verifyMfaOtp()
         }
@@ -594,18 +584,36 @@ public class AuthServiceImpl implements AuthService {
         // 5. Fetch user
         User user = mfaToken.getUser();
 
-        //Record LoginActivity after successful otp verification
+        // 6. Record login activity (this also triggers IpMonitoring + risk logging)
         loginActivityService.recordSuccess(user.getId(), user.getEmail());
         log.info("AuthService.verifyOtp(): user verified email={}", user.getEmail());
 
-        // 6. Create new tokens
+        // 7. ✅ TRUST THIS DEVICE (NEW)
+        try {
+            DeviceInfo deviceInfo = UserAgentParser.parse(userAgent);
+            String deviceSignature = deviceInfo.getSignature();
+
+            trustedDeviceService.trustDevice(
+                    user.getId(),
+                    deviceSignature,
+                    deviceInfo.getDeviceName()
+            );
+
+            log.info("AuthService.verifyOtp(): trusted device saved userId={} device={}",
+                    user.getId(), deviceInfo.getDeviceName());
+        } catch (Exception e) {
+            log.warn("AuthService.verifyOtp(): failed to trust device userId={} reason={}",
+                    user.getId(), e.getMessage());
+        }
+
+        // 8. Create new tokens
         String accessToken = jwtUtil.generateAccessToken(user);
         String refreshTokenStr = jwtUtil.generateRefreshToken(user);
 
-        // Remove old refresh tokens
+        // 9. Remove old refresh tokens
         refreshTokenRepository.deleteAllByUserId(user.getId());
 
-        // Save new refresh token
+        // 10. Save new refresh token
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken(refreshTokenStr);
         refreshToken.setUser(user);
