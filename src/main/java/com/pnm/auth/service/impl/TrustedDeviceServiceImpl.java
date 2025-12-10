@@ -2,10 +2,12 @@ package com.pnm.auth.service.impl;
 
 import com.pnm.auth.dto.response.TrustedDeviceResponse;
 import com.pnm.auth.entity.TrustedDevice;
+import com.pnm.auth.enums.AuditAction;
 import com.pnm.auth.exception.InvalidCredentialsException;
 import com.pnm.auth.exception.ResourceNotFoundException;
 import com.pnm.auth.repository.TrustedDeviceRepository;
 import com.pnm.auth.service.TrustedDeviceService;
+import com.pnm.auth.util.Audit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,6 +32,7 @@ public class TrustedDeviceServiceImpl implements TrustedDeviceService {
     }
 
     @Override
+    @Audit(action = AuditAction.DEVICE_REMOVE, description = "Removing a trusted device")
     public void removeDevice(Long userId, Long deviceId) {
         TrustedDevice device = trustedDeviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
@@ -43,6 +46,7 @@ public class TrustedDeviceServiceImpl implements TrustedDeviceService {
     }
 
     @Override
+    @Audit(action = AuditAction.DEVICE_TRUST_ADD, description = "Trusting new device")
     public void trustDevice(Long userId, String deviceSignature, String deviceName) {
 
         if (userId == null || deviceSignature == null || deviceSignature.isBlank()) {
@@ -73,6 +77,7 @@ public class TrustedDeviceServiceImpl implements TrustedDeviceService {
 
     @Override
     @Transactional
+    @Audit(action = AuditAction.DEVICE_REMOVE_OTHERS, description = "Removing all other devices except current")
     public void removeAllExceptCurrent(Long userId, String currentDeviceSignature) {
 
         if (userId == null || currentDeviceSignature == null) {

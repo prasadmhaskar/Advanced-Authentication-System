@@ -5,6 +5,7 @@ import com.pnm.auth.dto.response.UserIpLogResponse;
 import com.pnm.auth.entity.MfaToken;
 import com.pnm.auth.entity.RefreshToken;
 import com.pnm.auth.entity.User;
+import com.pnm.auth.enums.AuditAction;
 import com.pnm.auth.enums.AuthProviderType;
 import com.pnm.auth.exception.*;
 import com.pnm.auth.repository.MfaTokenRepository;
@@ -15,15 +16,18 @@ import com.pnm.auth.service.EmailService;
 import com.pnm.auth.service.IpMonitoringService;
 import com.pnm.auth.service.LoginActivityService;
 import com.pnm.auth.service.SuspiciousLoginAlertService;
+import com.pnm.auth.util.Audit;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
@@ -43,8 +47,13 @@ public class OAuth2ServiceImpl implements OAuth2Service {
     private final EmailService emailService;
     private final SuspiciousLoginAlertService suspiciousLoginAlertService;
 
+    @Value("${jwt.refresh.expiration}")
+    private Long jwtRefreshExpirationMillis;
+
+
     @Override
     @Transactional
+    @Audit(action = AuditAction.OAUTH_LOGIN, description = "OAuth2 login attempt")
     public AuthResponse handleOAuth2LoginRequest(OAuth2User oAuth2User, String registrationId, HttpServletRequest request) {
 
         log.info("OAuth2Service.handleOAuth2LoginRequest(): started provider={} ", registrationId);
@@ -110,7 +119,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
                 ? Arrays.asList(ipRisk.getRiskReason().split(","))
                 : List.of();
 
-        log.info("AuthService.login(): riskScore={} reasons={}", risk, reasons);
+        log.info("OAuth2Service.handleOAuth2LoginRequest(): riskScore={} reasons={}", risk, reasons);
 
         // -------------------------
         // HIGH RISK → BLOCK LOGIN
@@ -140,7 +149,7 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
             emailService.sendMfaOtpEmail(user.getEmail(), otp);
 
-            // ⭐ THROW EXCEPTION — not return AuthResponse
+//             ⭐ THROW EXCEPTION — not return AuthResponse
             throw new RiskOtpRequiredException(
                     "Suspicious login detected. OTP verification required.",
                     mfaToken.getId()
@@ -148,14 +157,32 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             //for verifying opt we will use same controller for which we have used for verifying mfa otp i.e verifyMfaOtp()
         }
 
-        refreshTokenRepository.deleteAllByUserId(user.getId());
+//        refreshTokenRepository.deleteAllByUserId(user.getId());
+//
+//        //else low risk - generate tokens
+//
+//        String accessToken = jwtUtil.generateAccessToken(user);
+//        String refreshToken = jwtUtil.generateRefreshToken(user);
+//
+//        refreshTokenRepository.save(new RefreshToken(refreshToken, user, LocalDateTime.now()));
 
-        //else low risk - generate tokens
+        // 1. Invalidate all previous tokens for this user (important)
+        refreshTokenRepository.invalidateAllForUser(user.getId());
 
-        String accessToken = jwtUtil.generateAccessToken(user);
-        String refreshToken = jwtUtil.generateRefreshToken(user);
+        // 2. Generate new tokens
+        String newAccessToken = jwtUtil.generateAccessToken(user);
+        String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        refreshTokenRepository.save(new RefreshToken(refreshToken, user, LocalDateTime.now()));
+        // 3. Save the new refresh token
+        RefreshToken newToken = new RefreshToken();
+        newToken.setToken(newRefreshToken);
+        newToken.setUser(user);
+        newToken.setCreatedAt(LocalDateTime.now());
+        newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+        newToken.setUsed(false);
+        newToken.setInvalidated(false);
+
+        refreshTokenRepository.save(newToken);
 
         // NOW record success
         loginActivityService.recordSuccess(user.getId(), user.getEmail());
@@ -165,8 +192,8 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         return new AuthResponse(
                 "AUTH_LOGIN_SUCCESS",
                 "Login successful using OAuth2",
-                accessToken,
-                refreshToken,
+                newAccessToken,
+                newRefreshToken,
                 null);
     }
 }

@@ -2,27 +2,38 @@ package com.pnm.auth.enums;
 
 public enum AuditAction {
 
-    // USER ACTIONS
-    LOGIN_SUCCESS,
-    LOGIN_FAILURE,
-    MFA_OTP_VERIFIED,
-    RISK_OTP_VERIFIED,
+    // -----------------------
+    // AUTH + SECURITY ACTIONS
+    // -----------------------
+    USER_REGISTER,
+    LOGIN_ATTEMPT,
+    MFA_VERIFY,
+    PASSWORD_RESET_REQUEST,
+    PASSWORD_RESET,
+    CHANGE_PASSWORD,
     LOGOUT,
-    PASSWORD_CHANGED,
-    EMAIL_CHANGED,
-    MFA_ENABLED,
-    MFA_DISABLED,
-    TRUSTED_DEVICE_ADDED,
-    TRUSTED_DEVICE_REMOVED,
+    OAUTH_LOGIN,
+    OAUTH_LINK,
+    PROFILE_UPDATE,       // optional
 
+    // -----------------------
+    // TRUSTED DEVICE ACTIONS
+    // -----------------------
+    DEVICE_TRUST_ADD,
+    DEVICE_REMOVE,
+    DEVICE_REMOVE_OTHERS,
+
+    // -----------------------
     // ADMIN ACTIONS
-    ADMIN_USER_BLOCKED,
-    ADMIN_USER_UNBLOCKED,
-    ADMIN_USER_DELETED,
-    ADMIN_USER_ROLE_UPDATED,
+    // -----------------------
+    ADMIN_DELETE_USER,
+    ADMIN_BLOCK_USER,
+    ADMIN_UNBLOCK_USER,
 
-    // SYSTEM ACTIONS
-    RISK_SUSPICIOUS_LOGIN,
-    IMPOSSIBLE_TRAVEL_DETECTED,
-    MULTI_ACCOUNT_IP_DETECTED;
-}
+    // -----------------------
+    // REFRESH TOKEN
+    // -----------------------
+    REFRESH_TOKEN_ROTATION,
+    REFRESH_TOKEN_REUSE
+
+    }

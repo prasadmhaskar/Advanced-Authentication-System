@@ -24,41 +24,60 @@ public class AuditAspect {
 
     @Around("@annotation(audit)")
     public Object logAudit(ProceedingJoinPoint pjp, Audit audit) throws Throwable {
-        Object result;
 
-        Long actorUserId = authUtil.getCurrentUserId();  // You already built this
-        HttpServletRequest request =
-                ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes())
-                        .getRequest();
+        Long actorUserId = null;
+        try {
+            actorUserId = authUtil.getCurrentUserId();
+        } catch (Exception ignored) {}
 
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null) ip = request.getRemoteAddr();
-        String userAgent = request.getHeader("User-Agent");
+        HttpServletRequest request = null;
+        String ip = "UNKNOWN";
+        String userAgent = "UNKNOWN";
+
+        ServletRequestAttributes attrs =
+                (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+
+        if (attrs != null) {
+            request = attrs.getRequest();
+
+            if (request != null) {
+                ip = request.getHeader("X-Forwarded-For");
+                if (ip == null) ip = request.getRemoteAddr();
+
+                userAgent = request.getHeader("User-Agent");
+                if (userAgent == null) userAgent = "UNKNOWN";
+            }
+        }
 
         try {
-            result = pjp.proceed();
-        } catch (Throwable ex) {
+            Object result = pjp.proceed();
+
+            // SUCCESS AUDIT
             auditService.record(
                     audit.action(),
                     actorUserId,
+                    null,                          // target user not known automatically
+                    audit.description(),
+                    ip,
+                    userAgent
+            );
+
+            return result;
+
+        } catch (Throwable ex) {
+
+            // FAILURE AUDIT
+            auditService.record(
+                    audit.action(),
                     actorUserId,
+                    null,
                     "FAILED: " + audit.description(),
                     ip,
                     userAgent
             );
+
             throw ex;
         }
-
-        auditService.record(
-                audit.action(),
-                actorUserId,
-                actorUserId,
-                audit.description(),
-                ip,
-                userAgent
-        );
-
-        return result;
     }
 }
 

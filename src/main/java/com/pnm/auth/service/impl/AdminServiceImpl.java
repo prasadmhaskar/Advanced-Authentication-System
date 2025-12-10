@@ -8,6 +8,7 @@ import com.pnm.auth.dto.response.UserAdminResponse;
 import com.pnm.auth.entity.LoginActivity;
 import com.pnm.auth.entity.User;
 import com.pnm.auth.entity.UserIpLog;
+import com.pnm.auth.enums.AuditAction;
 import com.pnm.auth.exception.ResourceNotFoundException;
 import com.pnm.auth.exception.UserNotFoundException;
 import com.pnm.auth.repository.LoginActivityRepository;
@@ -16,6 +17,7 @@ import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.AdminService;
 import com.pnm.auth.specification.LoginActivitySpecification;
 import com.pnm.auth.specification.UserSpecification;
+import com.pnm.auth.util.Audit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -38,12 +40,6 @@ public class AdminServiceImpl implements AdminService {
 
     private final UserRepository userRepository;
     private final LoginActivityRepository loginActivityRepository;
-    private final UserIpLogRepository userIpLogRepository;
-
-    // TODO: private final AuditService auditService;
-    // TODO: private final IpDeviceIntelligenceService ipService;
-    // TODO: private final AdminAnalyticsService adminAnalyticsService;
-
 
     // ============================================================
     //  1. GET USERS WITH FILTERS + PAGINATION
@@ -86,6 +82,7 @@ public class AdminServiceImpl implements AdminService {
     @Override
     @Transactional
     @CacheEvict(value = {"users.list", "users"}, allEntries = true)
+    @Audit(action = AuditAction.ADMIN_DELETE_USER, description = "Admin deleted a user")
     public void deleteUser(Long id) {
 
         log.info("AdminService.deleteUser(): started for id={}", id);
@@ -113,6 +110,7 @@ public class AdminServiceImpl implements AdminService {
             @CacheEvict(value = "users", allEntries = true),
             @CacheEvict(value = "users.list", allEntries = true)
     })
+    @Audit(action = AuditAction.ADMIN_BLOCK_USER, description = "Admin blocked a user")
     public void blockUser(Long id) {
 
         log.info("AdminService.blockUser(): started id={}", id);
@@ -146,6 +144,7 @@ public class AdminServiceImpl implements AdminService {
             @CacheEvict(value = "users", allEntries = true),
             @CacheEvict(value = "users.list", allEntries = true)
     })
+    @Audit(action = AuditAction.ADMIN_UNBLOCK_USER, description = "Admin unblocked a user")
     public void unblockUser(Long id) {
 
         log.info("AdminService.unblockUser(): started id={}", id);

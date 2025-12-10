@@ -16,15 +16,6 @@ public interface AdminService {
     void deleteUser(Long id);
     void blockUser(Long id);
     void unblockUser(Long id);
-
-//    List<LoginActivityResponse> getAllUsersActivity();
-
-    @Transactional(readOnly = true)
-    PagedResponse<LoginActivityResponse> getLoginActivities(
-            int page,
-            int size,
-            LoginActivityFilterRequest filter
-    );
-
+    PagedResponse<LoginActivityResponse> getLoginActivities(int page, int size, LoginActivityFilterRequest filter);
     LoginActivityResponse getActivityById(Long id);
 }

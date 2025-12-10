@@ -10,5 +10,4 @@ public interface VerificationService {
 
     void validateToken(String token, String type);
 
-
 }

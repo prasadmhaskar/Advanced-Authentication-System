@@ -11,6 +11,7 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class RefreshToken {
 
     @Id
@@ -26,10 +27,17 @@ public class RefreshToken {
 
     private LocalDateTime createdAt;
 
-    public RefreshToken(String refreshToken, User user, LocalDateTime now) {
+    private LocalDateTime expiresAt;   // NEW
 
+    private boolean used = false;      // NEW
+
+    private boolean invalidated = false;  // NEW
+
+    public RefreshToken(String refreshToken, User user, LocalDateTime now) {
         this.token = refreshToken;
         this.user = user;
         this.createdAt = now;
+        this.expiresAt = now.plusDays(60);  // matching your JWT refresh TTL
     }
 }
+

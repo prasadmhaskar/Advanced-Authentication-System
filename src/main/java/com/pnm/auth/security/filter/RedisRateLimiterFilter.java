@@ -2,7 +2,7 @@ package com.pnm.auth.security.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pnm.auth.dto.response.ApiResponse;
-import com.pnm.auth.service.impl.RedisRateLimiterService;
+import com.pnm.auth.service.impl.RedisRateLimiterServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,9 +17,9 @@ import java.io.IOException;
 @Slf4j
 public class RedisRateLimiterFilter extends OncePerRequestFilter {
 
-    private final RedisRateLimiterService rateLimiterService;
+    private final RedisRateLimiterServiceImpl rateLimiterService;
 
-    public RedisRateLimiterFilter(RedisRateLimiterService rateLimiterService) {
+    public RedisRateLimiterFilter(RedisRateLimiterServiceImpl rateLimiterService) {
         this.rateLimiterService = rateLimiterService;
     }
 

@@ -4,6 +4,7 @@ import com.pnm.auth.dto.request.LoginActivityFilterRequest;
 import com.pnm.auth.dto.request.UserFilterRequest;
 import com.pnm.auth.dto.response.*;
 import com.pnm.auth.entity.AuditLog;
+import com.pnm.auth.service.AdminAnalyticsService;
 import com.pnm.auth.service.AdminService;
 import com.pnm.auth.service.AuditService;
 import com.pnm.auth.service.IpMonitoringService;
@@ -29,6 +30,7 @@ public class AdminController {
     private final AdminService adminService;
     private final IpMonitoringService ipMonitoringService;
     private final AuditService auditService;
+    private final AdminAnalyticsService adminAnalyticsService;
 
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<PagedResponse<UserAdminResponse>>> getUsers(
@@ -208,6 +210,21 @@ public class AdminController {
         return ResponseEntity.ok(body);
     }
 
+    @GetMapping("/analytics")
+    public ResponseEntity<ApiResponse<AdminAnalyticsResponse>> getAnalytics(HttpServletRequest request) {
 
+        log.info("AdminController.getAnalytics(): started");
+
+        AdminAnalyticsResponse analytics = adminAnalyticsService.getAnalytics();
+
+        ApiResponse<AdminAnalyticsResponse> body = ApiResponse.success(
+                "ADMIN_ANALYTICS_FETCHED",
+                "Admin analytics fetched successfully",
+                analytics,
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.ok(body);
+    }
 
 }

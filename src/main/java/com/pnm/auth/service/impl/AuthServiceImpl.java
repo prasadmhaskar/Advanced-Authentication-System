@@ -6,16 +6,19 @@ import com.pnm.auth.dto.response.AuthResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.dto.response.UserIpLogResponse;
 import com.pnm.auth.entity.*;
+import com.pnm.auth.enums.AuditAction;
 import com.pnm.auth.enums.AuthProviderType;
 import com.pnm.auth.exception.*;
 import com.pnm.auth.repository.*;
 import com.pnm.auth.service.*;
 import com.pnm.auth.security.JwtUtil;
+import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.BlacklistedTokenStore;
 import com.pnm.auth.util.UserAgentParser;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
@@ -25,8 +28,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -46,13 +51,15 @@ public class AuthServiceImpl implements AuthService {
     private final IpMonitoringService ipMonitoringService;
     private final SuspiciousLoginAlertService suspiciousLoginAlertService;
     private final TrustedDeviceService trustedDeviceService;
+    private final AuditService auditService;
 
-//    TODO: private final AuditService auditService;                // for future auditing
-//     TODO: private final IpDeviceIntelligenceService ipService;   // for future IP/device intelligence
+    @Value("${jwt.refresh.expiration}")
+    private Long jwtRefreshExpirationMillis;
 
     @Override
     @Transactional
     @CacheEvict(value = {"users.list"}, allEntries = true)
+    @Audit(action = AuditAction.USER_REGISTER, description = "User registration")
     public AuthResponse register(RegisterRequest request) {
 
         String email = request.getEmail().trim().toLowerCase();
@@ -90,6 +97,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    @Audit(action = AuditAction.LOGIN_ATTEMPT, description = "User login attempt")
     public AuthResponse login(LoginRequest request, String ip, String userAgent) {
         String email = request.getEmail().trim().toLowerCase();
         log.info("AuthService.login(): started for email={}", email);
@@ -209,18 +217,23 @@ public class AuthServiceImpl implements AuthService {
 
         //else low risk - generate tokens
 
-        // Non-MFA user: generate tokens and record successful login
+        // 1. Invalidate all previous tokens for this user (important)
+        refreshTokenRepository.invalidateAllForUser(user.getId());
+
+        // 2. Generate new tokens
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        //Delete all tokens related to user
-        refreshTokenRepository.deleteAllByUserId(user.getId());
+        // 3. Save the new refresh token
+        RefreshToken newToken = new RefreshToken();
+        newToken.setToken(newRefreshToken);
+        newToken.setUser(user);
+        newToken.setCreatedAt(LocalDateTime.now());
+        newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+        newToken.setUsed(false);
+        newToken.setInvalidated(false);
 
-        RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setToken(newRefreshToken);
-        refreshToken.setUser(user);
-        refreshToken.setCreatedAt(LocalDateTime.now());
-        refreshTokenRepository.save(refreshToken);
+        refreshTokenRepository.save(newToken);
 
         // Record successful login
         loginActivityService.recordSuccess(user.getId(), user.getEmail());
@@ -235,6 +248,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
 
+    @Audit(action = AuditAction.REFRESH_TOKEN_ROTATION, description = "Refreshing access token")
     @Override
     @Transactional
     public AuthResponse refreshToken(RefreshTokenRequest refreshTokenRequest) {
@@ -242,63 +256,72 @@ public class AuthServiceImpl implements AuthService {
         String oldToken = refreshTokenRequest.getRefreshToken();
         log.info("AuthService.refreshToken(): started (tokenPrefix={})", safeTokenPrefix(oldToken));
 
-        // Check DB record
-        RefreshToken tokenEntity = refreshTokenRepository.findByToken(oldToken)
+        RefreshToken stored = refreshTokenRepository.findByToken(oldToken)
                 .orElseThrow(() -> {
                     log.warn("AuthService.refreshToken(): invalid tokenPrefix={}", safeTokenPrefix(oldToken));
                     return new InvalidTokenException("Invalid refresh token");
                 });
 
-        // Check expiration
-        if (jwtUtil.isTokenExpired(oldToken)) {
-            refreshTokenRepository.delete(tokenEntity);
-            log.warn("AuthService.refreshToken(): expired token deleted tokenPrefix={}", safeTokenPrefix(oldToken));
-            throw new InvalidTokenException("Refresh token is expired");
+        // 1) Check expired or invalidated
+        if (stored.isInvalidated() || stored.getExpiresAt().isBefore(LocalDateTime.now())) {
+            log.warn("Expired or invalidated refresh token used userId={}", stored.getUser().getId());
+            throw new InvalidTokenException("Refresh token expired");
         }
 
-        // Extract email
+        // 2) Check REUSE ATTACK
+        if (stored.isUsed()) {
+            log.error("REFRESH TOKEN REUSE DETECTED userId={} token={}", stored.getUser().getId(), safeTokenPrefix(oldToken));
+
+            // Invalidate all tokens for user
+            refreshTokenRepository.invalidateAllForUser(stored.getUser().getId());
+
+            auditService.record(
+                    AuditAction.REFRESH_TOKEN_REUSE,
+                    stored.getUser().getId(),
+                    stored.getUser().getId(),
+                    "Refresh token reuse detected. All sessions invalidated.",
+                    null,null
+            );
+
+            throw new InvalidCredentialsException("Session compromised. Please login again.");
+        }
+
+        // 3) Mark this token as used
+        stored.setUsed(true);
+        refreshTokenRepository.save(stored);
+
         String email = jwtUtil.extractUsername(oldToken);
-        log.info("AuthService.refreshToken(): extracted email={}", email);
+        User user = stored.getUser();
 
-        // Fetch user
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("AuthService.refreshToken(): user not found email={}", email);
-                    return new UserNotFoundException("User not found with email: " + email);
-                });
-
-        if (!user.isActive()) {
-            log.warn("AuthService.refreshToken(): Blocked user trying to login for email={}", email);
-            throw new InvalidTokenException("Your account has been blocked. Contact support.");
-        }
-
-        // Rotate tokens (refresh token rotation)
+        // 4) Issue new tokens
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        // Delete old refresh token (important!!)
-        refreshTokenRepository.delete(tokenEntity);
+        RefreshToken newEntity = new RefreshToken();
+        newEntity.setToken(newRefreshToken);
+        newEntity.setUser(user);
+        newEntity.setCreatedAt(LocalDateTime.now());
+        newEntity.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+        newEntity.setUsed(false);
+        newEntity.setInvalidated(false);
 
-        // Save new refresh token
-        RefreshToken newTokenEntity = new RefreshToken();
-        newTokenEntity.setToken(newRefreshToken);
-        newTokenEntity.setUser(user);
-        newTokenEntity.setCreatedAt(LocalDateTime.now());
+        refreshTokenRepository.save(newEntity);
 
-        refreshTokenRepository.save(newTokenEntity);
+        log.info("AuthService.refreshToken(): rotation complete for userId={}", user.getId());
 
-        // Return tokens
-        log.info("AuthService.refreshToken(): rotated token successfully for email={}", email);
         return new AuthResponse(
                 "TOKEN_REFRESHED",
                 "Token refreshed successfully",
                 newAccessToken,
                 newRefreshToken,
-                null);
+                null
+        );
     }
 
 
+
     @Override
+    @Audit(action = AuditAction.PASSWORD_RESET_REQUEST, description = "Forgot password request")
     public void forgotPassword(String rawEmail) {
 
         String email = rawEmail.trim().toLowerCase();
@@ -318,6 +341,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    @Audit(action = AuditAction.PASSWORD_RESET, description = "Password reset action")
     public void resetPassword(ResetPasswordRequest request) {
 
         log.info("AuthService.resetPassword() started");
@@ -401,6 +425,7 @@ public class AuthServiceImpl implements AuthService {
             @CacheEvict(value = "users", key = "@jwtUtil.extractUsername(#accessToken)"),
             @CacheEvict(value = "users.list", allEntries = true)
     })
+    @Audit(action = AuditAction.LOGOUT, description = "User logout")
     public void logout(String accessToken, String refreshToken) {
 
         log.info("AuthService.logout(): started");
@@ -417,9 +442,6 @@ public class AuthServiceImpl implements AuthService {
         refreshTokenRepository.deleteByToken(refreshToken);
         log.info("AuthService.logout(): Refresh token deleted");
 
-        // TODO: loginActivityService.recordLogoutSuccess(...);
-        // TODO: auditService.recordLogout(...);
-
         log.info("AuthService.logout(): finished");
     }
 
@@ -430,6 +452,7 @@ public class AuthServiceImpl implements AuthService {
             @CacheEvict(value = "users", key = "@jwtUtil.extractUsername(#request.accessToken)"),
             @CacheEvict(value = "users.list", allEntries = true)
     })
+    @Audit(action = AuditAction.OAUTH_LINK, description = "Linking OAuth account")
     public void linkOAuthAccount(LinkOAuthRequest request) {
 
         log.info("AuthService.linkOAuthAccount(): started provider={}", request.getProviderType());
@@ -474,6 +497,7 @@ public class AuthServiceImpl implements AuthService {
             @CacheEvict(value = "users", key = "@jwtUtil.extractUsername(#token)"),
             @CacheEvict(value = "users.list", allEntries = true)
     })
+    @Audit(action = AuditAction.CHANGE_PASSWORD, description = "User password change")
     public AuthResponse changePassword(String token, String oldPassword, String newPassword) {
 
         if (jwtUtil.isTokenExpired(token)) {
@@ -509,17 +533,24 @@ public class AuthServiceImpl implements AuthService {
         blacklistedTokenStore.blacklistToken(token, expiry);
         log.info("AuthService.changePassword(): Access token blacklisted until={} for email={}", expiry, email);
 
+        // 1. Invalidate all previous tokens for this user (important)
+        refreshTokenRepository.invalidateAllForUser(user.getId());
+
         // Create new tokens
         String newAccessToken = jwtUtil.generateAccessToken(user);
         String newRefreshToken = jwtUtil.generateRefreshToken(user);
         log.info("AuthService.changePassword(): created new accessToken and refreshToken for email={}",email);
 
         // Save refresh token to DB
-        RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setToken(newRefreshToken);
-        refreshToken.setUser(user);
-        refreshToken.setCreatedAt(LocalDateTime.now());
-        refreshTokenRepository.save(refreshToken);
+        RefreshToken newToken = new RefreshToken();
+        newToken.setToken(newRefreshToken);
+        newToken.setUser(user);
+        newToken.setCreatedAt(LocalDateTime.now());
+        newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+        newToken.setUsed(false);
+        newToken.setInvalidated(false);
+
+        refreshTokenRepository.save(newToken);
 
         log.info("AuthService.changePassword(): completed successfully for email={}", email);
         return new AuthResponse(
@@ -533,6 +564,7 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    @Audit(action = AuditAction.PROFILE_UPDATE, description = "User profile updated")
     public UserDetailsResponse updateProfile(String token, UpdateProfileRequest request) {
 
         // 1. Validate token
@@ -546,6 +578,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Audit(action = AuditAction.MFA_VERIFY, description = "User verifying MFA or risk-based OTP")
     public AuthResponse verifyOtp(MfaTokenVerifyRequest request, String ip, String userAgent) {
 
         log.info("AuthService.verifyOtp(): started for id={}", request.getId());
@@ -606,19 +639,24 @@ public class AuthServiceImpl implements AuthService {
                     user.getId(), e.getMessage());
         }
 
-        // 8. Create new tokens
-        String accessToken = jwtUtil.generateAccessToken(user);
-        String refreshTokenStr = jwtUtil.generateRefreshToken(user);
 
-        // 9. Remove old refresh tokens
-        refreshTokenRepository.deleteAllByUserId(user.getId());
+        // 1. Invalidate all previous tokens for this user (important)
+        refreshTokenRepository.invalidateAllForUser(user.getId());
 
-        // 10. Save new refresh token
-        RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setToken(refreshTokenStr);
-        refreshToken.setUser(user);
-        refreshToken.setCreatedAt(LocalDateTime.now());
-        refreshTokenRepository.save(refreshToken);
+// 2. Generate new tokens
+        String newAccessToken = jwtUtil.generateAccessToken(user);
+        String newRefreshToken = jwtUtil.generateRefreshToken(user);
+
+// 3. Save the new refresh token
+        RefreshToken newToken = new RefreshToken();
+        newToken.setToken(newRefreshToken);
+        newToken.setUser(user);
+        newToken.setCreatedAt(LocalDateTime.now());
+        newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+        newToken.setUsed(false);
+        newToken.setInvalidated(false);
+
+        refreshTokenRepository.save(newToken);
 
         log.info("AuthService.verifyOtp(): completed for email={}", user.getEmail());
 
@@ -634,8 +672,8 @@ public class AuthServiceImpl implements AuthService {
         return new AuthResponse(
                 message,
                 type,
-                accessToken,
-                refreshTokenStr,
+                newAccessToken,
+                newRefreshToken,
                 null
         );
     }

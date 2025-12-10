@@ -4,6 +4,7 @@ import com.pnm.auth.entity.UserIpLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface UserIpLogRepository extends JpaRepository<UserIpLog, Long> {
@@ -23,4 +24,9 @@ public interface UserIpLogRepository extends JpaRepository<UserIpLog, Long> {
 
     int countByDeviceSignature(String deviceSignature);
 
+    @Query("SELECT COUNT(l) FROM UserIpLog l WHERE l.isSuspicious = true AND l.loginTime >= :start")
+    long countSuspiciousSince(LocalDateTime start);
+
+    @Query("SELECT COUNT(l) FROM UserIpLog l WHERE l.riskScore >= 80 AND l.loginTime >= :start")
+    long countHighRiskSince(LocalDateTime start);
 }

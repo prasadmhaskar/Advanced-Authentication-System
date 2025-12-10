@@ -1,5 +1,6 @@
 package com.pnm.auth.service.impl;
 
+import com.pnm.auth.service.RedisRateLimiterService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -10,7 +11,7 @@ import java.time.Duration;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class RedisRateLimiterService {
+public class RedisRateLimiterServiceImpl implements RedisRateLimiterService {
 
     private final StringRedisTemplate redisTemplate;
 
@@ -20,6 +21,7 @@ public class RedisRateLimiterService {
      * @param windowSeconds - time window
      * @return true = allowed, false = blocked
      */
+    @Override
     public boolean isAllowed(String key, int limit, int windowSeconds) {
 
         String redisKey = "rate_limit:" + key;
