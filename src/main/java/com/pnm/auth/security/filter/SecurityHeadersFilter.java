@@ -4,7 +4,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -14,8 +16,21 @@ import java.io.IOException;
 
 @Component
 @Slf4j
+@RequiredArgsConstructor
 @Order(Ordered.HIGHEST_PRECEDENCE + 10) // Runs early but after RequestLoggingFilter
 public class SecurityHeadersFilter extends OncePerRequestFilter {
+
+    @Value("${security.hsts.enabled}")
+    private boolean hstsEnabled;
+
+    @Value("${security.hsts.max-age-seconds}")
+    private long hstsMaxAge;
+
+    @Value("${security.hsts.include-sub-domains}")
+    private boolean hstsIncludeSubDomains;
+
+    @Value("${security.hsts.preload}")
+    private boolean hstsPreload;
 
     // TODO: Replace with actual frontend domain during deployment
     private static final String FRONTEND_DEV = "http://localhost:5173";
@@ -31,11 +46,15 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
 
         applyCommonSecurityHeaders(response);
-        applyCorsRelatedSecurityHeaders(response);
         applyReferrerPolicy(response);
         applyPermissionsPolicy(response);
-
+        applyCorsRelatedSecurityHeaders(response);
         applyContentSecurityPolicy(response, path);
+
+        applyCacheControl(response, path);
+        applyHsts(response, request);
+
+
 
         log.trace("SecurityHeadersFilter applied for path={}", path);
 
@@ -106,5 +125,30 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
                         "font-src 'self'; " +
                         "connect-src 'self' " + FRONTEND_DEV + " " + FRONTEND_PROD + "; " +
                         "object-src 'none';");
+    }
+
+    /**
+     * Disable caching for auth and sensitive endpoints. For public static content, do not set.
+     */
+    private void applyCacheControl(HttpServletResponse response, String path) {
+        if (path.startsWith("/api/auth") || path.startsWith("/api/user") || path.startsWith("/api/admin")) {
+            response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+            response.setHeader("Pragma", "no-cache");
+            response.setHeader("Expires", "0");
+        }
+    }
+
+    private void applyHsts(HttpServletResponse response, HttpServletRequest request) {
+        // Only enable HSTS on secure requests and if enabled in properties
+        if (!hstsEnabled) return;
+
+        boolean isSecure = request.isSecure() || "https".equalsIgnoreCase(request.getHeader("X-Forwarded-Proto"));
+
+        if (isSecure) {
+            StringBuilder sb = new StringBuilder("max-age=").append(hstsMaxAge);
+            if (hstsIncludeSubDomains) sb.append("; includeSubDomains");
+            if (hstsPreload) sb.append("; preload");
+            response.setHeader("Strict-Transport-Security", sb.toString());
+        }
     }
 }

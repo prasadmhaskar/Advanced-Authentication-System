@@ -3,7 +3,6 @@ package com.pnm.auth.controller;
 import com.pnm.auth.dto.request.LoginActivityFilterRequest;
 import com.pnm.auth.dto.request.UserFilterRequest;
 import com.pnm.auth.dto.response.*;
-import com.pnm.auth.entity.AuditLog;
 import com.pnm.auth.service.AdminAnalyticsService;
 import com.pnm.auth.service.AdminService;
 import com.pnm.auth.service.AuditService;
@@ -11,10 +10,6 @@ import com.pnm.auth.service.IpMonitoringService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -223,8 +218,6 @@ public class AdminController {
                 analytics,
                 request.getRequestURI()
         );
-
         return ResponseEntity.ok(body);
     }
-
 }

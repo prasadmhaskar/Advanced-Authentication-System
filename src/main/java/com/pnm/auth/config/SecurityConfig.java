@@ -2,10 +2,7 @@ package com.pnm.auth.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pnm.auth.dto.response.ApiResponse;
-import com.pnm.auth.security.filter.JwtAuthenticationFilter;
-import com.pnm.auth.security.filter.RedisRateLimiterFilter;
-import com.pnm.auth.security.filter.RequestLoggingFilter;
-import com.pnm.auth.security.filter.SecurityHeadersFilter;
+import com.pnm.auth.security.filter.*;
 import com.pnm.auth.security.oauth.OAuth2SuccessHandler;
 import com.pnm.auth.security.UserDetailsServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,6 +42,8 @@ public class SecurityConfig {
     private final RequestLoggingFilter requestLoggingFilter;
     private final SecurityHeadersFilter securityHeadersFilter;
     private final ObjectMapper objectMapper;
+    private final BlockHttpMethodsFilter blockHttpMethodsFilter;
+    private final OAuthRedirectValidationFilter oauthRedirectValidationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -91,7 +90,6 @@ public class SecurityConfig {
                 // -----------------------------------------------------
                 .oauth2Login(oauth2 -> {
                     oauth2.successHandler(oAuth2SuccessHandler);
-
                     oauth2.failureHandler((request, response, ex) -> {
                         log.error("OAuth2 Login Failed: {}", ex.getMessage());
                         writeErrorResponse(
@@ -108,19 +106,24 @@ public class SecurityConfig {
                 // -----------------------------------------------------
                 .userDetailsService(userDetailsServiceImpl);
 
-        // ---------------------------------------------------------
-        // FILTER ORDER (VERY IMPORTANT)
-        // ---------------------------------------------------------
-        // 1️⃣ RequestLoggingFilter → MDC setup (requestId, ip, ua, path)
+        // ---------------------------
+// Register filters (correct order)
+// ---------------------------
+
+// 1) Register requestLoggingFilter first so it becomes a valid anchor
         http.addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class);
 
-        // 2️⃣ SecurityHeadersFilter → security headers for ALL responses
-        http.addFilterBefore(securityHeadersFilter, RequestLoggingFilter.class);
+// 2) Now other filters can be added relative to RequestLoggingFilter
+        http.addFilterBefore(blockHttpMethodsFilter, RequestLoggingFilter.class);
+        http.addFilterBefore(oauthRedirectValidationFilter, RequestLoggingFilter.class);
 
-        // 3️⃣ RedisRateLimiterFilter → uses MDC IP/path
-        http.addFilterBefore(redisRateLimiterFilter, RequestLoggingFilter.class);
+// 3) Apply security headers after request logging
+        http.addFilterAfter(securityHeadersFilter, RequestLoggingFilter.class);
 
-        // 4️⃣ JWT Authentication Filter → after logging & rate limit
+// 4) Rate limiter (requires MDC from requestLoggingFilter)
+        http.addFilterBefore(redisRateLimiterFilter, UsernamePasswordAuthenticationFilter.class);
+
+// 5) JWT Authentication (before UsernamePasswordAuthenticationFilter)
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         log.info("SecurityConfig.securityFilterChain(): final chain built successfully");

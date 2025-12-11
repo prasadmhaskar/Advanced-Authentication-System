@@ -108,6 +108,13 @@ public class AuthServiceImpl implements AuthService {
                     return new UserNotFoundException("User not found with email: " + email);
                 });
 
+        // Reject password login for OAuth users
+        if (user.getAuthProviderType() != null && user.getAuthProviderType() != AuthProviderType.EMAIL) {
+            loginActivityService.recordFailure(user.getEmail(), "OAuth accounts cannot use password login");
+            log.warn("AuthService.login(): OAuth user tried to login using password for email={}", email);
+            throw new InvalidCredentialsException("OAuth users cannot login with password");
+        }
+
         //Check password matches or not
         if(!passwordEncoder.matches(request.getPassword(), user.getPassword())){
             //Record activity for wrong password
@@ -123,6 +130,7 @@ public class AuthServiceImpl implements AuthService {
 
         //Check email is verified or not
         if(!user.getEmailVerified()){
+            loginActivityService.recordFailure(user.getEmail(), "Email not verified");
             log.warn("AuthService.login(): email not verified email={}", email);
             throw new InvalidTokenException("Verify email first");
         }
