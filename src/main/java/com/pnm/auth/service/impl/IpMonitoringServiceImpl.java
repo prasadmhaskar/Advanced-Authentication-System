@@ -10,7 +10,10 @@ import com.pnm.auth.repository.TrustedDeviceRepository;
 import com.pnm.auth.repository.UserIpLogRepository;
 import com.pnm.auth.service.GeoIpService;
 import com.pnm.auth.service.IpMonitoringService;
+import com.pnm.auth.service.LoginActivityService;
 import com.pnm.auth.util.UserAgentParser;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -37,6 +40,8 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
     // -------------------------------------------------------
     @Override
     @Transactional
+    @Retry(name = "ipMonitoringRetry")
+    @CircuitBreaker(name = "ipMonitoringCB", fallbackMethod = "fallbackRiskScore")
     public UserIpLogResponse recordLogin(Long userId, String ip, String userAgent) {
 
         log.info("IpMonitoringService.recordLogin(): started userId={} ip={}", userId, ip);
@@ -159,6 +164,21 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
 
         return UserIpLogResponse.fromEntity(saved);
     }
+
+    @Override
+    public UserIpLogResponse fallbackRiskScore(Long userId, String ip, String userAgent, Throwable ex) {
+
+        log.error("ipMonitoringService fallback triggered for userId={}, ip={}, reason={}",
+                userId, ip, ex.getMessage());
+
+
+        UserIpLogResponse userIpLogResponse = new UserIpLogResponse();
+        userIpLogResponse.setRiskScore(0);
+        userIpLogResponse.setRiskReason("monitoring_failed");
+        return userIpLogResponse;
+
+    }
+
 
 
     // -------------------------------------------------------

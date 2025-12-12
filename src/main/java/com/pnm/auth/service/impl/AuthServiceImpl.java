@@ -65,77 +65,115 @@ public class AuthServiceImpl implements AuthService {
         String email = request.getEmail().trim().toLowerCase();
         log.info("AuthService.register(): started for email={}", email);
 
+        // Check if email already exists
         if (userRepository.findByEmail(email).isPresent()) {
             log.warn("AuthService.register(): failed, email={} already exists", email);
-            throw new UserAlreadyExistsException("The email: " + email + " is already registered. Login using your email");
+            throw new UserAlreadyExistsException(
+                    "The email: " + email + " is already registered. Login using your email."
+            );
         }
-            User user = new User();
 
+        try {
+            // 1. Create and save new user
+            User user = new User();
             user.setFullName(request.getFullName());
             user.setEmail(email);
             user.setPassword(passwordEncoder.encode(request.getPassword()));
             user.setRoles(List.of("ROLE_USER"));
             user.setAuthProviderType(AuthProviderType.EMAIL);
+
             userRepository.save(user);
             log.info("AuthService.register(): user saved email={}", email);
 
-            //Creating verification token
+            // 2. Create verification token
             String token = verificationService.createVerificationToken(user, "EMAIL_VERIFICATION");
 
-            //Sending email to user with verification link
-            emailService.sendVerificationEmail(user.getEmail(), token);
-            log.info("AuthService.register(): verification email sent to email={}", email);
+            // 3. Send verification email
+            try {
+                emailService.sendVerificationEmail(user.getEmail(), token);
+                log.info("AuthService.register(): verification email sent to email={}", email);
+
+            } catch (EmailSendFailedException ex) {
+                // Already meaningful → pass through directly
+                throw ex;
+
+            } catch (Exception ex) {
+                log.error("AuthService.register(): verification email sending failed for email={}, message={}",
+                        email, ex.getMessage(), ex);
+
+                throw new EmailSendFailedException(
+                        "Failed to send verification email. Please try again later."
+                );
+            }
+
+            // 4. Success response
             log.info("AuthService.register(): finished for email={}", email);
             return new AuthResponse(
                     "REGISTRATION_SUCCESSFUL",
                     "Registration successful. Please verify email.",
                     null,
                     null,
-                    null);
+                    null
+            );
+
+        } catch (EmailSendFailedException ex) {
+            // Allow this to bubble to GlobalExceptionHandler
+            throw ex;
+
+        } catch (Exception ex) {
+            log.error("AuthService.register(): unexpected error for email={}, message={}",
+                    email, ex.getMessage(), ex);
+
+            throw new RegistrationFailedException(
+                    "Registration failed due to a server error. Please try again later."
+            );
+        }
     }
+
 
 
     @Override
     @Transactional
     @Audit(action = AuditAction.LOGIN_ATTEMPT, description = "User login attempt")
     public AuthResponse login(LoginRequest request, String ip, String userAgent) {
+
         String email = request.getEmail().trim().toLowerCase();
         log.info("AuthService.login(): started for email={}", email);
-        //Check user in db
+
+        // 1) USER EXISTS?
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("AuthService.login(): user not found with email={}", email);
+                    log.warn("AuthService.login(): user not found email={}", email);
                     return new UserNotFoundException("User not found with email: " + email);
                 });
 
-        // Reject password login for OAuth users
+        // 2) DISALLOW PASSWORD LOGIN FOR OAUTH USERS
         if (user.getAuthProviderType() != null && user.getAuthProviderType() != AuthProviderType.EMAIL) {
-            loginActivityService.recordFailure(user.getEmail(), "OAuth accounts cannot use password login");
-            log.warn("AuthService.login(): OAuth user tried to login using password for email={}", email);
-            throw new InvalidCredentialsException("OAuth users cannot login with password");
+            loginActivityService.recordFailure(email, "OAuth accounts cannot use password login");
+            log.warn("AuthService.login(): OAuth user attempted password login email={}", email);
+            throw new InvalidCredentialsException("OAuth users cannot login using password.");
         }
 
-        //Check password matches or not
-        if(!passwordEncoder.matches(request.getPassword(), user.getPassword())){
-            //Record activity for wrong password
-            loginActivityService.recordFailure(user.getEmail(), "Wrong password entered");
-            log.warn("AuthService.login(): incorrect password for email={}", email);
-            throw new InvalidCredentialsException("Wrong password. Please enter correct password");
+        // 3) INVALID PASSWORD?
+        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+            loginActivityService.recordFailure(email, "Wrong password entered");
+            log.warn("AuthService.login(): wrong password email={}", email);
+            throw new InvalidCredentialsException("Wrong password. Please enter correct password.");
         }
 
+        // 4) ACCOUNT BLOCKED?
         if (!user.isActive()) {
-            log.warn("AuthService.login(): Blocked user trying to login for email={}", email);
+            loginActivityService.recordFailure(email, "Blocked user tried to login");
+            log.warn("AuthService.login(): blocked account login attempt email={}", email);
             throw new AccountBlockedException("Your account has been blocked. Contact support.");
         }
 
-        //Check email is verified or not
-        if(!user.getEmailVerified()){
-            loginActivityService.recordFailure(user.getEmail(), "Email not verified");
+        // 5) EMAIL VERIFIED?
+        if (!user.getEmailVerified()) {
+            loginActivityService.recordFailure(email, "Email not verified");
             log.warn("AuthService.login(): email not verified email={}", email);
-            throw new InvalidTokenException("Verify email first");
+            throw new InvalidTokenException("Verify your email to continue.");
         }
-
-        loginActivityService.recordSuccess(user.getId(), user.getEmail());
 
         // -----------------------------
         // 2FA / MFA CHECK
@@ -143,116 +181,144 @@ public class AuthServiceImpl implements AuthService {
         if (user.isMfaEnabled()) {
             log.info("AuthService.login(): MFA enabled for email={}", email);
 
-            mfaTokenRepository.markAllUnusedTokensAsUsed(user.getId());
+            try {
+                // Mark all old tokens as used
+                mfaTokenRepository.markAllUnusedTokensAsUsed(user.getId());
 
-            // 1. Generate 6-digit OTP
-            SecureRandom secureRandom = new SecureRandom();
-            String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
+                // 1. Generate 6-digit OTP
+                SecureRandom secureRandom = new SecureRandom();
+                String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
 
-            // 2. Create MFA token entity
-            MfaToken mfaToken = new MfaToken();
-            mfaToken.setUser(user);
-            mfaToken.setOtp(otp);
-            mfaToken.setRiskBased(false);
-            mfaToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
-            mfaToken.setUsed(false);
+                // 2. Create MFA token entity
+                MfaToken mfaToken = new MfaToken();
+                mfaToken.setUser(user);
+                mfaToken.setOtp(otp);
+                mfaToken.setRiskBased(false);
+                mfaToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
+                mfaToken.setUsed(false);
 
-            mfaTokenRepository.save(mfaToken);
+                mfaTokenRepository.save(mfaToken);
 
-            // 3. Send OTP email
-            emailService.sendMfaOtpEmail(user.getEmail(), otp);
-            log.info("AuthService.login(): MFA OTP generated for email={} (mfaTokenId={})", email, mfaToken.getId());
+                // 3. Send OTP email
+                emailService.sendMfaOtpEmail(user.getEmail(), otp);
+                log.info("AuthService.login(): MFA OTP generated for email={} (mfaTokenId={})", email, mfaToken.getId());
 
-            // 4. Return MFA_REQUIRED response
-            return new AuthResponse(
-                    "MFA_REQUIRED",
-                    "MFA verification required.",
-                    null,
-                    null,
-                    mfaToken.getId()   // <--- IMPORTANT: pass MFA token ID
-            );
+
+                // 4. Return MFA_REQUIRED response
+                return new AuthResponse(
+                        "MFA_REQUIRED",
+                        "MFA verification required.",
+                        null,
+                        null,
+                        mfaToken.getId()
+                );
+
+            } catch (Exception ex) {
+                log.error("AuthService.login(): MFA OTP generation failed for email={}, message={}",
+                        email, ex.getMessage(), ex);
+                loginActivityService.recordFailure(email, "Failed to generate MFA OTP");
+                throw new OtpGenerationException("Unable to generate MFA OTP. Please try again later.");
+            }
+
         }
 
         // -------------------------
-        // 4) RISK ENGINE (ONLY FOR NON-MFA USERS)
+        // RISK ENGINE (ONLY FOR NON-MFA USERS)
         // -------------------------
         UserIpLogResponse ipRisk = ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
-
         int risk = ipRisk.getRiskScore();
+
         List<String> reasons = ipRisk.getRiskReason() != null
                 ? Arrays.asList(ipRisk.getRiskReason().split(","))
                 : List.of();
 
         log.info("AuthService.login(): riskScore={} reasons={}", risk, reasons);
 
-        // -------------------------
         // HIGH RISK → BLOCK LOGIN
-        // -------------------------
         if (risk >= 80) {
-            log.error("HIGH RISK BLOCKED for email={} riskScore={}", email, risk);
+            log.error("AuthService.login(): HIGH RISK BLOCKED email={} score={}", email, risk);
             suspiciousLoginAlertService.sendHighRiskAlert(user, ip, userAgent, reasons);
             loginActivityService.recordFailure(email, "High risk login blocked");
             throw new HighRiskLoginException("Login blocked due to high risk activity.");
         }
 
-        // -------------------------
         // MEDIUM RISK → OTP REQUIRED (Use SAME OTP FLOW as MFA)
-        // -------------------------
         if (risk >= 40) {
-            log.warn("MEDIUM RISK login, OTP required email={} risk={}", email, risk);
+            log.warn("AuthService.login(): MEDIUM RISK OTP required email={} risk={}", email, risk);
 
-            mfaTokenRepository.markAllUnusedTokensAsUsed(user.getId());
+            try {
+                mfaTokenRepository.markAllUnusedTokensAsUsed(user.getId());
 
-            SecureRandom secureRandom = new SecureRandom();
-            String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
+                SecureRandom secureRandom = new SecureRandom();
+                String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
 
-            MfaToken mfaToken = new MfaToken();
-            mfaToken.setUser(user);
-            mfaToken.setOtp(otp);
-            mfaToken.setRiskBased(true);
-            mfaToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
-            mfaToken.setUsed(false);
-            mfaTokenRepository.save(mfaToken);
+                MfaToken mfaToken = new MfaToken();
+                mfaToken.setUser(user);
+                mfaToken.setOtp(otp);
+                mfaToken.setRiskBased(true);
+                mfaToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
+                mfaToken.setUsed(false);
 
-            emailService.sendMfaOtpEmail(user.getEmail(), otp);
+                mfaTokenRepository.save(mfaToken);
 
-            throw new RiskOtpRequiredException(
-                    "Suspicious login detected. OTP verification required.",
-                    mfaToken.getId());
+                emailService.sendMfaOtpEmail(user.getEmail(), otp);
 
-            //for verifying opt we will use same controller for which we have used for verifying mfa otp i.e verifyMfaOtp()
+                throw new RiskOtpRequiredException(
+                        "Suspicious login detected. OTP verification required.",
+                        mfaToken.getId());
+
+                //for verifying opt we will use same controller for which we have used for verifying mfa otp i.e verifyMfaOtp()
+            } catch (Exception ex) {
+                log.error("AuthService.login(): Medium-risk OTP flow failed email={} msg={}", email, ex.getMessage(), ex);
+                loginActivityService.recordFailure(email, "Failed to send medium-risk OTP");
+                throw new EmailSendFailedException("Failed to send OTP. Please try again later.");
+            }
         }
+        // =========================================================
+        // LOW RISK → SUCCESSFUL LOGIN FLOW
+        // =========================================================
+        try {
 
-        //else low risk - generate tokens
+            // 1. Invalidate all previous tokens for this user (important)
+            refreshTokenRepository.invalidateAllForUser(user.getId());
 
-        // 1. Invalidate all previous tokens for this user (important)
-        refreshTokenRepository.invalidateAllForUser(user.getId());
+            // 2. Generate new tokens
+            String newAccessToken = jwtUtil.generateAccessToken(user);
+            String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        // 2. Generate new tokens
-        String newAccessToken = jwtUtil.generateAccessToken(user);
-        String newRefreshToken = jwtUtil.generateRefreshToken(user);
+            // 3. Save the new refresh token
+            RefreshToken newToken = new RefreshToken();
+            newToken.setToken(newRefreshToken);
+            newToken.setUser(user);
+            newToken.setCreatedAt(LocalDateTime.now());
+            newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+            newToken.setUsed(false);
+            newToken.setInvalidated(false);
 
-        // 3. Save the new refresh token
-        RefreshToken newToken = new RefreshToken();
-        newToken.setToken(newRefreshToken);
-        newToken.setUser(user);
-        newToken.setCreatedAt(LocalDateTime.now());
-        newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
-        newToken.setUsed(false);
-        newToken.setInvalidated(false);
+            refreshTokenRepository.save(newToken);
 
-        refreshTokenRepository.save(newToken);
+            // Record successful login
+            try {
+                loginActivityService.recordSuccess(user.getId(), user.getEmail());
+            } catch (Exception ex) {
+                log.error("AuthService.login(): failed to record login success for userId={}, message={}",
+                        user.getId(), ex.getMessage(), ex);
+            }
 
-        // Record successful login
-        loginActivityService.recordSuccess(user.getId(), user.getEmail());
 
-        log.info("AuthService.login(): successful for email={} (refresh_token_saved)", email);
-        return new AuthResponse(
-                "LOGIN_SUCCESS",
-                "Login successful",
-                newAccessToken,
-                newRefreshToken,
-                null);
+            log.info("AuthService.login(): successful for email={} (refresh_token_saved)", email);
+            return new AuthResponse(
+                    "LOGIN_SUCCESS",
+                    "Login successful",
+                    newAccessToken,
+                    newRefreshToken,
+                    null);
+        }catch (Exception ex){
+            log.error("AuthService.login(): access and refresh tokens generation failed for email={}, message={}",
+                    email, ex.getMessage(), ex);
+            loginActivityService.recordFailure(email, "Failed to generate access and refresh tokens");
+            throw new TokenGenerationException("Login failed. Please try again later.");
+        }
     }
 
 
@@ -264,23 +330,24 @@ public class AuthServiceImpl implements AuthService {
         String oldToken = refreshTokenRequest.getRefreshToken();
         log.info("AuthService.refreshToken(): started (tokenPrefix={})", safeTokenPrefix(oldToken));
 
+        // 1) Find stored token
         RefreshToken stored = refreshTokenRepository.findByToken(oldToken)
                 .orElseThrow(() -> {
                     log.warn("AuthService.refreshToken(): invalid tokenPrefix={}", safeTokenPrefix(oldToken));
                     return new InvalidTokenException("Invalid refresh token");
                 });
 
-        // 1) Check expired or invalidated
+        // 2) Expired or invalidated?
         if (stored.isInvalidated() || stored.getExpiresAt().isBefore(LocalDateTime.now())) {
-            log.warn("Expired or invalidated refresh token used userId={}", stored.getUser().getId());
+            log.warn("AuthService.refreshToken(): expired/invalidated token used userId={}", stored.getUser().getId());
             throw new InvalidTokenException("Refresh token expired");
         }
 
-        // 2) Check REUSE ATTACK
+        // 3) Reuse Attack Protection
         if (stored.isUsed()) {
-            log.error("REFRESH TOKEN REUSE DETECTED userId={} token={}", stored.getUser().getId(), safeTokenPrefix(oldToken));
+            log.error("AuthService.refreshToken(): REUSE DETECTED userId={} token={}",
+                    stored.getUser().getId(), safeTokenPrefix(oldToken));
 
-            // Invalidate all tokens for user
             refreshTokenRepository.invalidateAllForUser(stored.getUser().getId());
 
             auditService.record(
@@ -288,42 +355,69 @@ public class AuthServiceImpl implements AuthService {
                     stored.getUser().getId(),
                     stored.getUser().getId(),
                     "Refresh token reuse detected. All sessions invalidated.",
-                    null,null
+                    null, null
             );
 
             throw new InvalidCredentialsException("Session compromised. Please login again.");
         }
 
-        // 3) Mark this token as used
-        stored.setUsed(true);
-        refreshTokenRepository.save(stored);
+        // 4) Extract email (MUST be outside try-catch)
+        String email;
+        try {
+            email = jwtUtil.extractUsername(oldToken);
+        } catch (Exception ex) {
+            log.warn("AuthService.refreshToken(): failed to extract email from tokenPrefix={}, msg={}",
+                    safeTokenPrefix(oldToken), ex.getMessage());
+            throw new InvalidTokenException("Invalid refresh token");
+        }
 
-        String email = jwtUtil.extractUsername(oldToken);
         User user = stored.getUser();
 
-        // 4) Issue new tokens
-        String newAccessToken = jwtUtil.generateAccessToken(user);
-        String newRefreshToken = jwtUtil.generateRefreshToken(user);
+        // ======================================================
+        // TOKEN ROTATION
+        // ======================================================
+        try {
+            // Mark old token as used
+            stored.setUsed(true);
+            refreshTokenRepository.save(stored);
 
-        RefreshToken newEntity = new RefreshToken();
-        newEntity.setToken(newRefreshToken);
-        newEntity.setUser(user);
-        newEntity.setCreatedAt(LocalDateTime.now());
-        newEntity.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
-        newEntity.setUsed(false);
-        newEntity.setInvalidated(false);
+            // Generate new tokens
+            String newAccessToken = jwtUtil.generateAccessToken(user);
+            String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        refreshTokenRepository.save(newEntity);
+            RefreshToken newEntity = new RefreshToken();
+            newEntity.setToken(newRefreshToken);
+            newEntity.setUser(user);
+            newEntity.setCreatedAt(LocalDateTime.now());
+            newEntity.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+            newEntity.setUsed(false);
+            newEntity.setInvalidated(false);
 
-        log.info("AuthService.refreshToken(): rotation complete for userId={}", user.getId());
+            refreshTokenRepository.save(newEntity);
 
-        return new AuthResponse(
-                "TOKEN_REFRESHED",
-                "Token refreshed successfully",
-                newAccessToken,
-                newRefreshToken,
-                null
-        );
+            // Record success (NON-critical)
+            try {
+                loginActivityService.recordSuccess(user.getId(), email);
+            } catch (Exception ex) {
+                log.error("AuthService.refreshToken(): Failed to record success userId={} msg={}",
+                        user.getId(), ex.getMessage());
+            }
+
+            log.info("AuthService.refreshToken(): rotation complete userId={}", user.getId());
+
+            return new AuthResponse(
+                    "TOKEN_REFRESHED",
+                    "Token refreshed successfully",
+                    newAccessToken,
+                    newRefreshToken,
+                    null
+            );
+
+        } catch (Exception ex) {
+            log.error("AuthService.refreshToken(): rotation failed email={} msg={}", email, ex.getMessage(), ex);
+            loginActivityService.recordFailure(email, "Failed to rotate refresh token");
+            throw new TokenGenerationException("Token refresh failed. Please login again.");
+        }
     }
 
 
@@ -335,16 +429,36 @@ public class AuthServiceImpl implements AuthService {
         String email = rawEmail.trim().toLowerCase();
         log.info("AuthService.forgotPassword(): started for email={}", email);
 
+        // 1) Check user existence
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("AuthService.forgotPassword(): user not found email={}", email);
                     return new UserNotFoundException("User not found with email: " + email);
                 });
-        String token = verificationService.createVerificationToken(user, "PASSWORD_RESET");
-        emailService.sendPasswordResetEmail(user.getEmail(), token);
 
-        log.info("AuthService.forgotPassword(): reset email sent to email={}", email);
+        try {
+            // 2) Create password reset token
+            String token = verificationService.createVerificationToken(user, "PASSWORD_RESET");
+
+            // 3) Send reset email (Resilience4j handles fallback)
+            emailService.sendPasswordResetEmail(user.getEmail(), token);
+
+            log.info("AuthService.forgotPassword(): reset email sent to email={}", email);
+
+        } catch (EmailSendFailedException ex) {
+            // Already meaningful → simply rethrow
+            throw ex;
+
+        } catch (Exception ex) {
+            log.error("AuthService.forgotPassword(): unexpected failure email={}, msg={}",
+                    email, ex.getMessage(), ex);
+
+            throw new EmailSendFailedException(
+                    "Unable to send password reset email. Please try again later."
+            );
+        }
     }
+
 
 
     @Override
@@ -352,69 +466,104 @@ public class AuthServiceImpl implements AuthService {
     @Audit(action = AuditAction.PASSWORD_RESET, description = "Password reset action")
     public void resetPassword(ResetPasswordRequest request) {
 
-        log.info("AuthService.resetPassword() started");
+        String tokenPrefix = safeTokenPrefix(request.getToken());
+        log.info("AuthService.resetPassword() started (tokenPrefix={})", tokenPrefix);
 
-        // Validate token
+        // 1) Validate token existence
         VerificationToken verificationToken = verificationTokenRepository.findByToken(request.getToken())
                 .orElseThrow(() -> {
-                    log.warn("AuthService.resetPassword(): invalid token");
+                    log.warn("AuthService.resetPassword(): invalid token (tokenPrefix={})", tokenPrefix);
                     return new InvalidTokenException("Invalid token");
                 });
 
-        // Check type
-        if (!verificationToken.getType().equals("PASSWORD_RESET")){
-            log.warn("AuthService.resetPassword(): token type mismatch");
-            throw new InvalidTokenException("Token type mismatch");
+        // 2) Check type
+        if (!"PASSWORD_RESET".equals(verificationToken.getType())) {
+            log.warn("AuthService.resetPassword(): token type mismatch (tokenPrefix={})", tokenPrefix);
+            throw new InvalidTokenException("Invalid token type");
         }
 
-        // Check expiration
-        if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())){
-            log.warn("AuthService.resetPassword(): token expired");
-            throw new InvalidTokenException("Token expired");
+        // 3) Check expiration
+        if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            log.warn("AuthService.resetPassword(): token expired (tokenPrefix={})", tokenPrefix);
+            throw new InvalidTokenException("Reset token has expired");
         }
 
-        // Load user from DB
         User user = verificationToken.getUser();
-        // Encode new password
-        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        // Save updated user
-        userRepository.save(user);
 
-        // Delete token after use (important)
-        verificationTokenRepository.delete(verificationToken);
+        try {
+            // 4) Update password
+            user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+            userRepository.save(user);
 
-        log.info("AuthService.resetPassword(): successful for userId={}", user.getId());
+            // 5) Delete token
+            verificationTokenRepository.delete(verificationToken);
+
+            // 6) Log success (optional)
+            try {
+                loginActivityService.recordSuccess(user.getId(), user.getEmail());
+            } catch (Exception ex) {
+                log.error("AuthService.resetPassword(): failed to record password reset success userId={} msg={}",
+                        user.getId(), ex.getMessage());
+            }
+
+            log.info("AuthService.resetPassword(): successful for userId={}", user.getId());
+
+        } catch (Exception ex) {
+            log.error("AuthService.resetPassword(): unexpected failure for userId={} msg={}",
+                    user.getId(), ex.getMessage(), ex);
+
+            throw new PasswordResetException(
+                    "Unable to reset password at the moment. Please try again later."
+            );
+        }
     }
+
 
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "users", key = "@jwtUtil.extractUsername(#token)")
+    @Cacheable(value = "users", key = "#token")
     public UserDetailsResponse userDetailsFromAccessToken(String token) {
 
         log.info("AuthService.userDetailsFromAccessToken(): started");
 
-        if (token == null) {
-            log.warn("AuthService.userDetailsFromAccessToken(): missing Authorization header");
+        // 1) Token missing
+        if (token == null || token.isBlank()) {
+            log.warn("AuthService.userDetailsFromAccessToken(): missing token");
             throw new InvalidTokenException("Missing or invalid Authorization header");
         }
 
-        // Check expiration
+        // 2) Token expired
         if (jwtUtil.isTokenExpired(token)) {
             log.warn("AuthService.userDetailsFromAccessToken(): token expired");
             throw new InvalidTokenException("Access token expired");
         }
 
-        // Extract email from access token
-        String email = jwtUtil.extractUsername(token);
+        // 3) Extract email safely
+        String email;
+        try {
+            email = jwtUtil.extractUsername(token);
+        } catch (Exception ex) {
+            log.warn("AuthService.userDetailsFromAccessToken(): failed to extract email. msg={}", ex.getMessage());
+            throw new InvalidTokenException("Invalid access token");
+        }
+
         log.info("AuthService.userDetailsFromAccessToken(): extracted email={}", email);
 
+        // 4) Load user
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("AuthService.userDetailsFromAccessToken(): user not found email={}", email);
                     return new UserNotFoundException("User not found with email: " + email);
                 });
 
+        // 5) Blocked user?
+        if (!user.isActive()) {
+            log.warn("AuthService.userDetailsFromAccessToken(): blocked user requested details email={}", email);
+            throw new AccountBlockedException("Your account has been blocked. Contact support.");
+        }
+
+        // 6) SUCCESS RESPONSE
         log.info("AuthService.userDetailsFromAccessToken(): success email={}", email);
 
         return new UserDetailsResponse(
@@ -428,9 +577,10 @@ public class AuthServiceImpl implements AuthService {
     }
 
 
+
     @Override
     @Caching(evict = {
-            @CacheEvict(value = "users", key = "@jwtUtil.extractUsername(#accessToken)"),
+            @CacheEvict(value = "users", key = "#accessToken"),   // FIXED SpEL
             @CacheEvict(value = "users.list", allEntries = true)
     })
     @Audit(action = AuditAction.LOGOUT, description = "User logout")
@@ -438,26 +588,43 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("AuthService.logout(): started");
 
-        // Extract access token expiry
-        Claims claims = jwtUtil.extractAllClaims(accessToken);
-        long expiry = claims.getExpiration().getTime();
+        if (accessToken == null || accessToken.isBlank()) {
+            log.warn("AuthService.logout(): missing access token");
+            throw new InvalidTokenException("Missing access token");
+        }
 
-        // Blacklist access token UNTIL it expires
-        blacklistedTokenStore.blacklistToken(accessToken, expiry);
-        log.info("AuthService.logout(): Access token blacklisted until={}", expiry);
+        try {
+            // Extract claims safely
+            Claims claims = jwtUtil.extractAllClaims(accessToken);
+            long expiryMillis = claims.getExpiration().getTime();
 
-        // Delete refresh token from DB
-        refreshTokenRepository.deleteByToken(refreshToken);
-        log.info("AuthService.logout(): Refresh token deleted");
+            // Blacklist access token until its natural expiry
+            blacklistedTokenStore.blacklistToken(accessToken, expiryMillis);
+            log.info("AuthService.logout(): access token blacklisted until={}", expiryMillis);
+
+        } catch (Exception ex) {
+            log.error("AuthService.logout(): failed to parse or blacklist token msg={}", ex.getMessage(), ex);
+            throw new InvalidTokenException("Invalid access token");
+        }
+
+        try {
+            // Delete refresh token
+            refreshTokenRepository.deleteByToken(refreshToken);
+            log.info("AuthService.logout(): refresh token deleted");
+        } catch (Exception ex) {
+            log.error("AuthService.logout(): failed to delete refresh token msg={}", ex.getMessage(), ex);
+            throw new LogoutFailedException("Logout failed due to a server error. Try again later.");
+        }
 
         log.info("AuthService.logout(): finished");
     }
 
 
+
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "users", key = "@jwtUtil.extractUsername(#request.accessToken)"),
+            @CacheEvict(value = "users", key = "#request.accessToken"),   // FIXED SPEL
             @CacheEvict(value = "users.list", allEntries = true)
     })
     @Audit(action = AuditAction.OAUTH_LINK, description = "Linking OAuth account")
@@ -465,109 +632,185 @@ public class AuthServiceImpl implements AuthService {
 
         log.info("AuthService.linkOAuthAccount(): started provider={}", request.getProviderType());
 
-        String token = request.getAccessToken();
+        String accessToken = request.getAccessToken();
 
-        if (jwtUtil.isTokenExpired(token)) {
-            log.warn("AuthService.linkOAuthAccount(): token expired");
-            throw new InvalidTokenException("Token expired");
+        if (accessToken == null || accessToken.isBlank()) {
+            log.warn("AuthService.linkOAuthAccount(): missing token");
+            throw new InvalidTokenException("Missing access token");
         }
 
-        String email = jwtUtil.extractUsername(token);
+        // Check expiry
+        if (jwtUtil.isTokenExpired(accessToken)) {
+            log.warn("AuthService.linkOAuthAccount(): token expired");
+            throw new InvalidTokenException("Access token expired");
+        }
+
+        // Extract email safely
+        String email;
+        try {
+            email = jwtUtil.extractUsername(accessToken);
+        } catch (Exception ex) {
+            log.warn("AuthService.linkOAuthAccount(): failed to parse token msg={}", ex.getMessage());
+            throw new InvalidTokenException("Invalid access token");
+        }
+
         log.info("AuthService.linkOAuthAccount(): extracted email={}", email);
 
+        // Load user
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("AuthService.linkOAuthAccount(): user not found email={}", email);
                     return new UserNotFoundException("User not found");
                 });
 
-        // If already linked with another provider
-        if (user.getProviderId() != null &&
-                user.getAuthProviderType() != null &&
-                !user.getProviderId().equals(request.getProviderId())) {
-            log.warn("AuthService.linkOAuthAccount(): provider conflict for email={}", email);
-            throw new UserAlreadyExistsException("This account is already linked with another provider");
+        // Blocked user check
+        if (!user.isActive()) {
+            log.warn("AuthService.linkOAuthAccount(): blocked user attempted OAuth linking email={}", email);
+            throw new AccountBlockedException("Your account has been blocked. Contact support.");
         }
 
-        // Link the provider
-        user.setProviderId(request.getProviderId());
-        user.setAuthProviderType(request.getProviderType());
+        // Provider conflict check
+        if (user.getAuthProviderType() != null &&
+                !user.getAuthProviderType().equals(request.getProviderType())) {
 
-        userRepository.save(user);
+            log.warn("AuthService.linkOAuthAccount(): provider conflict email={} existing={} new={}",
+                    email, user.getAuthProviderType(), request.getProviderType());
 
-        log.info("AuthService.linkOAuthAccount(): successfully linked provider={} for email={}",
-                request.getProviderType(), email);
+            throw new UserAlreadyExistsException(
+                    "Account already linked with a different provider (" +
+                            user.getAuthProviderType() + ")."
+            );
+        }
+
+        // Save provider link
+        try {
+            user.setProviderId(request.getProviderId());
+            user.setAuthProviderType(request.getProviderType());
+            userRepository.save(user);
+
+            log.info("AuthService.linkOAuthAccount(): successfully linked provider={} for email={}",
+                    request.getProviderType(), email);
+
+        } catch (Exception ex) {
+            log.error("AuthService.linkOAuthAccount(): failed to save provider link email={} msg={}",
+                    email, ex.getMessage(), ex);
+
+            throw new OAuthLinkFailedException("Failed to link OAuth provider. Please try again later.");
+        }
     }
+
 
     @Override
     @Transactional
     @Caching(evict = {
-            @CacheEvict(value = "users", key = "@jwtUtil.extractUsername(#token)"),
+            @CacheEvict(value = "users", key = "#token"),        // FIXED SPEL
             @CacheEvict(value = "users.list", allEntries = true)
     })
     @Audit(action = AuditAction.CHANGE_PASSWORD, description = "User password change")
     public AuthResponse changePassword(String token, String oldPassword, String newPassword) {
+
+        log.info("AuthService.changePassword(): started");
+
+        // 1) Validate token
+        if (token == null || token.isBlank()) {
+            log.warn("AuthService.changePassword(): missing token");
+            throw new InvalidTokenException("Missing token");
+        }
 
         if (jwtUtil.isTokenExpired(token)) {
             log.warn("AuthService.changePassword(): token expired");
             throw new InvalidTokenException("Token expired");
         }
 
-            String email = jwtUtil.extractUsername(token);
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> {
-                        log.warn("AuthService.changePassword(): user not found email={}", email);
-                        return new UserNotFoundException("User not found with email: " + email);
-                    });
+        // 2) Extract email
+        String email;
+        try {
+            email = jwtUtil.extractUsername(token);
+        } catch (Exception ex) {
+            log.warn("AuthService.changePassword(): failed to parse token msg={}", ex.getMessage());
+            throw new InvalidTokenException("Invalid access token");
+        }
 
-            if (!passwordEncoder.matches(oldPassword, user.getPassword())){
-                log.warn("AuthService.changePassword(): old password mismatch for email={}", email);
-                throw new InvalidCredentialsException("Old password is wrong enter correct password");
-            }
+        // 3) Load user
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("AuthService.changePassword(): user not found email={}", email);
+                    return new UserNotFoundException("User not found");
+                });
 
+        // 4) Blocked user?
+        if (!user.isActive()) {
+            log.warn("AuthService.changePassword(): blocked user tried to change password email={}", email);
+            throw new AccountBlockedException("Your account has been blocked.");
+        }
+
+        // 5) Validate old password
+        if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
+            log.warn("AuthService.changePassword(): old password mismatch email={}", email);
+            throw new InvalidCredentialsException("Old password is incorrect.");
+        }
+
+        // 6) OPTIONAL: Prevent same password
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            log.warn("AuthService.changePassword(): new password same as old email={}", email);
+            throw new InvalidCredentialsException("New password cannot be the same as old password.");
+        }
+
+        try {
+            // 7) Update password
             user.setPassword(passwordEncoder.encode(newPassword));
             userRepository.save(user);
-            log.info("AuthService.changePassword(): password updated for email={}", email);
 
+            // 8) Invalidate all refresh tokens
+            refreshTokenRepository.invalidateAllForUser(user.getId());
+            log.info("AuthService.changePassword(): invalidated all refresh tokens email={}", email);
 
-        // Delete all old refresh tokens
-        refreshTokenRepository.deleteAllByUserId(user.getId());
-        log.info("AuthService.changePassword(): deleted all old refresh tokens for email={}", email);
+            // 9) Blacklist old access token
+            Claims claims = jwtUtil.extractAllClaims(token);
+            long expiryMillis = claims.getExpiration().getTime();
+            blacklistedTokenStore.blacklistToken(token, expiryMillis);
+            log.info("AuthService.changePassword(): blacklisted old access token email={}", email);
 
+            // 10) Generate new tokens
+            String newAccessToken = jwtUtil.generateAccessToken(user);
+            String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        // Blacklist old access token
-        Claims claims = jwtUtil.extractAllClaims(token);
-        long expiry = claims.getExpiration().getTime();
-        blacklistedTokenStore.blacklistToken(token, expiry);
-        log.info("AuthService.changePassword(): Access token blacklisted until={} for email={}", expiry, email);
+            // 11) Save new refresh token
+            RefreshToken newEntity = new RefreshToken();
+            newEntity.setToken(newRefreshToken);
+            newEntity.setUser(user);
+            newEntity.setCreatedAt(LocalDateTime.now());
+            newEntity.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+            newEntity.setUsed(false);
+            newEntity.setInvalidated(false);
+            refreshTokenRepository.save(newEntity);
 
-        // 1. Invalidate all previous tokens for this user (important)
-        refreshTokenRepository.invalidateAllForUser(user.getId());
+            // 12) Record success
+            try {
+                loginActivityService.recordSuccess(user.getId(), email);
+            } catch (Exception ex) {
+                log.error("AuthService.changePassword(): failed to record success email={} msg={}", email, ex.getMessage());
+            }
 
-        // Create new tokens
-        String newAccessToken = jwtUtil.generateAccessToken(user);
-        String newRefreshToken = jwtUtil.generateRefreshToken(user);
-        log.info("AuthService.changePassword(): created new accessToken and refreshToken for email={}",email);
+            log.info("AuthService.changePassword(): completed successfully email={}", email);
 
-        // Save refresh token to DB
-        RefreshToken newToken = new RefreshToken();
-        newToken.setToken(newRefreshToken);
-        newToken.setUser(user);
-        newToken.setCreatedAt(LocalDateTime.now());
-        newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
-        newToken.setUsed(false);
-        newToken.setInvalidated(false);
+            return new AuthResponse(
+                    "PASSWORD_CHANGED",
+                    "Password changed successfully",
+                    newAccessToken,
+                    newRefreshToken,
+                    null
+            );
 
-        refreshTokenRepository.save(newToken);
+        } catch (Exception ex) {
+            log.error("AuthService.changePassword(): failed email={} msg={}", email, ex.getMessage(), ex);
 
-        log.info("AuthService.changePassword(): completed successfully for email={}", email);
-        return new AuthResponse(
-                "PASSWORD_CHANGED",
-                "Password changed successfully",
-                newAccessToken,
-                newRefreshToken,
-                null);
+            loginActivityService.recordFailure(email, "Failed to change password");
+
+            throw new PasswordChangeException("Unable to change password. Try again later.");
+        }
     }
+
 
 
     @Override
@@ -587,104 +830,123 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Audit(action = AuditAction.MFA_VERIFY, description = "User verifying MFA or risk-based OTP")
+    @Transactional
     public AuthResponse verifyOtp(MfaTokenVerifyRequest request, String ip, String userAgent) {
 
         log.info("AuthService.verifyOtp(): started for id={}", request.getId());
 
-        // Fetch token
+        // 1) Fetch MFA token
         MfaToken mfaToken = mfaTokenRepository.findByIdAndUsedFalse(request.getId())
                 .orElseThrow(() -> {
                     loginActivityService.recordFailure(null, "OTP token not found or already used");
-                    log.warn("AuthService.verifyOtp(): MfaToken not found for id={}", request.getId());
-                    return new InvalidTokenException("Token not found");
+                    log.warn("AuthService.verifyOtp(): token not found id={}", request.getId());
+                    return new InvalidTokenException("OTP token not found or already used");
                 });
 
-        // check expiry
+        // 2) Check expiration
         if (mfaToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            loginActivityService.recordFailure(
-                    mfaToken.getUser().getEmail(),
-                    "OTP expired"
-            );
-            log.warn("AuthService.verifyOtp(): OTP expired id={}", request.getId());
-            throw new InvalidTokenException("Token is expired");
+            loginActivityService.recordFailure(mfaToken.getUser().getEmail(), "OTP expired");
+            log.warn("AuthService.verifyOtp(): token expired id={}", request.getId());
+            throw new InvalidTokenException("OTP expired");
         }
 
-        // 3. OTP mismatch
-        String submittedOtp = request.getOtp().trim();
-        if (!mfaToken.getOtp().equals(submittedOtp)) {
-            //Record activity for wrong password
+        // 3) Check OTP value
+        if (!mfaToken.getOtp().equals(request.getOtp().trim())) {
             loginActivityService.recordFailure(mfaToken.getUser().getEmail(), "Wrong OTP entered");
-            log.warn("AuthService.verifyOtp(): wrong OTP entered for id={}", request.getId());
-            throw new InvalidCredentialsException("Wrong OTP. Please enter correct OTP");
+            log.warn("AuthService.verifyOtp(): wrong OTP for id={}", request.getId());
+            throw new InvalidCredentialsException("Wrong OTP");
         }
 
-        // 4. Mark token as used
-        mfaToken.setUsed(true);
-        mfaTokenRepository.save(mfaToken);
+        // 4) Mark token as used
+        try {
+            mfaToken.setUsed(true);
+            mfaTokenRepository.save(mfaToken);
+        } catch (Exception ex) {
+            log.error("AuthService.verifyOtp(): failed marking token used id={} msg={}",
+                    request.getId(), ex.getMessage(), ex);
+            throw new OtpVerificationException("Failed verifying OTP. Try again.");
+        }
 
-        // 5. Fetch user
+        // 5) Fetch user
         User user = mfaToken.getUser();
 
-        // 6. Record login activity (this also triggers IpMonitoring + risk logging)
-        loginActivityService.recordSuccess(user.getId(), user.getEmail());
-        log.info("AuthService.verifyOtp(): user verified email={}", user.getEmail());
-
-        // 7. ✅ TRUST THIS DEVICE (NEW)
-        try {
-            DeviceInfo deviceInfo = UserAgentParser.parse(userAgent);
-            String deviceSignature = deviceInfo.getSignature();
-
-            trustedDeviceService.trustDevice(
-                    user.getId(),
-                    deviceSignature,
-                    deviceInfo.getDeviceName()
-            );
-
-            log.info("AuthService.verifyOtp(): trusted device saved userId={} device={}",
-                    user.getId(), deviceInfo.getDeviceName());
-        } catch (Exception e) {
-            log.warn("AuthService.verifyOtp(): failed to trust device userId={} reason={}",
-                    user.getId(), e.getMessage());
+        // ✔ Blocked user check
+        if (!user.isActive()) {
+            log.warn("AuthService.verifyOtp(): blocked user tried to verify OTP email={}", user.getEmail());
+            throw new AccountBlockedException("Your account has been blocked.");
         }
 
+        // 6) Record success login
+        try {
+            loginActivityService.recordSuccess(user.getId(), user.getEmail());
+        } catch (Exception ex) {
+            log.warn("AuthService.verifyOtp(): failed to record login success userId={}", user.getId());
+        }
 
-        // 1. Invalidate all previous tokens for this user (important)
-        refreshTokenRepository.invalidateAllForUser(user.getId());
+        // 7) Save trusted device
+        try {
+            DeviceInfo deviceInfo = UserAgentParser.parse(userAgent);
+            trustedDeviceService.trustDevice(
+                    user.getId(),
+                    deviceInfo.getSignature(),
+                    deviceInfo.getDeviceName()
+            );
+        } catch (Exception ex) {
+            log.warn("AuthService.verifyOtp(): failed to save trusted device userId={} msg={}",
+                    user.getId(), ex.getMessage());
+        }
 
-// 2. Generate new tokens
-        String newAccessToken = jwtUtil.generateAccessToken(user);
-        String newRefreshToken = jwtUtil.generateRefreshToken(user);
+        try {
+            // 8) Invalidate all old tokens
+            refreshTokenRepository.invalidateAllForUser(user.getId());
 
-// 3. Save the new refresh token
-        RefreshToken newToken = new RefreshToken();
-        newToken.setToken(newRefreshToken);
-        newToken.setUser(user);
-        newToken.setCreatedAt(LocalDateTime.now());
-        newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
-        newToken.setUsed(false);
-        newToken.setInvalidated(false);
+            // 9) Create new tokens
+            String newAccessToken = jwtUtil.generateAccessToken(user);
+            String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        refreshTokenRepository.save(newToken);
+            RefreshToken newToken = new RefreshToken();
+            newToken.setToken(newRefreshToken);
+            newToken.setUser(user);
+            newToken.setCreatedAt(LocalDateTime.now());
+            newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+            newToken.setUsed(false);
+            newToken.setInvalidated(false);
 
-        log.info("AuthService.verifyOtp(): completed for email={}", user.getEmail());
+            refreshTokenRepository.save(newToken);
 
-        String message = mfaToken.isRiskBased()
-                ? "Risk-based OTP verified successfully"
-                : "MFA OTP verified successfully";
+            // 10) Record risk data
+            try {
+                ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
+            } catch (Exception ex) {
+                log.warn("AuthService.verifyOtp(): ipMonitoring failed userId={} msg={}",
+                        user.getId(), ex.getMessage());
+            }
 
-        String type = mfaToken.isRiskBased()
-                ? "RISK_VERIFIED"
-                : "MFA_VERIFIED";
+            log.info("AuthService.verifyOtp(): completed email={}", user.getEmail());
 
-        // Final response
-        return new AuthResponse(
-                message,
-                type,
-                newAccessToken,
-                newRefreshToken,
-                null
-        );
+            String message = mfaToken.isRiskBased()
+                    ? "Risk-based OTP verified successfully"
+                    : "MFA OTP verified successfully";
+
+            String type = mfaToken.isRiskBased()
+                    ? "RISK_VERIFIED"
+                    : "MFA_VERIFIED";
+
+            return new AuthResponse(
+                    type,
+                    message,
+                    newAccessToken,
+                    newRefreshToken,
+                    null
+            );
+
+        } catch (Exception ex) {
+            log.error("AuthService.verifyOtp(): failed generating new tokens msg={}", ex.getMessage(), ex);
+            loginActivityService.recordFailure(user.getEmail(), "Failed generating new tokens post-OTP");
+            throw new TokenGenerationException("Unable to complete verification. Try again.");
+        }
     }
+
 
     // Helper to avoid StringIndexOutOfBounds if token is short/null
     private String safeTokenPrefix(String token) {

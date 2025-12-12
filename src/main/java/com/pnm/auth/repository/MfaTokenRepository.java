@@ -17,7 +17,7 @@ public interface MfaTokenRepository extends JpaRepository<MfaToken, Long> {
     @Modifying
     @Transactional
     @Query("UPDATE MfaToken t SET t.used = true WHERE t.user.id = :userId AND t.used = false")
-    int markAllUnusedTokensAsUsed(@Param("userId") Long userId);
+    void markAllUnusedTokensAsUsed(@Param("userId") Long userId);
 
     Optional<MfaToken> findByIdAndUsedFalse(Long id);
 

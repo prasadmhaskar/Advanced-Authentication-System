@@ -1,6 +1,8 @@
 package com.pnm.auth.service.impl;
 
 import com.pnm.auth.service.EmailService;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.SimpleMailMessage;
@@ -15,6 +17,8 @@ public class EmailServiceImpl implements EmailService {
     private final JavaMailSender mailSender;
 
     @Override
+    @Retry(name = "emailRetry")
+    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackEmail")
     public void sendVerificationEmail(String toEmail, String token) {
 
         log.info("EmailService.sendVerificationEmail: Started for email={}",toEmail);
@@ -33,6 +37,8 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
+    @Retry(name = "emailRetry")
+    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackEmail")
     public void sendPasswordResetEmail(String toEmail, String token) {
         log.info("EmailService.sendPasswordResetEmail: Started for email={}",toEmail);
         String subject = "Reset Your Password";
@@ -50,6 +56,22 @@ public class EmailServiceImpl implements EmailService {
 
 
     @Override
+    @Retry(name = "emailRetry")
+    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackEmail")
+    public void sendMfaOtpEmail(String toEmail, String otp) {
+
+        log.info("EmailService.sendMfaOtpEmail(): sending MFA OTP to {}", toEmail);
+
+        String subject = "Your MFA Verification Code";
+        String body = "Your OTP for login is: " + otp + "\nIt will expire in 5 minutes.";
+
+        sendEmail(toEmail, subject, body);
+
+    }
+
+    @Override
+    @Retry(name = "emailRetry")
+    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackEmail")
     public void sendEmail(String toEmail, String subject, String body) {
         log.info("EmailService.sendEmail: Email sending to={}",toEmail);
         SimpleMailMessage message = new SimpleMailMessage();
@@ -61,16 +83,8 @@ public class EmailServiceImpl implements EmailService {
         log.info("EmailService.sendEmail: Email sent to={}",toEmail);
     }
 
-    @Override
-    public void sendMfaOtpEmail(String toEmail, String otp) {
-
-        log.info("EmailService.sendMfaOtpEmail(): sending MFA OTP to {}", toEmail);
-
-        String subject = "Your MFA Verification Code";
-        String body = "Your OTP for login is: " + otp + "\nIt will expire in 5 minutes.";
-
-        sendEmail(toEmail, subject, body);
-
+    public void fallbackEmail(String toEmail, String arg, Throwable ex) {
+        log.error("EmailService Fallback triggered for to={} reason={}", toEmail, ex.getMessage());
     }
 }
 

@@ -207,6 +207,221 @@ public class GlobalExceptionHandler {
 
 
     // ================================================================
+//                    REGISTRATION EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(RegistrationFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRegistrationFailure(
+            RegistrationFailedException ex, HttpServletRequest request) {
+
+        log.error("RegistrationFailedException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "REGISTRATION_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+
+    // ================================================================
+//                        LOGIN EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(LoginFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLoginFailure(
+            LoginFailedException ex, HttpServletRequest request) {
+
+        log.error("LoginFailedException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "LOGIN_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
+
+
+    // ================================================================
+//               TOKEN / VERIFICATION / RESET EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(TokenGenerationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTokenGenerationFailure(
+            TokenGenerationException ex, HttpServletRequest request) {
+
+        log.error("TokenGenerationException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "TOKEN_GENERATION_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+
+    // ================================================================
+//                       USER UPDATE EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(UserUpdateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUserUpdateFailure(
+            UserUpdateException ex, HttpServletRequest request) {
+
+        log.error("UserUpdateException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "USER_UPDATE_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+
+    // ================================================================
+//                    DATABASE OPERATION EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(DatabaseOperationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDatabaseOperationFailure(
+            DatabaseOperationException ex, HttpServletRequest request) {
+
+        log.error("DatabaseOperationException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "DATABASE_OPERATION_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+
+    // ================================================================
+//                       OTP GENERATION EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(OtpGenerationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOtpGenerationFailure(
+            OtpGenerationException ex, HttpServletRequest request) {
+
+        log.error("OtpGenerationException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "OTP_GENERATION_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+    // ================================================================
+//                     PASSWORD RESET EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(PasswordResetException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePasswordResetException(
+            PasswordResetException ex,
+            HttpServletRequest request
+    ) {
+        log.error("PasswordResetException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "PASSWORD_RESET_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+
+    // ================================================================
+//                     LOGOUT EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(LogoutFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleLogoutFailedException(
+            LogoutFailedException ex,
+            HttpServletRequest request
+    ) {
+        log.error("LogoutFailedException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "LOGOUT_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+    // ================================================================
+//                     OAuth link failed EXCEPTIONS
+// ================================================================
+
+    @ExceptionHandler(OAuthLinkFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOAuthLinkFailed(
+            OAuthLinkFailedException ex,
+            HttpServletRequest request
+    ) {
+        log.error("OAuthLinkFailedException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "OAUTH_LINK_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+
+    // ================================================================
+//                     Password change EXCEPTIONS
+// ================================================================
+
+    @ExceptionHandler(PasswordChangeException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePasswordChangeException(
+            PasswordChangeException ex,
+            HttpServletRequest request
+    ) {
+        log.error("PasswordChangeException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "PASSWORD_CHANGE_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+
+    // ================================================================
+//                     OTP VERIFICATION EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(OtpVerificationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOtpVerificationException(
+            OtpVerificationException ex,
+            HttpServletRequest request
+    ) {
+        log.error("OtpVerificationException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "OTP_VERIFICATION_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+
+
+    // ================================================================
     //            FALLBACK FOR ALL UNHANDLED ERRORS (500)
     // ================================================================
     @ExceptionHandler(Exception.class)

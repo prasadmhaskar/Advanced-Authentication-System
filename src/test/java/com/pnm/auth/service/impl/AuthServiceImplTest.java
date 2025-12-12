@@ -198,6 +198,9 @@ class AuthServiceImplTest {
         given(passwordEncoder.matches(anyString(), anyString())).willReturn(true);
 
         assertThatThrownBy(()-> authService.login(loginRequest, ip, ua)).isInstanceOf(AccountBlockedException.class);
+
+        // ensure recordFailure called once (your login earlier may call recordFailure before throwing)
+        then(loginActivityService).should(times(1)).recordFailure(eq(user.getEmail()), anyString());
     }
 
     @Test
@@ -258,13 +261,20 @@ class AuthServiceImplTest {
                     return passedToken;
                 });
 
+        // capture saved mfa token
+        ArgumentCaptor<MfaToken> captor = ArgumentCaptor.forClass(MfaToken.class);
+        ArgumentCaptor<AuthResponse> res = ArgumentCaptor.forClass(AuthResponse.class);
+
         AuthResponse response = authService.login(req, ip, ua);
 
         then(mfaTokenRepository).should().markAllUnusedTokensAsUsed(user.getId());
+        // verify a new MFA token was saved
+        then(mfaTokenRepository).should().save(captor.capture());
         then(emailService).should().sendMfaOtpEmail(eq(email), anyString());
         then(jwtUtil).shouldHaveNoInteractions();
 
         assertThat(response.getType()).isEqualTo("MFA_REQUIRED");
+        assertThat(response.getMessage()).contains("verification");
         assertThat(response.getMfaTokenId()).isEqualTo(999L);
     }
 
@@ -273,6 +283,7 @@ class AuthServiceImplTest {
         String email = "high@example.com";
         String ip = "8.8.8.8";
         String ua = "UA";
+
         User user = new User();
         user.setId(77L);
         user.setEmail(email);
@@ -286,7 +297,7 @@ class AuthServiceImplTest {
         req.setPassword("pw");
 
         given(userRepository.findByEmail(email)).willReturn(Optional.of(user));
-        given(passwordEncoder.matches(any(), any())).willReturn(true);
+        given(passwordEncoder.matches(anyString(), anyString())).willReturn(true);
 
         UserIpLogResponse ipResp = new UserIpLogResponse();
         ipResp.setRiskScore(85);
@@ -299,10 +310,14 @@ class AuthServiceImplTest {
 
         then(suspiciousLoginAlertService).should().sendHighRiskAlert(eq(user), eq(ip), eq(ua), anyList());
         then(loginActivityService).should().recordFailure(eq(user.getEmail()), contains("High risk"));
+        then(jwtUtil).should(never()).generateAccessToken(any());
+        then(jwtUtil).should(never()).generateRefreshToken(any());
+        then(refreshTokenRepository).should(never()).save(any());
+
     }
 
     @Test
-    void login_mediumRisk_shouldRequireRiskOtp() {
+    void login_mediumRisk_shouldCreateRiskOtpToken_andSendRiskOtpEmail() {
         // Arrange
         String email = "risk@example.com";
         String ip = "5.6.7.8";
@@ -329,13 +344,23 @@ class AuthServiceImplTest {
         ipResp.setRiskReason("SOME_REASON");
         given(ipMonitoringService.recordLogin(user.getId(), ip, ua)).willReturn(ipResp);
 
+        ArgumentCaptor<MfaToken> captor = ArgumentCaptor.forClass(MfaToken.class);
+
         // Act & Assert
         assertThatThrownBy(() -> authService.login(req, ip, ua))
-                .isInstanceOf(RiskOtpRequiredException.class);
+                .isInstanceOf(RiskOtpRequiredException.class)
+                .satisfies(ex -> {
+                    // expecting RiskOtpRequiredException (or similar runtime) — we only assert it's runtime
+                    assertThat(ex).isNotNull();
+                });
 
         // ensure OTP flow prepared: existing tokens marked and mfa token created
         then(mfaTokenRepository).should().markAllUnusedTokensAsUsed(user.getId());
+        then(mfaTokenRepository).should().save(captor.capture());
+        MfaToken saved = captor.getValue();
+        assertThat(saved.isRiskBased()).isTrue();
         then(jwtUtil).shouldHaveNoInteractions();
+        then(jwtUtil).should(never()).generateAccessToken(any());
         then(emailService).should().sendMfaOtpEmail(eq(user.getEmail()), anyString());
     }
 
@@ -372,15 +397,20 @@ class AuthServiceImplTest {
         given(jwtUtil.generateAccessToken(user)).willReturn("access-token");
         given(jwtUtil.generateRefreshToken(user)).willReturn("refresh-token");
 
+        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+
         // Act
         var response = authService.login(req, ip, ua);
 
         // Assert - verify side effects
         then(loginActivityService).should(times(2)).recordSuccess(user.getId(), user.getEmail());
         then(refreshTokenRepository).should().invalidateAllForUser(user.getId());
-        then(refreshTokenRepository).should().save(argThat((RefreshToken t) ->
-                t.getToken().equals("refresh-token") && t.getUser().getId().equals(user.getId())
-        ));
+        then(refreshTokenRepository).should().save(captor.capture());
+
+        RefreshToken saved = captor.getValue();
+        assertThat(saved.getToken()).isEqualTo("refresh-token");
+        assertThat(saved.getUser().getId()).isEqualTo(user.getId());
+
 
         // Response may hold tokens (structure varies). Assert access token present in AuthResponse getters if available.
         assertThat(response).isNotNull();
@@ -448,6 +478,154 @@ class AuthServiceImplTest {
 
     //verifyOtp
     @Test
+    void login_oauthUser_shouldThrowInvalidCredentials_andNotCheckPassword() {
+        // Arrange
+        String email = "oauth@example.com";
+        String ip = "1.1.1.1";
+        String ua = "UA";
+
+        User user = new User();
+        user.setId(10L);
+        user.setEmail(email);
+        user.setAuthProviderType(AuthProviderType.GOOGLE); // oauth provider
+        user.setPassword("irrelevant");
+        user.setEmailVerified(true);
+        user.setActive(true);
+        user.setMfaEnabled(false);
+
+        given(userRepository.findByEmail(email)).willReturn(Optional.of(user));
+
+        LoginRequest req = new LoginRequest();
+        req.setEmail(email);
+        req.setPassword("any");
+
+        // Act & Assert
+        assertThatThrownBy(() -> authService.login(req, ip, ua))
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        // verify we did NOT call passwordEncoder.matches for oauth user
+//        then(passwordEncoder).should(never()).matches(anyString(), anyString());
+        then(passwordEncoder).shouldHaveNoInteractions();
+        // ensure no tokens were created
+        then(jwtUtil).should(never()).generateAccessToken(any());
+        then(refreshTokenRepository).should(never()).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void login_mfaEnabled_shouldSkipRiskLogic_andAlwaysSendOtp() {
+        String email = "mfaprio@example.com";
+        String ip = "10.10.10.10";
+        String ua = "UA";
+
+        User user = new User();
+        user.setId(100L);
+        user.setEmail(email);
+        user.setPassword("enc");
+        user.setEmailVerified(true);
+        user.setActive(true);
+        user.setMfaEnabled(true);
+
+        given(userRepository.findByEmail(email)).willReturn(Optional.of(user));
+        given(passwordEncoder.matches(anyString(), anyString())).willReturn(true);
+
+        LoginRequest req = new LoginRequest();
+        req.setEmail(email);
+        req.setPassword("pass");
+
+        var resp = authService.login(req, ip, ua);
+
+        // ipMonitoringService should not be called because MFA interrupts earlier
+        then(ipMonitoringService).should(never()).recordLogin(anyLong(), anyString(), anyString());
+
+        // mfa token saved and email sent
+        then(mfaTokenRepository).should().markAllUnusedTokensAsUsed(user.getId());
+        then(mfaTokenRepository).should().save(any(MfaToken.class));
+        then(emailService).should().sendMfaOtpEmail(eq(user.getEmail()), anyString());
+        assertThat(resp).isNotNull();
+    }
+
+    @Test
+    void verifyOtp_otpAlreadyUsed_shouldThrowInvalidTokenException() {
+
+        MfaTokenVerifyRequest req = new MfaTokenVerifyRequest();
+        req.setId(100L);
+        req.setOtp("000000");
+
+        String ip = "1.3.5";
+        String ua = "UA";
+
+        // Simulate USED token → repository returns empty
+        given(mfaTokenRepository.findByIdAndUsedFalse(req.getId()))
+                .willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.verifyOtp(req, ip, ua))
+                .isInstanceOf(InvalidTokenException.class);
+
+        then(loginActivityService)
+                .should()
+                .recordFailure(null, "OTP token not found or already used");
+    }
+
+    @Test
+    void verifyOtp_otpIsExpired_shouldThrowInvalidTokenException() {
+
+        MfaTokenVerifyRequest req = new MfaTokenVerifyRequest();
+        req.setId(100L);
+        req.setOtp("000000");
+
+        String ip = "1.4.2";
+        String ua = "UA";
+
+        User user = new User();
+        user.setId(10L);
+        user.setEmail("snds@mail.com");
+
+        MfaToken mfa = new MfaToken();
+        mfa.setId(100L);
+        mfa.setOtp("654321");
+        mfa.setUsed(false);
+        mfa.setUser(user);
+        mfa.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+
+
+        // Simulate USED token → repository returns empty
+        given(mfaTokenRepository.findByIdAndUsedFalse(req.getId()))
+                .willReturn(Optional.of(mfa));
+
+        assertThatThrownBy(() -> authService.verifyOtp(req, ip, ua))
+                .isInstanceOf(InvalidTokenException.class);
+
+        then(loginActivityService).should().recordFailure(eq("snds@mail.com"), eq("OTP expired"));
+
+
+    }
+
+    @Test
+    void verifyOtp_wrongOtp_shouldThrowInvalidCredentials() {
+        long tokenId = 111L;
+        MfaToken mfa = new MfaToken();
+        mfa.setId(tokenId);
+        mfa.setOtp("654321");
+        mfa.setUsed(false);
+        mfa.setExpiresAt(LocalDateTime.now().plusMinutes(5));
+        User user = new User();
+        user.setId(600L);
+        user.setEmail("mfa2@example.com");
+        mfa.setUser(user);
+
+        given(mfaTokenRepository.findByIdAndUsedFalse(tokenId)).willReturn(Optional.of(mfa));
+
+        MfaTokenVerifyRequest req = new MfaTokenVerifyRequest();
+        req.setId(tokenId);
+        req.setOtp("000000");
+
+        assertThatThrownBy(() -> authService.verifyOtp(req, "1.2.3.4", "UA"))
+                .isInstanceOf(InvalidCredentialsException.class);
+
+        then(loginActivityService).should().recordFailure(user.getEmail(), "Wrong OTP entered");
+    }
+
+    @Test
     void verifyOtp_success_mfa_shouldIssueTokens_andTrustDevice() {
         // Arrange
         long tokenId = 999L;
@@ -491,67 +669,5 @@ class AuthServiceImplTest {
 
         assertThat(resp).isNotNull();
     }
-
-    @Test
-    void verifyOtp_wrongOtp_shouldThrowInvalidCredentials() {
-        long tokenId = 111L;
-        MfaToken mfa = new MfaToken();
-        mfa.setId(tokenId);
-        mfa.setOtp("654321");
-        mfa.setUsed(false);
-        mfa.setExpiresAt(LocalDateTime.now().plusMinutes(5));
-        User user = new User();
-        user.setId(600L);
-        user.setEmail("mfa2@example.com");
-        mfa.setUser(user);
-
-        given(mfaTokenRepository.findByIdAndUsedFalse(tokenId)).willReturn(Optional.of(mfa));
-
-        MfaTokenVerifyRequest req = new MfaTokenVerifyRequest();
-        req.setId(tokenId);
-        req.setOtp("000000");
-
-        assertThatThrownBy(() -> authService.verifyOtp(req, "1.2.3.4", "UA"))
-                .isInstanceOf(InvalidCredentialsException.class);
-
-        then(loginActivityService).should().recordFailure(user.getEmail(), "Wrong OTP entered");
-    }
-
-    @Test
-    void login_oauthUser_shouldThrowInvalidCredentials_andNotCheckPassword() {
-        // Arrange
-        String email = "oauth@example.com";
-        String ip = "1.1.1.1";
-        String ua = "UA";
-
-        User user = new User();
-        user.setId(10L);
-        user.setEmail(email);
-        user.setAuthProviderType(AuthProviderType.GOOGLE); // oauth provider
-        user.setPassword("irrelevant");
-        user.setEmailVerified(true);
-        user.setActive(true);
-        user.setMfaEnabled(false);
-
-        given(userRepository.findByEmail(email)).willReturn(Optional.of(user));
-
-        LoginRequest req = new LoginRequest();
-        req.setEmail(email);
-        req.setPassword("any");
-
-        // Act & Assert
-        assertThatThrownBy(() -> authService.login(req, ip, ua))
-                .isInstanceOf(InvalidCredentialsException.class);
-
-        // verify we did NOT call passwordEncoder.matches for oauth user
-//        then(passwordEncoder).should(never()).matches(anyString(), anyString());
-        then(passwordEncoder).shouldHaveNoInteractions();
-        // ensure no tokens were created
-        then(jwtUtil).should(never()).generateAccessToken(any());
-        then(refreshTokenRepository).should(never()).save(any(RefreshToken.class));
-    }
-
-
-
 
 }
