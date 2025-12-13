@@ -21,6 +21,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +55,10 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
     @Override
     @Transactional
+    @Caching(evict = {
+            @CacheEvict(value = "users", key = "#request.getHeader('Authorization')"),
+            @CacheEvict(value = "users.list", allEntries = true)
+    })
     @Audit(action = AuditAction.OAUTH_LOGIN, description = "OAuth2 login attempt")
     public AuthResponse handleOAuth2LoginRequest(OAuth2User oAuth2User, String registrationId, HttpServletRequest request) {
 
@@ -69,13 +75,21 @@ public class OAuth2ServiceImpl implements OAuth2Service {
         if (ip == null) ip = request.getRemoteAddr();
         String userAgent = request.getHeader("User-Agent");
 
+        // 1) Handle missing email
+        if (email == null) {
+            log.warn("OAuth2 login failed: provider did not supply email");
+            throw new OAuth2LoginFailedException("Provider did not supply email");
+        }
+
         User user = userRepository.findByProviderIdAndAuthProviderType(providerId, authProviderType).orElse(null);
         User emailUser = (email != null) ? userRepository.findByEmail(email).orElse(null) : null;
 
+        // 2) New OAuth user
         if (user == null && emailUser == null) {
-            // Create new user
             log.info("OAuth2Service.handleOAuth2LoginRequest(): creating new user for email={} provider={}", email, authProviderType);
+
             String username = oAuth2Util.determineUsernameFromOAuth2User(oAuth2User, registrationId);
+
             user = new User();
             user.setFullName(username);
             user.setPassword(UUID.randomUUID().toString());
@@ -84,14 +98,17 @@ public class OAuth2ServiceImpl implements OAuth2Service {
             user.setAuthProviderType(authProviderType);
             user.setEmailVerified(true);
             user.setRoles(List.of("USER"));
+
             userRepository.save(user);
+
+            // 3) Email exists but not linked(merge or not)
         } else if (user == null && emailUser != null) {
-            // Email exists
             log.warn("OAuth2Service.handleOAuth2LoginRequest(): account exists for email={} (needs merging)", email);
             loginActivityService.recordFailure(email,"OAuth2 login failed: account exists but not linked");
             throw new UserAlreadyExistsException("The email: "+email+" is already registered. Do you want to merge both accounts?");
-        } else {
-            // Existing OAuth2 user (user != null)
+        }
+        // 4) Existing OAuth user
+        else {
             log.info("OAuth2Service.handleOAuth2LoginRequest(): existing OAuth user login for email={}", email);
 
             if (email != null && (user.getEmail() == null || !user.getEmail().equals(email))) {
@@ -133,67 +150,75 @@ public class OAuth2ServiceImpl implements OAuth2Service {
 
         if (risk >= 40) {
             log.warn("MEDIUM RISK login, OTP required email={} risk={}", email, risk);
+            try {
+                mfaTokenRepository.markAllUnusedTokensAsUsed(user.getId());
 
-            mfaTokenRepository.markAllUnusedTokensAsUsed(user.getId());
+                SecureRandom secureRandom = new SecureRandom();
+                String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
 
-            SecureRandom secureRandom = new SecureRandom();
-            String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
+                MfaToken mfaToken = new MfaToken();
+                mfaToken.setUser(user);
+                mfaToken.setOtp(otp);
+                mfaToken.setRiskBased(true);
+                mfaToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
+                mfaToken.setUsed(false);
+                mfaTokenRepository.save(mfaToken);
 
-            MfaToken mfaToken = new MfaToken();
-            mfaToken.setUser(user);
-            mfaToken.setOtp(otp);
-            mfaToken.setRiskBased(true);
-            mfaToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
-            mfaToken.setUsed(false);
-            mfaTokenRepository.save(mfaToken);
+                emailService.sendMfaOtpEmail(user.getEmail(), otp);
 
-            emailService.sendMfaOtpEmail(user.getEmail(), otp);
-
-//             ⭐ THROW EXCEPTION — not return AuthResponse
-            throw new RiskOtpRequiredException(
-                    "Suspicious login detected. OTP verification required.",
-                    mfaToken.getId()
-            );
+//              THROW EXCEPTION — not return AuthResponse
+                throw new RiskOtpRequiredException(
+                        "Suspicious login detected. OTP verification required.",
+                        mfaToken.getId()
+                );
+            }catch (Exception ex) {
+                log.error("OAuth2Service.handleOAuth2LoginRequest(): Medium-risk OTP flow failed email={} msg={}", email, ex.getMessage(), ex);
+                loginActivityService.recordFailure(email, "Failed to send medium-risk OTP");
+                throw new EmailSendFailedException("Failed to send OTP. Please try again later.");
+            }
             //for verifying opt we will use same controller for which we have used for verifying mfa otp i.e verifyMfaOtp()
         }
 
-//        refreshTokenRepository.deleteAllByUserId(user.getId());
-//
-//        //else low risk - generate tokens
-//
-//        String accessToken = jwtUtil.generateAccessToken(user);
-//        String refreshToken = jwtUtil.generateRefreshToken(user);
-//
-//        refreshTokenRepository.save(new RefreshToken(refreshToken, user, LocalDateTime.now()));
+        try {
+            // 1. Invalidate all previous tokens for this user (important)
+            refreshTokenRepository.invalidateAllForUser(user.getId());
 
-        // 1. Invalidate all previous tokens for this user (important)
-        refreshTokenRepository.invalidateAllForUser(user.getId());
+            // 2. Generate new tokens
+            String newAccessToken = jwtUtil.generateAccessToken(user);
+            String newRefreshToken = jwtUtil.generateRefreshToken(user);
 
-        // 2. Generate new tokens
-        String newAccessToken = jwtUtil.generateAccessToken(user);
-        String newRefreshToken = jwtUtil.generateRefreshToken(user);
+            // 3. Save the new refresh token
+            RefreshToken newToken = new RefreshToken();
+            newToken.setToken(newRefreshToken);
+            newToken.setUser(user);
+            newToken.setCreatedAt(LocalDateTime.now());
+            newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
+            newToken.setUsed(false);
+            newToken.setInvalidated(false);
 
-        // 3. Save the new refresh token
-        RefreshToken newToken = new RefreshToken();
-        newToken.setToken(newRefreshToken);
-        newToken.setUser(user);
-        newToken.setCreatedAt(LocalDateTime.now());
-        newToken.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpirationMillis, ChronoUnit.MILLIS));
-        newToken.setUsed(false);
-        newToken.setInvalidated(false);
+            refreshTokenRepository.save(newToken);
 
-        refreshTokenRepository.save(newToken);
+            // NOW record success
+            try {
+                loginActivityService.recordSuccess(user.getId(), user.getEmail());
+            } catch (Exception ex) {
+                log.error("OAuth2Service.handleOAuth2LoginRequest(): failed to record login success for userId={}, message={}",
+                        user.getId(), ex.getMessage(), ex);
+            }
+            log.info("OAuth2Service.handleOAuth2LoginRequest(): successful for email={}", user.getEmail());
 
-        // NOW record success
-        loginActivityService.recordSuccess(user.getId(), user.getEmail());
-
-        log.info("OAuth2Service.handleOAuth2LoginRequest(): successful for email={}", user.getEmail());
-
-        return new AuthResponse(
-                "AUTH_LOGIN_SUCCESS",
-                "Login successful using OAuth2",
-                newAccessToken,
-                newRefreshToken,
-                null);
+            return new AuthResponse(
+                    "AUTH_LOGIN_SUCCESS",
+                    "Login successful using OAuth2",
+                    newAccessToken,
+                    newRefreshToken,
+                    null);
+        }
+        catch (Exception ex){
+            log.error("OAuth2Service.handleOAuth2LoginRequest(): access and refresh tokens generation failed for email={}, message={}",
+                    email, ex.getMessage(), ex);
+            loginActivityService.recordFailure(email, "Failed to generate access and refresh tokens");
+            throw new TokenGenerationException("Login failed. Please try again later.");
+        }
     }
 }

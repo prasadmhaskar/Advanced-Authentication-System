@@ -419,6 +419,26 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
+    // ================================================================
+//                    OAUTH2 LOGIN EXCEPTIONS
+// ================================================================
+    @ExceptionHandler(OAuth2LoginFailedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOAuth2LoginFailedException(
+            OAuth2LoginFailedException ex,
+            HttpServletRequest request
+    ) {
+        log.error("OAuth2LoginFailedException at path={}: {}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "OAUTH2_LOGIN_FAILED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
+
+
 
 
     // ================================================================

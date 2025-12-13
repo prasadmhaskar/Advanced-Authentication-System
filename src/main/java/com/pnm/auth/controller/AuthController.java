@@ -6,10 +6,12 @@ import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.AuthResponse;
 import com.pnm.auth.dto.response.TrustedDeviceResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
+import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.service.AuthService;
 import com.pnm.auth.service.TrustedDeviceService;
 import com.pnm.auth.service.VerificationService;
 import com.pnm.auth.security.JwtUtil;
+import com.pnm.auth.service.auth.LoginOrchestrator;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.UserAgentParser;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,6 +36,7 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final TrustedDeviceService trustedDeviceService;
     private final AuthUtil authUtil;
+    private final LoginOrchestrator loginOrchestrator;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<AuthResponse>> register(
@@ -71,28 +74,97 @@ public class AuthController {
         return ResponseEntity.ok(body);
     }
 
+//    @PostMapping("/login")
+//    public ResponseEntity<ApiResponse<AuthResponse>> login(
+//            @Valid @RequestBody LoginRequest loginRequest,
+//            HttpServletRequest request) {
+//
+//        log.info("AuthController.login(): Started for email={}", loginRequest.getEmail());
+//
+//        String ip = request.getHeader("X-Forwarded-For");
+//        if (ip == null) ip = request.getRemoteAddr();           //Fetching ip
+//        String userAgent = request.getHeader("User-Agent");     //fetching browser/device info
+//
+//        AuthResponse response = authService.login(loginRequest, ip, userAgent);
+//        log.info("AuthController.login(): Finished for email={}", loginRequest.getEmail());
+//
+//        ApiResponse<AuthResponse> body = ApiResponse.success(
+//                "USER_LOGGED_IN",
+//                response.getMessage(),
+//                response,
+//                request.getRequestURI()
+//        );
+//        return ResponseEntity.ok(body);
+//    }
+
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<AuthResponse>> login(
-            @Valid @RequestBody LoginRequest loginRequest,
-            HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<?>> login(
+            @Valid @RequestBody LoginRequest request,
+            HttpServletRequest httpRequest
+    ) {
 
-        log.info("AuthController.login(): Started for email={}", loginRequest.getEmail());
+        // Extract IP + User-Agent
+        String ip = httpRequest.getHeader("X-Forwarded-For");
+        if (ip == null) ip = httpRequest.getRemoteAddr();
 
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null) ip = request.getRemoteAddr();           //Fetching ip
-        String userAgent = request.getHeader("User-Agent");     //fetching browser/device info
+        String ua = httpRequest.getHeader("User-Agent");
 
-        AuthResponse response = authService.login(loginRequest, ip, userAgent);
-        log.info("AuthController.login(): Finished for email={}", loginRequest.getEmail());
+        log.info("AuthController.login(): started for email={} ip={} ua={}", request.getEmail(), ip, ua);
 
-        ApiResponse<AuthResponse> body = ApiResponse.success(
-                "USER_LOGGED_IN",
-                response.getMessage(),
-                response,
-                request.getRequestURI()
-        );
-        return ResponseEntity.ok(body);
+        // Call orchestrator
+        AuthenticationResult result = loginOrchestrator.login(request, ip, ua);
+
+        String path = httpRequest.getRequestURI();
+
+        // Build HTTP response based on outcome
+        return switch (result.getOutcome()) {
+
+            case SUCCESS -> ResponseEntity.ok(
+                    ApiResponse.success(
+                            "LOGIN_SUCCESS",
+                            result.getMessage(),
+                            result,
+                            path
+                    )
+            );
+
+            case MFA_REQUIRED -> ResponseEntity.status(HttpStatus.OK).body(
+                    ApiResponse.success(
+                            "MFA_REQUIRED",
+                            result.getMessage(),
+                            result,
+                            path
+                    )
+            );
+
+            case RISK_OTP_REQUIRED -> ResponseEntity.status(HttpStatus.OK).body(
+                    ApiResponse.success(
+                            "RISK_OTP_REQUIRED",
+                            result.getMessage(),
+                            result,
+                            path
+                    )
+            );
+
+            case BLOCKED_HIGH_RISK -> ResponseEntity.status(HttpStatus.FORBIDDEN).body(
+                    ApiResponse.error(
+                            "LOGIN_BLOCKED",
+                            result.getMessage(),
+                            path
+                    )
+            );
+
+            default -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
+                    ApiResponse.error(
+                            "LOGIN_FAILED",
+                            result.getMessage(),
+                            path
+                    )
+            );
+        };
     }
+
+
 
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<AuthResponse>> verifyRefreshToken(
