@@ -97,7 +97,6 @@ public class AdminServiceImpl implements AdminService {
 
         log.info("AdminService.deleteUser(): deleted user id={}", id);
 
-        // TODO: auditService.recordUserDeletion(id);
     }
 
 
@@ -131,7 +130,6 @@ public class AdminServiceImpl implements AdminService {
 
         log.info("AdminService.blockUser(): user blocked id={}", id);
 
-        // TODO: auditService.recordUserBlock(id);
     }
 
 
@@ -165,7 +163,6 @@ public class AdminServiceImpl implements AdminService {
 
         log.info("AdminService.unblockUser(): user unblocked id={}", id);
 
-        // TODO: auditService.recordUserUnblock(id);
     }
 
 

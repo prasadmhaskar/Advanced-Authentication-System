@@ -92,8 +92,5 @@ public class TrustedDeviceServiceImpl implements TrustedDeviceService {
 
         log.info("TrustedDeviceService.removeAllExceptCurrent(): completed userId={}", userId);
     }
-
-
-
 }
 

@@ -1,5 +1,6 @@
 package com.pnm.auth.service.impl;
 
+import com.pnm.auth.exception.EmailSendFailedException;
 import com.pnm.auth.service.EmailService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -83,8 +84,11 @@ public class EmailServiceImpl implements EmailService {
         log.info("EmailService.sendEmail: Email sent to={}",toEmail);
     }
 
-    public void fallbackEmail(String toEmail, String arg, Throwable ex) {
-        log.error("EmailService Fallback triggered for to={} reason={}", toEmail, ex.getMessage());
+    public void fallbackEmail(String toEmail, String otp, Throwable ex) {
+        log.error("EmailService fallback triggered for OTP email={} reason={}", toEmail, ex.getMessage(), ex);
+
+        throw new EmailSendFailedException("Unable to send OTP email at the moment. Please try again.");
     }
+
 }
 

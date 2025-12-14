@@ -31,8 +31,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
 
-
-
         MDC.put("requestId", requestId);
         MDC.put("ip", ip);
         MDC.put("userAgent", userAgent != null ? userAgent : "unknown");

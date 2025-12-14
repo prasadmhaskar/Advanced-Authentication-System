@@ -79,9 +79,11 @@ public class MfaServiceImpl implements MfaService {
                     .tokenId(token.getId())
                     .build();
 
-        } catch (Exception e) {
-            log.error("MfaService: medium-risk OTP generation failed email={} msg={}",
-                    user.getEmail(), e.getMessage(), e);
+        } catch (EmailSendFailedException ex) {
+            throw ex; // already meaningful
+        }
+        catch (Exception ex) {
+            log.error("Unexpected error during OTP generation email={}", user.getEmail(), ex);
             throw new EmailSendFailedException("Failed to send OTP. Please try again.");
         }
     }

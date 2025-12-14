@@ -7,11 +7,14 @@ import com.pnm.auth.dto.response.AuthResponse;
 import com.pnm.auth.dto.response.TrustedDeviceResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.dto.result.AuthenticationResult;
+import com.pnm.auth.dto.result.EmailVerificationResult;
+import com.pnm.auth.dto.result.ForgotPasswordResult;
+import com.pnm.auth.dto.result.RegistrationResult;
 import com.pnm.auth.service.AuthService;
 import com.pnm.auth.service.TrustedDeviceService;
 import com.pnm.auth.service.VerificationService;
 import com.pnm.auth.security.JwtUtil;
-import com.pnm.auth.service.auth.LoginOrchestrator;
+import com.pnm.auth.service.auth.*;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.UserAgentParser;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,42 +40,116 @@ public class AuthController {
     private final TrustedDeviceService trustedDeviceService;
     private final AuthUtil authUtil;
     private final LoginOrchestrator loginOrchestrator;
+    private final VerifyOtpOrchestrator verifyOtpOrchestrator;
+    private final ResendOtpOrchestrator resendOtpOrchestrator;
+    private final RegisterOrchestrator registerOrchestrator;
+    private final VerifyEmailOrchestrator verifyEmailOrchestrator;
+    private final ForgotPasswordOrchestrator forgotPasswordOrchestrator;
+    private final ResetPasswordOrchestrator resetPasswordOrchestrator;
+    private final RefreshTokenOrchestrator refreshTokenOrchestrator;
+    private final UserContextOrchestrator userContextOrchestrator;
+    private final LogoutOrchestrator logoutOrchestrator;
+    private final LinkOAuthOrchestrator linkOAuthOrchestrator;
+    private final ChangePasswordOrchestrator changePasswordOrchestrator;
+
+//    @PostMapping("/register")
+//    public ResponseEntity<ApiResponse<AuthResponse>> register(
+//            @Valid @RequestBody RegisterRequest registerRequest,
+//            HttpServletRequest request) {
+//
+//        log.info("AuthController.register(): started for email={}", registerRequest.getEmail());
+//        AuthResponse response = authService.register(registerRequest);
+//        log.info("AuthController.register(): Finished for email={}", registerRequest.getEmail());
+//
+//        ApiResponse<AuthResponse> body = ApiResponse.success(
+//                "USER_REGISTERED",
+//                response.getMessage(),
+//                response,
+//                request.getRequestURI()
+//        );
+//        return new ResponseEntity<>(body, HttpStatus.CREATED);
+//    }
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(
-            @Valid @RequestBody RegisterRequest registerRequest,
-            HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<?>> register(
+            @Valid @RequestBody RegisterRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        RegistrationResult result =
+                registerOrchestrator.register(request);
 
-        log.info("AuthController.register(): started for email={}", registerRequest.getEmail());
-        AuthResponse response = authService.register(registerRequest);
-        log.info("AuthController.register(): Finished for email={}", registerRequest.getEmail());
+        String path = httpRequest.getRequestURI();
 
-        ApiResponse<AuthResponse> body = ApiResponse.success(
-                "USER_REGISTERED",
-                response.getMessage(),
-                response,
-                request.getRequestURI()
-        );
-        return new ResponseEntity<>(body, HttpStatus.CREATED);
+        return switch (result.getOutcome()) {
+
+            case REGISTERED -> ResponseEntity.status(HttpStatus.CREATED).body(
+                    ApiResponse.success(
+                            "USER_REGISTERED",
+                            result.getMessage(),
+                            result,
+                            path
+                    )
+            );
+            default -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ApiResponse.error(
+                            "REGISTRATION_FAILED",
+                            result.getMessage(),
+                            path
+                    )
+            );
+        };
     }
+
+
+//    @GetMapping("/verify")
+//    public ResponseEntity<ApiResponse<Void>> verifyEmail(
+//            @RequestParam("token") String token,
+//            HttpServletRequest request) {
+//
+//        log.info("AuthController.verifyEmail(): Started");
+//        verificationService.validateToken(token, "EMAIL_VERIFICATION");
+//        log.info("AuthController.verifyEmail(): Finished");
+//
+//        ApiResponse<Void> body = ApiResponse.success(
+//                "EMAIL_VERIFIED",
+//                "Email verification successful",
+//                null,
+//                request.getRequestURI()
+//        );
+//        return ResponseEntity.ok(body);
+//    }
 
     @GetMapping("/verify")
-    public ResponseEntity<ApiResponse<Void>> verifyEmail(
+    public ResponseEntity<ApiResponse<?>> verifyEmail(
             @RequestParam("token") String token,
-            HttpServletRequest request) {
+            HttpServletRequest request
+    ) {
+        EmailVerificationResult result =
+                verifyEmailOrchestrator.verify(token);
 
-        log.info("AuthController.verifyEmail(): Started");
-        verificationService.validateToken(token, "EMAIL_VERIFICATION");
-        log.info("AuthController.verifyEmail(): Finished");
+        String path = request.getRequestURI();
 
-        ApiResponse<Void> body = ApiResponse.success(
-                "EMAIL_VERIFIED",
-                "Email verification successful",
-                null,
-                request.getRequestURI()
-        );
-        return ResponseEntity.ok(body);
+        return switch (result.getOutcome()) {
+
+            case SUCCESS -> ResponseEntity.ok(
+                    ApiResponse.success(
+                            "EMAIL_VERIFIED",
+                            result.getMessage(),
+                            result,
+                            path
+                    )
+            );
+
+            default -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ApiResponse.error(
+                            "EMAIL_VERIFICATION_FAILED",
+                            result.getMessage(),
+                            path
+                    )
+            );
+        };
     }
+
 
 //    @PostMapping("/login")
 //    public ResponseEntity<ApiResponse<AuthResponse>> login(
@@ -127,7 +204,6 @@ public class AuthController {
                             path
                     )
             );
-
             case MFA_REQUIRED -> ResponseEntity.status(HttpStatus.OK).body(
                     ApiResponse.success(
                             "MFA_REQUIRED",
@@ -136,7 +212,6 @@ public class AuthController {
                             path
                     )
             );
-
             case RISK_OTP_REQUIRED -> ResponseEntity.status(HttpStatus.OK).body(
                     ApiResponse.success(
                             "RISK_OTP_REQUIRED",
@@ -145,15 +220,6 @@ public class AuthController {
                             path
                     )
             );
-
-            case BLOCKED_HIGH_RISK -> ResponseEntity.status(HttpStatus.FORBIDDEN).body(
-                    ApiResponse.error(
-                            "LOGIN_BLOCKED",
-                            result.getMessage(),
-                            path
-                    )
-            );
-
             default -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                     ApiResponse.error(
                             "LOGIN_FAILED",
@@ -166,134 +232,295 @@ public class AuthController {
 
 
 
+//    @PostMapping("/refresh")
+//    public ResponseEntity<ApiResponse<AuthResponse>> verifyRefreshToken(
+//            @Valid @RequestBody RefreshTokenRequest refreshTokenRequest,
+//            HttpServletRequest request) {
+//
+//        log.info("AuthController.verifyRefreshToken(): Started");
+//        AuthResponse response = authService.refreshToken(refreshTokenRequest);
+//        log.info("AuthController.verifyRefreshToken(): Finished");
+//
+//        ApiResponse<AuthResponse> body = ApiResponse.success(
+//                "TOKEN_REFRESHED",
+//                response.getMessage(),
+//                response,
+//                request.getRequestURI()
+//        );
+//        return ResponseEntity.ok(body);
+//    }
+
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<AuthResponse>> verifyRefreshToken(
-            @Valid @RequestBody RefreshTokenRequest refreshTokenRequest,
-            HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<?>> refreshToken(
+            @Valid @RequestBody RefreshTokenRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        String path = httpRequest.getRequestURI();
 
-        log.info("AuthController.verifyRefreshToken(): Started");
-        AuthResponse response = authService.refreshToken(refreshTokenRequest);
-        log.info("AuthController.verifyRefreshToken(): Finished");
+        AuthenticationResult result =
+                refreshTokenOrchestrator.refresh(request.getRefreshToken());
 
-        ApiResponse<AuthResponse> body = ApiResponse.success(
-                "TOKEN_REFRESHED",
-                response.getMessage(),
-                response,
-                request.getRequestURI()
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "TOKEN_REFRESHED",
+                        result.getMessage(),
+                        result,
+                        path
+                )
         );
-        return ResponseEntity.ok(body);
     }
+
+
+//    @PostMapping("/forgot-password")
+//    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+//            @Valid @RequestBody ForgotPasswordRequest req,
+//            HttpServletRequest request) {
+//
+//        log.info("AuthController.forgotPassword(): Started for email={}", req.getEmail());
+//        authService.forgotPassword(req.getEmail());
+//        log.info("AuthController.forgotPassword(): Finished for email={}", req.getEmail());
+//
+//        ApiResponse<Void> body = ApiResponse.success(
+//                "PASSWORD_RESET_LINK_SENT",
+//                "Password reset link sent to email",
+//                null,
+//                request.getRequestURI()
+//        );
+//        return ResponseEntity.ok(body);
+//    }
 
     @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<Void>> forgotPassword(
+    public ResponseEntity<ApiResponse<?>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest req,
-            HttpServletRequest request) {
+            HttpServletRequest request
+    ) {
+        ForgotPasswordResult result =
+                forgotPasswordOrchestrator.requestReset(req.getEmail());
 
-        log.info("AuthController.forgotPassword(): Started for email={}", req.getEmail());
-        authService.forgotPassword(req.getEmail());
-        log.info("AuthController.forgotPassword(): Finished for email={}", req.getEmail());
+        String path = request.getRequestURI();
 
-        ApiResponse<Void> body = ApiResponse.success(
-                "PASSWORD_RESET_LINK_SENT",
-                "Password reset link sent to email",
-                null,
-                request.getRequestURI()
-        );
-        return ResponseEntity.ok(body);
+        return switch (result.getOutcome()) {
+
+            case PASSWORD_RESET -> ResponseEntity.ok(
+                    ApiResponse.success(
+                            "PASSWORD_RESET_LINK_SENT",
+                            result.getMessage(),
+                            result,
+                            path
+                    )
+            );
+
+            default -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ApiResponse.error(
+                            "PASSWORD_RESET_FAILED",
+                            result.getMessage(),
+                            path
+                    )
+            );
+        };
     }
+
+
+//    @PostMapping("/reset-password")
+//    public ResponseEntity<ApiResponse<Void>> resetPassword(
+//            @Valid @RequestBody ResetPasswordRequest resetPasswordRequest,
+//            HttpServletRequest request) {
+//
+//        log.info("AuthController.resetPassword(): Started");
+//        authService.resetPassword(resetPasswordRequest);
+//        log.info("AuthController.resetPassword(): Finished");
+//
+//        ApiResponse<Void> body = ApiResponse.success(
+//                "PASSWORD_RESET_SUCCESS",
+//                "Password updated successfully",
+//                null,
+//                request.getRequestURI()
+//        );
+//        return ResponseEntity.ok(body);
+//    }
 
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
-            @Valid @RequestBody ResetPasswordRequest resetPasswordRequest,
-            HttpServletRequest request) {
+            @Valid @RequestBody ResetPasswordRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        resetPasswordOrchestrator.reset(request);
 
-        log.info("AuthController.resetPassword(): Started");
-        authService.resetPassword(resetPasswordRequest);
-        log.info("AuthController.resetPassword(): Finished");
-
-        ApiResponse<Void> body = ApiResponse.success(
-                "PASSWORD_RESET_SUCCESS",
-                "Password updated successfully",
-                null,
-                request.getRequestURI()
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "PASSWORD_RESET_SUCCESS",
+                        "Password updated successfully",
+                        null,
+                        httpRequest.getRequestURI()
+                )
         );
-        return ResponseEntity.ok(body);
     }
+
+
+//    @GetMapping("/me")
+//    public ResponseEntity<ApiResponse<UserDetailsResponse>> fetchUserDetails(
+//            HttpServletRequest request) {
+//
+//        log.info("AuthController.fetchUserDetails(): Started");
+//        String token = jwtUtil.resolveToken(request);
+//        UserDetailsResponse response = authService.userDetailsFromAccessToken(token);
+//        log.info("AuthController.fetchUserDetails(): Finished for email={}", response.getEmail());
+//
+//        ApiResponse<UserDetailsResponse> body = ApiResponse.success(
+//                "USER_DETAILS_FETCHED",
+//                "User details fetched successfully",
+//                response,
+//                request.getRequestURI()
+//        );
+//        return ResponseEntity.ok(body);
+//    }
 
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserDetailsResponse>> fetchUserDetails(
             HttpServletRequest request) {
 
-        log.info("AuthController.fetchUserDetails(): Started");
         String token = jwtUtil.resolveToken(request);
-        UserDetailsResponse response = authService.userDetailsFromAccessToken(token);
-        log.info("AuthController.fetchUserDetails(): Finished for email={}", response.getEmail());
 
-        ApiResponse<UserDetailsResponse> body = ApiResponse.success(
-                "USER_DETAILS_FETCHED",
-                "User details fetched successfully",
-                response,
-                request.getRequestURI()
+        UserDetailsResponse response =
+                userContextOrchestrator.getCurrentUser(token);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "USER_DETAILS_FETCHED",
+                        "User details fetched successfully",
+                        response,
+                        request.getRequestURI()
+                )
         );
-        return ResponseEntity.ok(body);
     }
+
+//    @PostMapping("/logout")
+//    public ResponseEntity<ApiResponse<Void>> logout(
+//            @RequestBody LogoutRequest requestBody,
+//            HttpServletRequest request) {
+//
+//        log.info("AuthController.logout(): Started");
+//
+//        authService.logout(requestBody.getAccessToken(), requestBody.getRefreshToken());
+//
+//        log.info("AuthController.logout(): Finished");
+//
+//        ApiResponse<Void> body = ApiResponse.success(
+//                "LOGOUT_SUCCESS",
+//                "Logged out successfully.",
+//                null,
+//                request.getRequestURI()
+//        );
+//
+//        return ResponseEntity.ok(body);
+//    }
 
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(
             @RequestBody LogoutRequest requestBody,
             HttpServletRequest request) {
 
-        log.info("AuthController.logout(): Started");
+        log.info("AuthController.logout(): started");
 
-        authService.logout(requestBody.getAccessToken(), requestBody.getRefreshToken());
-
-        log.info("AuthController.logout(): Finished");
-
-        ApiResponse<Void> body = ApiResponse.success(
-                "LOGOUT_SUCCESS",
-                "Logged out successfully.",
-                null,
-                request.getRequestURI()
+        logoutOrchestrator.logout(
+                requestBody.getAccessToken(),
+                requestBody.getRefreshToken()
         );
 
-        return ResponseEntity.ok(body);
+        log.info("AuthController.logout(): finished");
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "LOGOUT_SUCCESS",
+                        "Logged out successfully",
+                        null,
+                        request.getRequestURI()
+                )
+        );
     }
 
+
+//    @PostMapping("/link-oauth")
+//    public ResponseEntity<ApiResponse<Void>> linkOAuth(
+//            @RequestBody LinkOAuthRequest req,
+//            HttpServletRequest request) {
+//
+//        log.info("AuthController.linkOAuth(): Started");
+//        authService.linkOAuthAccount(req);
+//        log.info("AuthController.linkOAuth(): Finished");
+//
+//        ApiResponse<Void> body = ApiResponse.success(
+//                "OAUTH_LINKED",
+//                "OAuth account linked successfully",
+//                null,
+//                request.getRequestURI()
+//        );
+//        return ResponseEntity.ok(body);
+//    }
 
     @PostMapping("/link-oauth")
     public ResponseEntity<ApiResponse<Void>> linkOAuth(
-            @RequestBody LinkOAuthRequest req,
-            HttpServletRequest request) {
+            @RequestBody LinkOAuthRequest request,
+            HttpServletRequest httpRequest) {
 
-        log.info("AuthController.linkOAuth(): Started");
-        authService.linkOAuthAccount(req);
-        log.info("AuthController.linkOAuth(): Finished");
+        log.info("AuthController.linkOAuth(): started");
 
-        ApiResponse<Void> body = ApiResponse.success(
-                "OAUTH_LINKED",
-                "OAuth account linked successfully",
-                null,
-                request.getRequestURI()
+        linkOAuthOrchestrator.link(request);
+
+        log.info("AuthController.linkOAuth(): finished");
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "OAUTH_LINKED",
+                        "OAuth account linked successfully",
+                        null,
+                        httpRequest.getRequestURI()
+                )
         );
-        return ResponseEntity.ok(body);
     }
+
+
+//    @PostMapping("/change-password")
+//    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+//    public ResponseEntity<ApiResponse<AuthResponse>> changePassword(@RequestBody @Valid ChangePasswordRequest changePasswordRequest,
+//                                                      HttpServletRequest request){
+//        log.info("AuthController.changePassword(): started");
+//        String token = jwtUtil.resolveToken(request);
+//        AuthResponse response = authService.changePassword(token, changePasswordRequest.getOldPassword(),changePasswordRequest.getNewPassword());
+//        log.info("AuthController.changePassword(): finished");
+//        ApiResponse<AuthResponse> body = ApiResponse.success(
+//                "PASSWORD_CHANGED",
+//                response.getMessage(),
+//                response,
+//                request.getRequestURI()
+//        );
+//        return ResponseEntity.ok(body);
+//    }
 
     @PostMapping("/change-password")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
-    public ResponseEntity<ApiResponse<AuthResponse>> changePassword(@RequestBody @Valid ChangePasswordRequest changePasswordRequest,
-                                                      HttpServletRequest request){
+    public ResponseEntity<ApiResponse<?>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            HttpServletRequest httpRequest
+    ) {
         log.info("AuthController.changePassword(): started");
-        String token = jwtUtil.resolveToken(request);
-        AuthResponse response = authService.changePassword(token, changePasswordRequest.getOldPassword(),changePasswordRequest.getNewPassword());
-        log.info("AuthController.changePassword(): finished");
-        ApiResponse<AuthResponse> body = ApiResponse.success(
-                "PASSWORD_CHANGED",
-                response.getMessage(),
-                response,
-                request.getRequestURI()
+
+        String token = jwtUtil.resolveToken(httpRequest);
+        String path = httpRequest.getRequestURI();
+
+        AuthenticationResult result =
+                changePasswordOrchestrator.changePassword(token, request);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "PASSWORD_CHANGED",
+                        result.getMessage(),
+                        result,
+                        path
+                )
         );
-        return ResponseEntity.ok(body);
     }
+
 
     @PutMapping("/update-profile")
     public ResponseEntity<ApiResponse<UserDetailsResponse>> updateProfile(
@@ -307,23 +534,77 @@ public class AuthController {
         return null;
     }
 
-    @PostMapping("verify-mfa")
-    public ResponseEntity<ApiResponse<AuthResponse>> verifyMfaOtp(@RequestBody @Valid MfaTokenVerifyRequest mfaTokenVerifyRequest, HttpServletRequest request){
-        log.info("AuthController.verifyMfaOtp(): started");
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null) ip = request.getRemoteAddr();           //Fetching ip
-        String userAgent = request.getHeader("User-Agent");
-        //fetching browser/device info
-        AuthResponse response = authService.verifyOtp(mfaTokenVerifyRequest, ip, userAgent);
-        log.info("AuthController.verifyMfaOtp(): finished");
-        ApiResponse<AuthResponse> body = ApiResponse.success(
-                "MFA_OTP_VERIFIED",
-                response.getMessage(),
-                response,
-                request.getRequestURI()
-        );
-        return ResponseEntity.ok(body);
+//    @PostMapping("verify-mfa")
+//    public ResponseEntity<ApiResponse<AuthResponse>> verifyMfaOtp(@RequestBody @Valid MfaTokenVerifyRequest mfaTokenVerifyRequest, HttpServletRequest request){
+//        log.info("AuthController.verifyMfaOtp(): started");
+//        String ip = request.getHeader("X-Forwarded-For");
+//        if (ip == null) ip = request.getRemoteAddr();           //Fetching ip
+//        String userAgent = request.getHeader("User-Agent");
+//        //fetching browser/device info
+//        AuthResponse response = authService.verifyOtp(mfaTokenVerifyRequest, ip, userAgent);
+//        log.info("AuthController.verifyMfaOtp(): finished");
+//        ApiResponse<AuthResponse> body = ApiResponse.success(
+//                "MFA_OTP_VERIFIED",
+//                response.getMessage(),
+//                response,
+//                request.getRequestURI()
+//        );
+//        return ResponseEntity.ok(body);
+//    }
+
+    @PostMapping("/otp/verify")
+    public ResponseEntity<ApiResponse<?>> verifyOtp(
+            @Valid @RequestBody OtpVerifyRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        String ip = httpRequest.getHeader("X-Forwarded-For");
+        if (ip == null) ip = httpRequest.getRemoteAddr();
+        String ua = httpRequest.getHeader("User-Agent");
+
+        AuthenticationResult result =
+                verifyOtpOrchestrator.verify(request, ip, ua);
+
+        String path = httpRequest.getRequestURI();
+
+        return switch (result.getOutcome()) {
+
+            case SUCCESS -> ResponseEntity.ok(
+                    ApiResponse.success(
+                            "OTP_VERIFIED",
+                            result.getMessage(),
+                            result,
+                            path
+                    )
+            );
+
+            default -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                    ApiResponse.error(
+                            "OTP_VERIFICATION_FAILED",
+                            result.getMessage(),
+                            path
+                    )
+            );
+        };
     }
+
+    @PostMapping("/otp/resend")
+    public ResponseEntity<ApiResponse<Void>> resendOtp(
+            @Valid @RequestBody OtpResendRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        resendOtpOrchestrator.resend(request);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "OTP_RESENT",
+                        "OTP resent successfully",
+                        null,
+                        httpRequest.getRequestURI()
+                )
+        );
+    }
+
+
 
     @GetMapping("/me/devices")
     public ResponseEntity<ApiResponse<List<TrustedDeviceResponse>>> getMyTrustedDevices() {
@@ -351,7 +632,7 @@ public class AuthController {
         ));
     }
 
-    @PostMapping("/security/trusted-devices/keep-current")
+    @PostMapping("/me/devices/keep-current")
     public ResponseEntity<ApiResponse<Void>> removeOtherDevices(HttpServletRequest request) {
 
         Long userId = authUtil.getCurrentUserId();
