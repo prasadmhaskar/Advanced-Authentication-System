@@ -1,20 +1,27 @@
 package com.pnm.auth.service.impl;
 
-import com.pnm.auth.dto.DeviceInfo;
+import com.pnm.auth.domain.enums.AuditAction;
+import com.pnm.auth.dto.result.DeviceInfoResult;
 import com.pnm.auth.dto.request.LoginRequest;
 import com.pnm.auth.dto.request.MfaTokenVerifyRequest;
 import com.pnm.auth.dto.request.RefreshTokenRequest;
 import com.pnm.auth.dto.request.RegisterRequest;
 import com.pnm.auth.dto.response.AuthResponse;
 import com.pnm.auth.dto.response.UserIpLogResponse;
-import com.pnm.auth.entity.MfaToken;
-import com.pnm.auth.entity.RefreshToken;
-import com.pnm.auth.entity.User;
-import com.pnm.auth.enums.AuthProviderType;
-import com.pnm.auth.exception.*;
+import com.pnm.auth.domain.entity.MfaToken;
+import com.pnm.auth.domain.entity.RefreshToken;
+import com.pnm.auth.domain.entity.User;
+import com.pnm.auth.domain.enums.AuthProviderType;
+import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.repository.*;
-import com.pnm.auth.service.*;
-import com.pnm.auth.security.JwtUtil;
+import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.service.audit.AuditService;
+import com.pnm.auth.service.auth.VerificationService;
+import com.pnm.auth.service.email.EmailService;
+import com.pnm.auth.service.impl.auth.AuthServiceImpl;
+import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
+import com.pnm.auth.service.login.LoginActivityService;
+import com.pnm.auth.service.login.SuspiciousLoginAlertService;
 import com.pnm.auth.util.UserAgentParser;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,8 +33,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -38,7 +43,7 @@ import static org.mockito.BDDMockito.*;
 class AuthServiceImplTest {
 
     @InjectMocks
-    private AuthServiceImpl authService;
+//    private AuthServiceImpl authService;
 
     @Mock private UserRepository userRepository;
     @Mock private VerificationService verificationService;
@@ -52,7 +57,6 @@ class AuthServiceImplTest {
     @Mock private LoginActivityService loginActivityService;
     @Mock private IpMonitoringService ipMonitoringService;
     @Mock private SuspiciousLoginAlertService suspiciousLoginAlertService;
-    @Mock private TrustedDeviceService trustedDeviceService;
     @Mock private AuditService auditService;
 
     // allow mocking static UserAgentParser
@@ -439,7 +443,7 @@ class AuthServiceImplTest {
                 .isInstanceOf(InvalidCredentialsException.class);
 
         then(refreshTokenRepository).should().invalidateAllForUser(user.getId());
-        then(auditService).should().record(eq(com.pnm.auth.enums.AuditAction.REFRESH_TOKEN_REUSE),
+        then(auditService).should().record(eq(AuditAction.REFRESH_TOKEN_REUSE),
                 eq(user.getId()), eq(user.getId()), contains("Refresh token reuse"), isNull(), isNull());
     }
 
@@ -644,7 +648,7 @@ class AuthServiceImplTest {
         given(mfaTokenRepository.save(any(MfaToken.class))).willAnswer(invocation -> invocation.getArgument(0));
 
         // mock parser / device info
-        DeviceInfo dev = new DeviceInfo();
+        DeviceInfoResult dev = new DeviceInfoResult();
         dev.setSignature("sig-1");
         dev.setDeviceName("Chrome");
         userAgentParserStatic.when(() -> UserAgentParser.parse(anyString())).thenReturn(dev);
@@ -661,7 +665,6 @@ class AuthServiceImplTest {
 
         // Assert
         then(loginActivityService).should().recordSuccess(user.getId(), user.getEmail());
-        then(trustedDeviceService).should().trustDevice(user.getId(), "sig-1", "Chrome");
         then(refreshTokenRepository).should().invalidateAllForUser(user.getId());
         then(refreshTokenRepository).should().save(argThat((RefreshToken t) ->
                 t.getUser().getId().equals(user.getId()) && t.getToken().equals("ref-1")

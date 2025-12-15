@@ -1,6 +1,6 @@
 package com.pnm.auth.repository;
 
-import com.pnm.auth.entity.UserIpLog;
+import com.pnm.auth.domain.entity.UserIpLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 

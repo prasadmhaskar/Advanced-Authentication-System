@@ -39,7 +39,7 @@ public class OAuthRedirectValidationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
+        String path = request.getRequestURI();
         return !(path.startsWith("/oauth2/authorize")
                 || path.startsWith("/login/oauth2")
                 || path.startsWith("/oauth2/"));
@@ -59,7 +59,6 @@ public class OAuthRedirectValidationFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_BAD_REQUEST, "Invalid redirect_uri");
             return;
         }
-
         filterChain.doFilter(request, response);
     }
 }

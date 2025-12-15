@@ -1,6 +1,6 @@
 package com.pnm.auth.util;
 
-import com.pnm.auth.enums.AuditAction;
+import com.pnm.auth.domain.enums.AuditAction;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

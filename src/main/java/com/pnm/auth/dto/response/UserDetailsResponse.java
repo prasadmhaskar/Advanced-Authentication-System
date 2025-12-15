@@ -1,6 +1,6 @@
 package com.pnm.auth.dto.response;
 
-import com.pnm.auth.enums.AuthProviderType;
+import com.pnm.auth.domain.enums.AuthProviderType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

@@ -1,6 +1,6 @@
 package com.pnm.auth.repository;
 
-import com.pnm.auth.entity.VerificationToken;
+import com.pnm.auth.domain.entity.VerificationToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

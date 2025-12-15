@@ -1,7 +1,7 @@
 package com.pnm.auth.dto.response;
 
-import com.pnm.auth.entity.User;
-import com.pnm.auth.enums.AuthProviderType;
+import com.pnm.auth.domain.entity.User;
+import com.pnm.auth.domain.enums.AuthProviderType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

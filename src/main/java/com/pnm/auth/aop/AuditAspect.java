@@ -1,6 +1,6 @@
 package com.pnm.auth.aop;
 
-import com.pnm.auth.service.AuditService;
+import com.pnm.auth.service.audit.AuditService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.AuthUtil;
 import jakarta.servlet.http.HttpServletRequest;

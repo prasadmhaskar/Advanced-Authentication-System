@@ -1,7 +1,7 @@
 package com.pnm.auth.repository;
 
-import com.pnm.auth.entity.User;
-import com.pnm.auth.enums.AuthProviderType;
+import com.pnm.auth.domain.entity.User;
+import com.pnm.auth.domain.enums.AuthProviderType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;

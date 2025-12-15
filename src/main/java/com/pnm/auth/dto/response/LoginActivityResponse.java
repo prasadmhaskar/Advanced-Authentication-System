@@ -1,8 +1,6 @@
 package com.pnm.auth.dto.response;
 
-import com.pnm.auth.entity.LoginActivity;
-import com.pnm.auth.entity.User;
-import jakarta.persistence.*;
+import com.pnm.auth.domain.entity.LoginActivity;
 import lombok.*;
 
 import java.time.LocalDateTime;

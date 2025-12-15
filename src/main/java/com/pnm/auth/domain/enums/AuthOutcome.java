@@ -1,0 +1,20 @@
+package com.pnm.auth.domain.enums;
+
+public enum AuthOutcome {
+
+    SUCCESS,
+
+    MFA_REQUIRED,
+    RISK_OTP_REQUIRED,
+
+    BLOCKED_HIGH_RISK,
+    INVALID_CREDENTIALS,
+    INVALID_TOKEN,
+    EMAIL_NOT_VERIFIED,
+    ACCOUNT_BLOCKED,
+
+    REGISTERED,
+    PASSWORD_RESET,
+    TOKEN_REFRESHED
+}
+

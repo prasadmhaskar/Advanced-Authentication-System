@@ -1,6 +1,6 @@
 package com.pnm.auth.dto.request;
 
-import com.pnm.auth.enums.AuthProviderType;
+import com.pnm.auth.domain.enums.AuthProviderType;
 import lombok.Data;
 
 @Data

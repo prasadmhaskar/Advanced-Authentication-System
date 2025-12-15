@@ -1,9 +1,9 @@
 package com.pnm.auth.security.filter;
 
-import com.pnm.auth.entity.User;
+import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.security.JwtUtil;
-import com.pnm.auth.security.UserDetailsImpl;
+import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.service.impl.user.UserDetailsImpl;
 import com.pnm.auth.util.BlacklistedTokenStore;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -11,10 +11,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -34,13 +32,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
+        String path = request.getRequestURI();
         log.debug("JwtAuthenticationFilter.shouldNotFilter: Checking path={}", path);
 
         boolean skip = path.startsWith("/api/auth/login") ||
                 path.startsWith("/api/auth/register") ||
                 path.startsWith("/api/auth/verify") ||
-                path.startsWith("/api/auth/refresh");
+                path.startsWith("/api/auth/refresh") ||
+                path.startsWith("/api/auth/forgot-password");
 
         if (skip) {
             log.info("JwtAuthenticationFilter: Skipping filter for path={}", path);

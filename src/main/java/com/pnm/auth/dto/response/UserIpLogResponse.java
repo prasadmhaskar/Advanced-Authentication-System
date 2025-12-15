@@ -1,6 +1,6 @@
 package com.pnm.auth.dto.response;
 
-import com.pnm.auth.entity.UserIpLog;
+import com.pnm.auth.domain.entity.UserIpLog;
 import lombok.*;
 
 import java.time.LocalDateTime;

@@ -1,27 +1,29 @@
 package com.pnm.auth.security.oauth;
 
-import com.pnm.auth.dto.DeviceInfo;
+import com.pnm.auth.dto.response.UserResponse;
+import com.pnm.auth.dto.result.DeviceInfoResult;
 import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.dto.result.MfaResult;
 import com.pnm.auth.dto.result.RiskResult;
-import com.pnm.auth.entity.User;
-import com.pnm.auth.enums.AuditAction;
-import com.pnm.auth.enums.AuthOutcome;
-import com.pnm.auth.enums.AuthProviderType;
-import com.pnm.auth.exception.*;
+import com.pnm.auth.domain.entity.User;
+import com.pnm.auth.domain.enums.AuditAction;
+import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.domain.enums.AuthProviderType;
+import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.security.JwtUtil;
-import com.pnm.auth.service.EmailService;
-import com.pnm.auth.service.IpMonitoringService;
-import com.pnm.auth.service.LoginActivityService;
-import com.pnm.auth.service.SuspiciousLoginAlertService;
-import com.pnm.auth.service.auth.DeviceTrustService;
+import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.service.email.EmailService;
+import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
+import com.pnm.auth.service.login.LoginActivityService;
+import com.pnm.auth.service.login.SuspiciousLoginAlertService;
+import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.service.auth.MfaService;
-import com.pnm.auth.service.auth.RiskEngineService;
+import com.pnm.auth.service.risk.RiskEngineService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.util.Audit;
+import com.pnm.auth.util.OAuth2Util;
 import com.pnm.auth.util.UserAgentParser;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -277,11 +279,11 @@ public class OAuth2ServiceImpl implements OAuth2Service{
         }
 
         try {
-            DeviceInfo deviceInfo = UserAgentParser.parse(userAgent);
+            DeviceInfoResult deviceInfoResult = UserAgentParser.parse(userAgent);
             deviceTrustService.trustDevice(
                     user.getId(),
-                    deviceInfo.getSignature(),
-                    deviceInfo.getDeviceName()
+                    deviceInfoResult.getSignature(),
+                    deviceInfoResult.getDeviceName()
             );
         } catch (Exception ex) {
             log.warn("OAuth login: failed to trust device userId={} msg={}",
@@ -293,7 +295,7 @@ public class OAuth2ServiceImpl implements OAuth2Service{
                 .accessToken(result.getAccessToken())
                 .refreshToken(result.getRefreshToken())
                 .message("Login successful")
-                .user(user)
+                .user(UserResponse.from(user))
                 .build();
     }
 

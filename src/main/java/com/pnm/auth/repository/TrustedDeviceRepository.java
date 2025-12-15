@@ -1,6 +1,6 @@
 package com.pnm.auth.repository;
 
-import com.pnm.auth.entity.TrustedDevice;
+import com.pnm.auth.domain.entity.TrustedDevice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;

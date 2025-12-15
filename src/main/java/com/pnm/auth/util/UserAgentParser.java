@@ -1,6 +1,6 @@
 package com.pnm.auth.util;
 
-import com.pnm.auth.dto.DeviceInfo;
+import com.pnm.auth.dto.result.DeviceInfoResult;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -9,9 +9,9 @@ public class UserAgentParser {
     private UserAgentParser() {
     }
 
-    public static DeviceInfo parse(String userAgentRaw) {
+    public static DeviceInfoResult parse(String userAgentRaw) {
         if (userAgentRaw == null || userAgentRaw.isBlank()) {
-            return DeviceInfo.builder()
+            return DeviceInfoResult.builder()
                     .browser("Unknown")
                     .os("Unknown")
                     .deviceType("UNKNOWN")
@@ -28,7 +28,7 @@ public class UserAgentParser {
         String deviceName = buildDeviceName(browser, os, deviceType);
         String signature = browser + "_" + os + "_" + deviceType;
 
-        return DeviceInfo.builder()
+        return DeviceInfoResult.builder()
                 .browser(browser)
                 .os(os)
                 .deviceType(deviceType)

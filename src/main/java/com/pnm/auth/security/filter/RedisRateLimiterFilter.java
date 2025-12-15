@@ -2,7 +2,7 @@ package com.pnm.auth.security.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pnm.auth.dto.response.ApiResponse;
-import com.pnm.auth.service.impl.RedisRateLimiterServiceImpl;
+import com.pnm.auth.service.impl.redis.RedisRateLimiterServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,7 +25,7 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
+        String path = request.getRequestURI();
 
         return !(
                 path.startsWith("/api/auth/login") ||
@@ -44,7 +44,7 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         String ip = request.getRemoteAddr();
-        String key = ip + ":" + request.getServletPath();
+        String key = ip + ":" + request.getRequestURI();
 
         boolean allowed = rateLimiterService.isAllowed(key, 5, 60);
 

@@ -1,7 +1,7 @@
 package com.pnm.auth.specification;
 
 import com.pnm.auth.dto.request.LoginActivityFilterRequest;
-import com.pnm.auth.entity.LoginActivity;
+import com.pnm.auth.domain.entity.LoginActivity;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 

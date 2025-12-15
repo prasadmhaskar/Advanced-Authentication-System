@@ -1,6 +1,6 @@
 package com.pnm.auth.dto.result;
 
-import com.pnm.auth.enums.AuthOutcome;
+import com.pnm.auth.domain.enums.AuthOutcome;
 import lombok.*;
 
 @Data

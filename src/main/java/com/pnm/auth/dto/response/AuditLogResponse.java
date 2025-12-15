@@ -1,7 +1,6 @@
 package com.pnm.auth.dto.response;
 
-import com.pnm.auth.entity.AuditLog;
-import com.pnm.auth.enums.AuditAction;
+import com.pnm.auth.domain.entity.AuditLog;
 import lombok.*;
 
 import java.time.LocalDateTime;
