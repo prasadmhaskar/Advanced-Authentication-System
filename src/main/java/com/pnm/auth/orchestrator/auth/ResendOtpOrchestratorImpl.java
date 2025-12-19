@@ -8,6 +8,7 @@ import com.pnm.auth.exception.custom.EmailSendFailedException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.email.EmailService;
+import com.pnm.auth.util.AfterCommitExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
 
     private final MfaTokenRepository mfaTokenRepository;
     private final EmailService emailService;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -65,7 +67,10 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
             mfaTokenRepository.save(newToken);
 
             // 5️⃣ Send OTP email (resilience + retry handled inside EmailService)
-            emailService.sendMfaOtpEmail(user.getEmail(), otp);
+
+            afterCommitExecutor.run(() ->
+                    emailService.sendMfaOtpEmail(user.getEmail(), otp)
+            );
 
             log.info("ResendOtpOrchestrator: OTP resent successfully email={} newTokenId={}",
                     user.getEmail(), newToken.getId());

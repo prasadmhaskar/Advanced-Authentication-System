@@ -3,6 +3,7 @@ package com.pnm.auth.service.impl.login;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.login.SuspiciousLoginAlertService;
+import com.pnm.auth.util.AfterCommitExecutor;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import java.util.List;
 public class SuspiciousLoginAlertServiceImpl implements SuspiciousLoginAlertService {
 
     private final EmailService emailService;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     @Override
     @Retry(name = "emailRetry")
@@ -50,7 +52,10 @@ public class SuspiciousLoginAlertServiceImpl implements SuspiciousLoginAlertServ
                 reasonText
         );
 
-        emailService.sendEmail(user.getEmail(), subject, body);
+        afterCommitExecutor.run(() ->
+                emailService.sendEmail(user.getEmail(), subject, body)
+        );
+
     }
 
     // ==========================================================

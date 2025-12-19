@@ -8,6 +8,7 @@ import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.auth.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -21,26 +22,35 @@ public class VerificationServiceImpl implements VerificationService {
     private final VerificationTokenRepository verificationTokenRepository;
     private final UserRepository userRepository;
 
+    @Value("${verification.token.expiry-minutes}")
+    private long verificationExpiryMinutes;
+
     @Override
     public String createVerificationToken(User user, String type) {
 
         log.info("VerificationService.createVerificationToken: Started for email={} type={}",
                 user.getEmail(), type);
 
+        // 🔐 Invalidate previous unused tokens of same type
+        verificationTokenRepository.invalidateUnusedTokens(user.getId(), type);
+
         //Creating new object
         VerificationToken verificationToken = new VerificationToken();
-        //Generating random String as token
+
         String token = UUID.randomUUID().toString();
-        //Setting values for object
         verificationToken.setToken(token);
-        LocalDateTime now = LocalDateTime.now();
-        verificationToken.setExpiresAt(now.plusMinutes(15));
         verificationToken.setUser(user);
         verificationToken.setType(type);
+        verificationToken.setUsedAt(null);
+
+        LocalDateTime now = LocalDateTime.now();
+        verificationToken.setExpiresAt(now.plusMinutes(verificationExpiryMinutes));
         //Saving to repository
         verificationTokenRepository.save(verificationToken);
+
         log.info("VerificationService.createVerificationToken: Token created and saved for email={} tokenPrefix={}",
                 user.getEmail(), token.substring(0, 8));
+
         return token;
     }
 

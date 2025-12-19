@@ -77,8 +77,10 @@ public class SecurityConfig {
                                 "/api/auth/register",
                                 "/api/auth/login",
                                 "/api/auth/verify",
+                                "/api/auth/verify/resend",
                                 "/api/auth/refresh",
                                 "/api/auth/forgot-password",
+                                "/api/auth/setup-password",
                                 "/oauth2/**",
                                 "/login/oauth2/**"
                         ).permitAll()

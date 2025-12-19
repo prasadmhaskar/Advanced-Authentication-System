@@ -1,8 +1,9 @@
 package com.pnm.auth.orchestrator.auth;
 
 import com.pnm.auth.dto.request.LinkOAuthRequest;
+import com.pnm.auth.dto.result.AccountLinkResult;
 
 public interface LinkOAuthOrchestrator {
-    void link(LinkOAuthRequest request);
+    AccountLinkResult link(LinkOAuthRequest request);
 }
 

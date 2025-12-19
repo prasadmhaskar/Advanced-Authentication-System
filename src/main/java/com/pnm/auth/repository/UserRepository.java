@@ -12,8 +12,8 @@ import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
+
     Optional<User> findByEmail(String email);
-    Optional<User> findByProviderIdAndAuthProviderType(String providerId, AuthProviderType authProviderType);
 
     @Query("SELECT COUNT(u) FROM User u")
     long countAllUsers();

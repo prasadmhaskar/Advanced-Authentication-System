@@ -1,7 +1,6 @@
 package com.pnm.auth.dto.response;
 
 import com.pnm.auth.domain.entity.User;
-import com.pnm.auth.domain.enums.AuthProviderType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,25 +20,36 @@ public class UserAdminResponse {
     private String email;
     private Boolean emailVerified;
     private List<String> roles;
-    private AuthProviderType authProviderType;
-    private String providerId;
+    private boolean active;
+    private boolean mfaEnabled;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    private boolean active;
+
+    // ⭐ NEW
+    private List<UserAuthProviderAdminResponse> authProviders;
 
     public static UserAdminResponse fromEntity(User user) {
+
+        List<UserAuthProviderAdminResponse> providers =
+                user.getAuthProviders() == null
+                        ? List.of()
+                        : user.getAuthProviders()
+                        .stream()
+                        .map(UserAuthProviderAdminResponse::fromEntity)
+                        .toList();
+
         return UserAdminResponse.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .emailVerified(user.getEmailVerified())
                 .roles(user.getRoles())
-                .authProviderType(user.getAuthProviderType())
-                .providerId(user.getProviderId())
+                .active(user.isActive())
+                .mfaEnabled(user.isMfaEnabled())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
-                .active(user.isActive())
+                .authProviders(providers)
                 .build();
     }
-
 }

@@ -19,7 +19,11 @@ public class VerificationToken {
     @Column(nullable = false)
     private String token;
 
+    @Column(nullable = false)
     private LocalDateTime expiresAt;
+
+    @Column
+    private LocalDateTime usedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)

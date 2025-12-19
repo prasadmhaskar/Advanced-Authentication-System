@@ -1,14 +1,20 @@
 package com.pnm.auth.orchestrator.auth;
 
+import com.pnm.auth.domain.enums.NextAction;
+import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.dto.result.EmailVerificationResult;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.entity.VerificationToken;
 import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.event.LoginSuccessEvent;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
+import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.service.login.LoginActivityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,18 +27,22 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
 
     private final VerificationTokenRepository verificationTokenRepository;
     private final UserRepository userRepository;
+    private final TokenService tokenService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
-    public EmailVerificationResult verify(String token) {
+    public EmailVerificationResult verify(String rawToken, String ip, String ua) {
 
-        log.info("VerifyEmailOrchestrator: started tokenPrefix={}", token.substring(0, 8));
+        String token = rawToken.trim();
+
+        log.info("VerifyEmailOrchestrator: started tokenPrefix={}", token.length() > 8 ? token.substring(0,8) : "short");
 
         // 1️⃣ Load token
         VerificationToken verificationToken =
-                verificationTokenRepository.findByToken(token)
+                verificationTokenRepository.findByTokenAndUsedAtIsNull(token)
                         .orElseThrow(() -> {
-                            log.warn("VerifyEmailOrchestrator: invalid token");
+                            log.warn("VerifyEmailOrchestrator: invalid or already used token");
                             return new InvalidTokenException("Invalid or expired token");
                         });
 
@@ -51,18 +61,39 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
 
         // 4️⃣ Verify user
         User user = verificationToken.getUser();
-        user.setEmailVerified(true);
-        userRepository.save(user);
 
-        // 5️⃣ Delete token
-        verificationTokenRepository.delete(verificationToken);
+        if (user.getEmailVerified()) {
+            log.info("VerifyEmailOrchestrator: email already verified email={}", user.getEmail());
+            return EmailVerificationResult.builder()
+                    .outcome(AuthOutcome.SUCCESS)
+                    .email(user.getEmail())
+                    .nextAction(NextAction.LOGIN)
+                    .build();
+        }
+        user.setEmailVerified(true);
+        verificationToken.setUsedAt(LocalDateTime.now());
+
+        userRepository.save(user);
+        verificationTokenRepository.save(verificationToken);
+
+        AuthenticationResult result = tokenService.generateTokens(user);
+
 
         log.info("VerifyEmailOrchestrator: email verified email={}", user.getEmail());
 
+        eventPublisher.publishEvent(
+                new LoginSuccessEvent(
+                        user.getId(),
+                        user.getEmail(),
+                        ip,
+                        ua));
+
         return EmailVerificationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)
-                .message("Email verified successfully")
                 .email(user.getEmail())
+                .accessToken(result.getAccessToken())
+                .refreshToken(result.getRefreshToken())
+                .nextAction(NextAction.LOGIN)
                 .build();
     }
 }

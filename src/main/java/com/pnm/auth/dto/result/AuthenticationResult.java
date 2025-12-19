@@ -2,6 +2,8 @@ package com.pnm.auth.dto.result;
 
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.domain.enums.AuthProviderType;
+import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.response.UserResponse;
 import lombok.*;
 
@@ -21,6 +23,12 @@ public class AuthenticationResult {
     private Long otpTokenId; // used for MFA or risk OTP
 
     private String message;
+    private String linkToken;
+
+    private String email;
+    private AuthProviderType existingProvider;
+    private AuthProviderType attemptedProvider;
+    private NextAction nextAction;
 }
 
 

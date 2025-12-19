@@ -1,11 +1,13 @@
 package com.pnm.auth.exception;
 
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException;
 import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.FieldErrorResponse;
 import com.pnm.auth.exception.custom.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -438,6 +440,87 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
+
+
+    @ExceptionHandler(UnrecognizedPropertyException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnknownJsonField(
+            UnrecognizedPropertyException ex,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                        "INVALID_REQUEST",
+                        "Unrecognized field: " + ex.getPropertyName(),
+                        request.getRequestURI()
+                )
+        );
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidJson(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest request
+    ) {
+        return ResponseEntity.badRequest().body(
+                ApiResponse.error(
+                        "INVALID_JSON",
+                        "Malformed or invalid JSON request",
+                        request.getRequestURI()
+                )
+        );
+    }
+
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTooManyRequestsException(
+            TooManyRequestsException ex,
+            HttpServletRequest request) {
+
+        log.warn("TooManyRequestsException at path={} message={}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "TOO_MANY_REQUESTS",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(body);
+    }
+
+
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleEmailNotVerified(
+            EmailNotVerifiedException ex,
+            HttpServletRequest request) {
+
+        log.warn("EmailNotVerifiedException at path={} msg={}", request.getRequestURI(), ex.getMessage());
+
+        ApiResponse<Void> body = ApiResponse.error(
+                "EMAIL_NOT_VERIFIED",
+                ex.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+
+    @ExceptionHandler(OAuthPasswordLoginNotAllowedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleOAuthPasswordLoginNotAllowed(
+            OAuthPasswordLoginNotAllowedException ex,
+            HttpServletRequest request) {
+
+        log.warn("OAuthPasswordLoginNotAllowedException at path={} msg={}", request.getRequestURI(), ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ApiResponse.error(
+                        "OAUTH_PASSWORD_LOGIN_NOT_ALLOWED",
+                        ex.getMessage(),
+                        request.getRequestURI()
+                )
+        );
+    }
+
+
 
 
 

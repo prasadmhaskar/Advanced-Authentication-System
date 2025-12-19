@@ -1,10 +1,9 @@
 package com.pnm.auth.security.oauth;
 
+import com.pnm.auth.domain.entity.UserOAuthProvider;
+import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.response.UserResponse;
-import com.pnm.auth.dto.result.DeviceInfoResult;
-import com.pnm.auth.dto.result.AuthenticationResult;
-import com.pnm.auth.dto.result.MfaResult;
-import com.pnm.auth.dto.result.RiskResult;
+import com.pnm.auth.dto.result.*;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.domain.enums.AuthOutcome;
@@ -12,6 +11,7 @@ import com.pnm.auth.domain.enums.AuthProviderType;
 import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.repository.RefreshTokenRepository;
+import com.pnm.auth.repository.UserOAuthProviderRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.service.email.EmailService;
@@ -34,7 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.UUID;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -53,6 +53,8 @@ public class OAuth2ServiceImpl implements OAuth2Service{
     private final MfaService mfaService;
     private final TokenService tokenService;
     private final DeviceTrustService deviceTrustService;
+    private final UserOAuthProviderRepository oAuthProviderRepository;
+    private final AccountLinkTokenService accountLinkTokenService;
 
     @Value("${jwt.refresh.expiration}")
     private Long jwtRefreshExpirationMillis;
@@ -232,34 +234,57 @@ public class OAuth2ServiceImpl implements OAuth2Service{
             HttpServletRequest request
     ) {
 
-        log.info("OAuth2Service.handleOAuth2LoginRequest(): started provider={} ", registrationId);
+        log.info("OAuth2Service: started provider={}", registrationId);
 
-        AuthProviderType providerType = oAuth2Util.getProviderTypeFromRegistrationId(registrationId);
+        AuthProviderType providerType =
+                oAuth2Util.getProviderTypeFromRegistrationId(registrationId);
 
-        String providerId = oAuth2Util.determineProviderIdFromOAuth2User(oAuth2User, registrationId);
+        String providerId =
+                oAuth2Util.determineProviderIdFromOAuth2User(oAuth2User, registrationId);
 
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null) ip = request.getRemoteAddr();
-
         String userAgent = request.getHeader("User-Agent");
 
-        // 1️⃣ Resolve OAuth user
-        User user = resolveOrCreateUser(oAuth2User, providerType, providerId);
+        // 1️⃣ Resolve user OR return LINK_REQUIRED
+        ResolveOAuthResult resolveResult =
+                resolveOrCreateUser(oAuth2User, providerType, providerId);
 
-        // 2️⃣ Blocked user?
-        if (!user.isActive()) {
-            log.warn("OAuth2Service.handleOAuth2LoginRequest(): Blocked user trying to login for email={}", user.getEmail());
-            loginActivityService.recordFailure(user.getEmail(),"OAuth2 login failed: blocked user");
-            throw new AccountBlockedException("Your account has been blocked. Contact support.");
+        User user = resolveResult.getUser();
+
+        String linkToken = accountLinkTokenService.createLinkToken(
+                user,
+                AuthProviderType.EMAIL,
+                providerId
+
+        );
+
+        if (resolveResult.getOutcome() == AuthOutcome.LINK_REQUIRED) {
+            return AuthenticationResult.builder()
+                    .outcome(AuthOutcome.LINK_REQUIRED)
+                    .email(resolveResult.getEmail())
+                    .existingProvider(resolveResult.getExistingProvider())
+                    .attemptedProvider(providerType)
+                    .nextAction(NextAction.LINK_OAUTH)
+                    .linkToken(linkToken)
+                    .message("Account linking required")
+                    .build();
         }
 
-        // 3️⃣ Risk evaluation (shared)
+        // 2️⃣ Blocked user
+        if (!user.isActive()) {
+            loginActivityService.recordFailure(user.getEmail(), "Blocked OAuth login");
+            throw new AccountBlockedException("Your account has been blocked.");
+        }
+
+        // 3️⃣ Risk engine
         RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
 
         if (risk.getScore() >= 80) {
-            log.error("HIGH RISK BLOCKED for email={} riskScore={}",user.getEmail(), risk.getScore());
-            suspiciousLoginAlertService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
-            loginActivityService.recordFailure(user.getEmail(), "High risk login blocked");
+            suspiciousLoginAlertService.sendHighRiskAlert(
+                    user, ip, userAgent, risk.getReasons()
+            );
+            loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login");
             throw new HighRiskLoginException("Login blocked due to high risk activity.");
         }
 
@@ -267,40 +292,34 @@ public class OAuth2ServiceImpl implements OAuth2Service{
             return handleMediumRiskOtp(user);
         }
 
-        // 4️⃣ Low risk → success
-        AuthenticationResult result = tokenService.generateTokens(user);
+        // 4️⃣ Success → tokens
+        AuthenticationResult tokenResult = tokenService.generateTokens(user);
 
-        // 5️⃣ Persist IP/device login (BEST-EFFORT, NON-BLOCKING)
+        // 5️⃣ Best-effort logging
         try {
             ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
-        } catch (Exception ex) {
-            log.warn("OAuth login: ipMonitoring failed userId={} msg={}",
-                    user.getId(), ex.getMessage());
-        }
-
-        try {
-            DeviceInfoResult deviceInfoResult = UserAgentParser.parse(userAgent);
+            DeviceInfoResult device = UserAgentParser.parse(userAgent);
             deviceTrustService.trustDevice(
                     user.getId(),
-                    deviceInfoResult.getSignature(),
-                    deviceInfoResult.getDeviceName()
+                    device.getSignature(),
+                    device.getDeviceName()
             );
         } catch (Exception ex) {
-            log.warn("OAuth login: failed to trust device userId={} msg={}",
-                    user.getId(), ex.getMessage());
+            log.warn("OAuth login post-processing failed userId={}", user.getId());
         }
 
         return AuthenticationResult.builder()
-                .outcome(result.getOutcome())
-                .accessToken(result.getAccessToken())
-                .refreshToken(result.getRefreshToken())
-                .message("Login successful")
+                .outcome(AuthOutcome.SUCCESS)
+                .accessToken(tokenResult.getAccessToken())
+                .refreshToken(tokenResult.getRefreshToken())
                 .user(UserResponse.from(user))
+                .message("Login successful")
                 .build();
     }
 
 
-    private User resolveOrCreateUser(
+
+    private ResolveOAuthResult resolveOrCreateUser(
             OAuth2User oAuth2User,
             AuthProviderType providerType,
             String providerId
@@ -309,48 +328,68 @@ public class OAuth2ServiceImpl implements OAuth2Service{
         String email = oAuth2User.getAttribute("email");
 
         if (email == null) {
-            log.warn("OAuth2 login failed: provider did not supply email");
             throw new OAuth2LoginFailedException("Provider did not supply email");
         }
 
-        User user = userRepository.findByProviderIdAndAuthProviderType(providerId, providerType).orElse(null);
+        // 1️⃣ Provider already linked
+        Optional<UserOAuthProvider> provider =
+                oAuthProviderRepository
+                        .findByProviderTypeAndProviderId(providerType, providerId);
 
-        User emailUser = userRepository.findByEmail(email).orElse(null);
-
-        // New user
-        if (user == null && emailUser == null) {
-            log.info("OAuth2Service.handleOAuth2LoginRequest(): creating new user for email={} provider={}", email, providerType.name());
-            String username = oAuth2Util.determineUsernameFromOAuth2User(oAuth2User, providerType.name());
-
-            user = new User();
-            user.setFullName(username);
-            user.setEmail(email);
-            user.setPassword(UUID.randomUUID().toString());
-            user.setProviderId(providerId);
-            user.setAuthProviderType(providerType);
-            user.setEmailVerified(true);
-            user.setRoles(List.of("USER"));
-
-            return userRepository.save(user);
+        if (provider.isPresent()) {
+            return ResolveOAuthResult.builder()
+                    .outcome(AuthOutcome.SUCCESS)
+                    .user(provider.get().getUser())
+                    .build();
         }
 
-        // Email exists but not linked
-        if (user == null) {
-            log.warn("OAuth2Service.handleOAuth2LoginRequest(): account exists for email={} (needs merging)", email);
-            loginActivityService.recordFailure(email,"OAuth2 login failed: account exists but not linked");
-            throw new UserAlreadyExistsException("The email: "+email+" is already registered. Do you want to merge both accounts?");
+        // 2️⃣ Email exists but provider NOT linked → LINK_REQUIRED
+        Optional<User> emailUser = userRepository.findByEmail(email);
+
+        if (emailUser.isPresent()) {
+            AuthProviderType existingProvider =
+                    emailUser.get().getAuthProviders()
+                            .iterator()
+                            .next()
+                            .getProviderType();
+
+            String linkToken = accountLinkTokenService.createLinkToken(
+                    emailUser.get(),
+                    providerType,
+                    providerId
+            );
+
+
+            log.warn("OAuth login requires linking email={}", email);
+
+            return ResolveOAuthResult.builder()
+                    .outcome(AuthOutcome.LINK_REQUIRED)
+                    .email(email)
+                    .existingProvider(existingProvider)
+                    .build();
         }
 
-        // Sync email if changed
-        if (!email.equals(user.getEmail())) {
-            user.setEmail(email);
-            userRepository.save(user);
-        }
+        // 3️⃣ New OAuth user
+        User user = new User();
+        user.setFullName(
+                oAuth2Util.determineUsernameFromOAuth2User(
+                        oAuth2User, providerType.name()
+                )
+        );
+        user.setEmail(email);
+        user.setEmailVerified(true);
+        user.setRoles(List.of("ROLE_USER"));
+        user.setActive(true);
 
-        return user;
+        user.linkProvider(providerType, providerId);
+
+        userRepository.save(user);
+
+        return ResolveOAuthResult.builder()
+                .outcome(AuthOutcome.SUCCESS)
+                .user(user)
+                .build();
     }
-
-
 
     private AuthenticationResult handleMediumRiskOtp(User user) {
         try {

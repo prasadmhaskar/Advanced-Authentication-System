@@ -65,14 +65,7 @@ public class UserContextOrchestratorImpl implements UserContextOrchestrator {
         }
 
         // 6️⃣ Build response DTO
-        return new UserDetailsResponse(
-                user.getFullName(),
-                user.getEmail(),
-                user.getRoles(),
-                user.getAuthProviderType(),
-                user.getCreatedAt(),
-                user.getUpdatedAt()
-        );
+        return UserDetailsResponse.fromEntity(user);
     }
 }
 

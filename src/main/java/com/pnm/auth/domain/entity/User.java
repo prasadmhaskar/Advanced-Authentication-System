@@ -4,7 +4,7 @@ import com.pnm.auth.domain.enums.AuthProviderType;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 
 @Entity
 @Table(name = "users")
@@ -24,9 +24,9 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
-    @Column(nullable = false)
     private String password;
 
+    @Column(nullable = false)
     private Boolean emailVerified = false;
 
     @ElementCollection(fetch = FetchType.EAGER)
@@ -35,7 +35,20 @@ public class User {
             joinColumns = @JoinColumn(name = "user_id")
     )
     @Column(name = "role")
-    private List<String> roles;
+    private List<String> roles = new ArrayList<>();;
+
+    @Column(nullable = false)
+    private boolean active = true;
+
+    private boolean mfaEnabled = false;
+
+    @OneToMany(
+            mappedBy = "user",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY
+    )
+    private Set<UserOAuthProvider> authProviders = new HashSet<>();
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -51,13 +64,36 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
-    @Column(nullable = false)
-    private boolean active = true;
+    // --------- helper methods ----------
+    public void linkProvider(AuthProviderType type, String providerUserId) {
 
-    private String providerId;
-    @Enumerated(EnumType.STRING)
-    private AuthProviderType authProviderType;
+        if (hasProvider(type)) {
+            throw new IllegalStateException("Auth provider already linked: " + type);
+        }
 
-    private boolean mfaEnabled = false;
+        UserOAuthProvider provider = UserOAuthProvider.builder()
+                .providerType(type)
+                .providerId(providerUserId)
+                .active(true)
+                .linkedAt(LocalDateTime.now())
+                .build();
 
+        addAuthProvider(provider);
+    }
+
+    public boolean hasProvider(AuthProviderType type) {
+        return authProviders.stream()
+                .anyMatch(p -> p.getProviderType() == type);
+    }
+
+    public Optional<UserOAuthProvider> getProvider(AuthProviderType type) {
+        return authProviders.stream()
+                .filter(p -> p.getProviderType() == type)
+                .findFirst();
+    }
+
+    private void addAuthProvider(UserOAuthProvider provider) {
+        provider.setUser(this);
+        this.authProviders.add(provider);
+    }
 }

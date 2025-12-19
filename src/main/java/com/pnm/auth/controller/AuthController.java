@@ -1,15 +1,12 @@
 package com.pnm.auth.controller;
 
-import com.pnm.auth.dto.result.DeviceInfoResult;
+import com.pnm.auth.dto.result.*;
 import com.pnm.auth.dto.request.*;
 import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
-import com.pnm.auth.dto.result.AuthenticationResult;
-import com.pnm.auth.dto.result.EmailVerificationResult;
-import com.pnm.auth.dto.result.ForgotPasswordResult;
-import com.pnm.auth.dto.result.RegistrationResult;
 import com.pnm.auth.orchestrator.auth.*;
+import com.pnm.auth.service.PasswordSetupService;
 import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.util.AuthUtil;
@@ -24,6 +21,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -37,6 +35,7 @@ public class AuthController {
     private final LoginOrchestrator loginOrchestrator;
     private final VerifyOtpOrchestrator verifyOtpOrchestrator;
     private final ResendOtpOrchestrator resendOtpOrchestrator;
+    private final ResendVerificationOrchestrator resendVerificationOrchestrator;
     private final RegisterOrchestrator registerOrchestrator;
     private final VerifyEmailOrchestrator verifyEmailOrchestrator;
     private final ForgotPasswordOrchestrator forgotPasswordOrchestrator;
@@ -46,71 +45,119 @@ public class AuthController {
     private final LogoutOrchestrator logoutOrchestrator;
     private final LinkOAuthOrchestrator linkOAuthOrchestrator;
     private final ChangePasswordOrchestrator changePasswordOrchestrator;
+    private final PasswordSetupService passwordSetupService;
 
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<?>> register(@Valid @RequestBody RegisterRequest request,
-            HttpServletRequest httpRequest) {
+                                                   HttpServletRequest httpRequest)
+    {
 
         log.info("AuthController.register(): started for email={}", request.getEmail());
 
-        RegistrationResult result =
-                registerOrchestrator.register(request);
+        RegistrationResult result = registerOrchestrator.register(request);
 
         String path = httpRequest.getRequestURI();
 
-        log.info("AuthController.finished(): started for email={}", request.getEmail());
+        log.info("AuthController.finished(): finished for email={}", request.getEmail());
 
         return switch (result.getOutcome()) {
 
             case REGISTERED -> ResponseEntity.status(HttpStatus.CREATED).body(
                     ApiResponse.success(
                             "USER_REGISTERED",
-                            result.getMessage(),
+                            "Registration successful. Please verify your email.",
                             result,
                             path
                     )
             );
+
+            case LINK_REQUIRED -> ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    ApiResponse.errorWithMeta(
+                            "ACCOUNT_LINK_REQUIRED",
+                            "This email is already registered. Do you want to link accounts?",
+                            path,
+                            Map.of(
+                                    "email", result.getEmail(),
+                                    "existingProvider", result.getExistingProvider().name(),
+                                    "attemptedProvider", result.getAttemptedProvider().name(),
+                                    "nextAction", result.getNextAction().name(),
+                                        "linkToken", result.getLinkToken()
+                            )
+                    ));
+
             default -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ApiResponse.error(
                             "REGISTRATION_FAILED",
-                            result.getMessage(),
+                            "Registration failed",
                             path
                     )
             );
+
         };
     }
 
 
     @GetMapping("/verify")
-    public ResponseEntity<ApiResponse<?>> verifyEmail(
-            @RequestParam("token") String token,
-            HttpServletRequest request
-    ) {
-        EmailVerificationResult result =
-                verifyEmailOrchestrator.verify(token);
+    public ResponseEntity<ApiResponse<?>> verifyEmail(@RequestParam("token") String token, HttpServletRequest request) {
 
-        String path = request.getRequestURI();
+        // Extract IP + User-Agent
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null) ip = request.getRemoteAddr();
+
+        String ua = request.getHeader("User-Agent");
+
+        log.info("AuthController.verifyEmail(): started tokenPrefix={}", token.length() > 8 ? token.substring(0, 8) : "short");
+
+        EmailVerificationResult result = verifyEmailOrchestrator.verify(token, ip, ua);
+
+        log.info("AuthController.verifyEmail(): success email={}", result.getEmail());
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "EMAIL_VERIFIED",
+                        "Email verified successfully",
+                        result,
+                        request.getRequestURI()
+                )
+        );
+    }
+
+
+    @PostMapping("/verify/resend")
+    public ResponseEntity<ApiResponse<?>> resendVerificationEmail(
+            @Valid @RequestBody ResendVerificationRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        log.info("AuthController.resendVerificationEmail(): started email={}", request.getEmail());
+
+        ResendVerificationResult result = resendVerificationOrchestrator.resend(request.getEmail());
+
+        String path = httpRequest.getRequestURI();
+
+        log.info("AuthController.resendVerificationEmail(): finished email={}", request.getEmail());
 
         return switch (result.getOutcome()) {
 
-            case SUCCESS -> ResponseEntity.ok(
+            case EMAIL_SENT -> ResponseEntity.ok(
                     ApiResponse.success(
-                            "EMAIL_VERIFIED",
-                            result.getMessage(),
+                            "VERIFICATION_EMAIL_SENT",
+                            "Verification email sent successfully",
                             result,
                             path
                     )
             );
-            default -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                    ApiResponse.error(
-                            "EMAIL_VERIFICATION_FAILED",
-                            result.getMessage(),
+            case ALREADY_VERIFIED -> ResponseEntity.ok(
+                    ApiResponse.success(
+                            "EMAIL_ALREADY_VERIFIED",
+                            "Email already verified. Please login.",
+                            result,
                             path
                     )
             );
         };
     }
+
 
 
     @PostMapping("/login")
@@ -125,9 +172,11 @@ public class AuthController {
 
         String ua = httpRequest.getHeader("User-Agent");
 
-        log.info("AuthController.login(): started for email={} ip={} ua={}", request.getEmail(), ip, ua);
+        log.info(
+                "AuthController.login(): started email={} ip={} ua={}",
+                request.getEmail(), ip, ua
+        );
 
-        // Call orchestrator
         AuthenticationResult result = loginOrchestrator.login(request, ip, ua);
 
         String path = httpRequest.getRequestURI();
@@ -142,7 +191,8 @@ public class AuthController {
                             path
                     )
             );
-            case MFA_REQUIRED -> ResponseEntity.status(HttpStatus.OK).body(
+
+            case MFA_REQUIRED -> ResponseEntity.ok(
                     ApiResponse.success(
                             "MFA_REQUIRED",
                             result.getMessage(),
@@ -150,7 +200,8 @@ public class AuthController {
                             path
                     )
             );
-            case RISK_OTP_REQUIRED -> ResponseEntity.status(HttpStatus.OK).body(
+
+            case RISK_OTP_REQUIRED -> ResponseEntity.ok(
                     ApiResponse.success(
                             "RISK_OTP_REQUIRED",
                             result.getMessage(),
@@ -158,6 +209,33 @@ public class AuthController {
                             path
                     )
             );
+
+            case LINK_REQUIRED -> ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    ApiResponse.errorWithMeta(
+                            "ACCOUNT_LINK_REQUIRED",
+                            result.getMessage(),
+                            path,
+                            Map.of(
+                                    "email", result.getEmail(),
+                                    "existingProvider", result.getExistingProvider().name(),
+                                    "attemptedProvider", result.getAttemptedProvider().name(),
+                                    "nextAction", result.getNextAction().name()
+                            )
+                    )
+            );
+
+            case PASSWORD_NOT_SET -> ResponseEntity.status(HttpStatus.CONFLICT).body(
+                    ApiResponse.errorWithMeta(
+                            "PASSWORD_NOT_SET",
+                            result.getMessage(),
+                            path,
+                            Map.of(
+                                    "email", result.getEmail(),
+                                    "nextAction", result.getNextAction().name()
+                            )
+                    )
+            );
+
             default -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
                     ApiResponse.error(
                             "LOGIN_FAILED",
@@ -167,6 +245,7 @@ public class AuthController {
             );
         };
     }
+
 
 
     @PostMapping("/refresh")
@@ -240,6 +319,7 @@ public class AuthController {
     }
 
 
+
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserDetailsResponse>> fetchUserDetails(
             HttpServletRequest request) {
@@ -286,25 +366,27 @@ public class AuthController {
 
 
     @PostMapping("/link-oauth")
-    public ResponseEntity<ApiResponse<Void>> linkOAuth(
-            @RequestBody LinkOAuthRequest request,
-            HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<?>> linkOAuth(
+            @RequestBody @Valid LinkOAuthRequest request,
+            HttpServletRequest httpRequest
+    ) {
 
         log.info("AuthController.linkOAuth(): started");
 
-        linkOAuthOrchestrator.link(request);
-
-        log.info("AuthController.linkOAuth(): finished");
+        AccountLinkResult result = linkOAuthOrchestrator.link(request);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
-                        "OAUTH_LINKED",
-                        "OAuth account linked successfully",
-                        null,
+                        "ACCOUNT_LINKED",
+                        result.getMessage(),
+                        result,
                         httpRequest.getRequestURI()
                 )
         );
     }
+
+
+
 
 
     @PostMapping("/change-password")

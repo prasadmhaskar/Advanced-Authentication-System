@@ -1,6 +1,9 @@
 package com.pnm.auth.dto.result;
 
 import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.domain.enums.AuthProviderType;
+import com.pnm.auth.domain.enums.NextAction;
+import jakarta.persistence.Enumerated;
 import lombok.*;
 
 @Data
@@ -11,10 +14,13 @@ public class RegistrationResult {
 
     private AuthOutcome outcome;
 
-    private String message;
-
-    private Long verificationTokenId; // optional
-
     private String email; // useful for frontend
+
+    private String linkToken;
+
+    private AuthProviderType existingProvider;
+    private AuthProviderType attemptedProvider;
+
+    private NextAction nextAction;
 }
 

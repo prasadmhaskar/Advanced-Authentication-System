@@ -1,139 +1,122 @@
 package com.pnm.auth.orchestrator.auth;
 
+import com.pnm.auth.domain.entity.AccountLinkToken;
+import com.pnm.auth.domain.entity.UserOAuthProvider;
+import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.domain.enums.AuthProviderType;
+import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.request.LinkOAuthRequest;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
+import com.pnm.auth.dto.result.AccountLinkResult;
+import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.exception.custom.*;
-import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.repository.AccountLinkTokenRepository;
+import com.pnm.auth.repository.UserOAuthProviderRepository;
+import com.pnm.auth.service.PasswordSetupService;
+import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.util.Audit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
 
-    private final JwtUtil jwtUtil;
-    private final UserRepository userRepository;
+    private final AccountLinkTokenRepository accountLinkTokenRepository;
+    private final UserOAuthProviderRepository providerRepository;
+    private final PasswordSetupService passwordSetupService;
+    private final TokenService tokenService;
 
     @Override
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "users", key = "#request.accessToken"),
-            @CacheEvict(value = "users.list", allEntries = true)
-    })
-    @Audit(action = AuditAction.OAUTH_LINK, description = "Linking OAuth account")
-    public void link(LinkOAuthRequest request) {
+    @Audit(action = AuditAction.OAUTH_LINK, description = "Link OAuth account")
+    public AccountLinkResult link(LinkOAuthRequest request) {
 
-        log.info("LinkOAuthOrchestrator: started provider={}", request.getProviderType());
+        log.info("LinkOAuthOrchestrator: started provider={}", request.getProvider());
 
-        // 1️⃣ Validate access token
-        String accessToken = validateAccessToken(request.getAccessToken());
+        // 1️⃣ Load & validate link token
+        AccountLinkToken linkToken = accountLinkTokenRepository
+                .findByToken(request.getLinkToken())
+                .orElseThrow(() -> new InvalidTokenException("Invalid link token"));
 
-        // 2️⃣ Extract user identity
-        String email = extractEmail(accessToken);
-
-        // 3️⃣ Load and validate user
-        User user = loadAndValidateUser(email);
-
-        // 4️⃣ Validate provider compatibility
-        validateProviderLink(user, request);
-
-        // 5️⃣ Persist provider link
-        persistProviderLink(user, request);
-
-        log.info("LinkOAuthOrchestrator: completed successfully email={}", email);
-    }
-
-    // =====================================================
-    // Helper methods
-    // =====================================================
-
-    private String validateAccessToken(String accessToken) {
-        if (accessToken == null || accessToken.isBlank()) {
-            log.warn("LinkOAuthOrchestrator: missing access token");
-            throw new InvalidTokenException("Missing access token");
+        if (linkToken.getExpiresAt().isBefore(LocalDateTime.now())) {
+            accountLinkTokenRepository.delete(linkToken);
+            throw new InvalidTokenException("Link token expired");
         }
 
-        if (jwtUtil.isTokenExpired(accessToken)) {
-            log.warn("LinkOAuthOrchestrator: token expired");
-            throw new InvalidTokenException("Access token expired");
+        // 2️⃣ Validate provider matches token
+        if (linkToken.getProviderToLink() != request.getProvider()) {
+            log.warn(
+                    "LinkOAuthOrchestrator: provider mismatch tokenProvider={} requestProvider={}",
+                    linkToken.getProviderToLink(),
+                    request.getProvider()
+            );
+            throw new InvalidTokenException("Invalid provider for link token");
         }
 
-        return accessToken;
-    }
+        User user = linkToken.getUser();
 
-    private String extractEmail(String accessToken) {
-        try {
-            return jwtUtil.extractUsername(accessToken);
-        } catch (Exception ex) {
-            log.warn("LinkOAuthOrchestrator: failed to extract email msg={}", ex.getMessage());
-            throw new InvalidTokenException("Invalid access token");
-        }
-    }
-
-    private User loadAndValidateUser(String email) {
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("LinkOAuthOrchestrator: user not found email={}", email);
-                    return new UserNotFoundException("User not found");
-                });
-
+        // 3️⃣ Validate user state
         if (!user.isActive()) {
-            log.warn("LinkOAuthOrchestrator: blocked user attempted OAuth link email={}", email);
+            log.warn("LinkOAuthOrchestrator: blocked user attempted linking email={}", user.getEmail());
             throw new AccountBlockedException("Your account has been blocked.");
         }
 
-        return user;
-    }
-
-    private void validateProviderLink(User user, LinkOAuthRequest request) {
-
-        if (user.getAuthProviderType() != null &&
-                !user.getAuthProviderType().equals(request.getProviderType())) {
-
-            log.warn(
-                    "LinkOAuthOrchestrator: provider conflict email={} existing={} new={}",
-                    user.getEmail(),
-                    user.getAuthProviderType(),
-                    request.getProviderType()
-            );
-
-            throw new UserAlreadyExistsException(
-                    "Account already linked with provider: " + user.getAuthProviderType()
-            );
-        }
-    }
-
-    private void persistProviderLink(User user, LinkOAuthRequest request) {
-        try {
-            user.setProviderId(request.getProviderId());
-            user.setAuthProviderType(request.getProviderType());
-            userRepository.save(user);
-
+        // 4️⃣ Idempotency: already linked
+        if (user.hasProvider(request.getProvider())) {
             log.info(
-                    "LinkOAuthOrchestrator: provider linked email={} provider={}",
+                    "LinkOAuthOrchestrator: provider already linked email={} provider={}",
                     user.getEmail(),
-                    request.getProviderType()
+                    request.getProvider()
             );
-
-        } catch (Exception ex) {
-            log.error(
-                    "LinkOAuthOrchestrator: failed to save provider link email={} msg={}",
-                    user.getEmail(),
-                    ex.getMessage(),
-                    ex
-            );
-
-            throw new OAuthLinkFailedException(
-                    "Failed to link OAuth provider. Please try again later."
-            );
+            accountLinkTokenRepository.delete(linkToken);
         }
+
+        // 5️⃣ Attach OAuth provider
+        UserOAuthProvider provider = UserOAuthProvider.builder()
+                .providerType(linkToken.getProviderToLink())
+                .providerId(linkToken.getProviderUserId())
+                .linkedAt(LocalDateTime.now())
+                .user(user)
+                .build();
+
+        providerRepository.save(provider);
+
+        // 6️⃣ Consume token (one-time use)
+        accountLinkTokenRepository.delete(linkToken);
+
+        //  Generate tokens (AUTO LOGIN)
+        AuthenticationResult auth = tokenService.generateTokens(user);
+
+        boolean passwordSetupRequired = false;
+        NextAction nextAction = NextAction.LOGIN;
+        String message = "Account linked and logged in successfully.";
+
+        // 7️⃣ Password setup (only if EMAIL added & password missing)
+        if (request.getProvider() == AuthProviderType.EMAIL && user.getPassword() == null) {
+            passwordSetupService.sendSetupEmail(user.getEmail());
+            passwordSetupRequired = true;
+            nextAction = NextAction.RESET_PASSWORD;
+            message = "Account linked. Please set a password to enable email login.";
+        }
+
+        log.info("LinkOAuthOrchestrator: completed email={} provider={}",
+                user.getEmail(), request.getProvider());
+
+        return AccountLinkResult.builder()
+                .outcome(AuthOutcome.SUCCESS)
+                .email(user.getEmail())
+                .accessToken(auth.getAccessToken())
+                .refreshToken(auth.getRefreshToken())
+                .passwordSetupRequired(passwordSetupRequired)
+                .nextAction(nextAction)
+                .message(message)
+                .build();
     }
 }

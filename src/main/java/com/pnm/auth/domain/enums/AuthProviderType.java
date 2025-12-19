@@ -5,5 +5,7 @@ public enum AuthProviderType {
     GITHUB,
     FACEBOOK,
     TWITTER,
+    MICROSOFT,
+    APPLE,
     EMAIL
 }

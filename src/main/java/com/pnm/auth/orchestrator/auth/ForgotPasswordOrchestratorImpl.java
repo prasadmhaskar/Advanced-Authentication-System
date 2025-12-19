@@ -9,6 +9,7 @@ import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.auth.VerificationService;
+import com.pnm.auth.util.AfterCommitExecutor;
 import com.pnm.auth.util.Audit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,7 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
     private final UserRepository userRepository;
     private final VerificationService verificationService;
     private final EmailService emailService;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     @Override
     @Audit(action = AuditAction.PASSWORD_RESET_REQUEST,
@@ -47,12 +49,10 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
         );
 
         // 3️⃣ Send reset email
-        try {
-            emailService.sendPasswordResetEmail(email, token);
-        } catch (EmailSendFailedException ex) {
-            log.error("ForgotPasswordOrchestrator: email send failed email={}", email);
-            throw ex;
-        }
+        afterCommitExecutor.run(() ->
+                emailService.sendSetPasswordEmail(email, token)
+        );
+
 
         log.info("ForgotPasswordOrchestrator: reset link sent email={}", email);
 

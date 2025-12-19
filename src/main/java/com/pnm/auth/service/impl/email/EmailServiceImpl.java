@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -18,77 +19,94 @@ public class EmailServiceImpl implements EmailService {
     private final JavaMailSender mailSender;
 
     @Override
+    @Async("emailExecutor")
     @Retry(name = "emailRetry")
-    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackEmail")
+    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackVerificationEmail")
     public void sendVerificationEmail(String toEmail, String token) {
 
-        log.info("EmailService.sendVerificationEmail: Started for email={}",toEmail);
+        log.info("EmailService: sending verification email to={}", toEmail);
+
         String subject = "Verify Your Email";
         String verificationLink = "http://localhost:8080/api/auth/verify?token=" + token;
 
         String body = """
                 Hello,
-                
+
                 Please verify your email by clicking the link below:
-                """ + verificationLink;
+                %s
+                """.formatted(verificationLink);
 
         sendEmail(toEmail, subject, body);
-        log.info("EmailService.sendVerificationEmail: Sent verification email to {}", toEmail);
-
     }
 
     @Override
+    @Async("emailExecutor")
     @Retry(name = "emailRetry")
-    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackEmail")
-    public void sendPasswordResetEmail(String toEmail, String token) {
-        log.info("EmailService.sendPasswordResetEmail: Started for email={}",toEmail);
-        String subject = "Reset Your Password";
-        String resetLink = "http://localhost:8080/reset-password?token=" + token;
+    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackPasswordEmail")
+    public void sendSetPasswordEmail(String email, String token) {
 
+        log.info("EmailService: sending set-password email to={}", email);
+
+        String link = "http://localhost:8080/reset-password?token=" + token;
+
+        String subject = "Set your password";
         String body = """
-                Hello,
-                
-                Click the link below to reset your password:
-                """ + resetLink;
+                Hi,
 
-        sendEmail(toEmail, subject, body);
-        log.info("EmailService.sendPasswordResetEmail: Sent password reset email to {}", toEmail);
+                Click the link below to set your password:
+                %s
+
+                This link expires in 15 minutes.
+                """.formatted(link);
+
+        sendEmail(email, subject, body);
     }
 
-
     @Override
+    @Async("emailExecutor")
     @Retry(name = "emailRetry")
-    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackEmail")
+    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackOtpEmail")
     public void sendMfaOtpEmail(String toEmail, String otp) {
 
-        log.info("EmailService.sendMfaOtpEmail(): sending MFA OTP to {}", toEmail);
+        log.info("EmailService: sending MFA OTP email to={}", toEmail);
 
         String subject = "Your MFA Verification Code";
-        String body = "Your OTP for login is: " + otp + "\nIt will expire in 5 minutes.";
+        String body = "Your OTP is: " + otp + " (valid for 5 minutes)";
 
         sendEmail(toEmail, subject, body);
-
     }
 
-    @Override
-    @Retry(name = "emailRetry")
-    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackEmail")
+    // -----------------------------
+    // INTERNAL SEND
+    // -----------------------------
     public void sendEmail(String toEmail, String subject, String body) {
-        log.info("EmailService.sendEmail: Email sending to={}",toEmail);
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(toEmail);
         message.setSubject(subject);
         message.setText(body);
         message.setFrom("noreply@project1.com");
+
         mailSender.send(message);
-        log.info("EmailService.sendEmail: Email sent to={}",toEmail);
+        log.info("EmailService: email sent to={}", toEmail);
     }
 
-    public void fallbackEmail(String toEmail, String otp, Throwable ex) {
-        log.error("EmailService fallback triggered for OTP email={} reason={}", toEmail, ex.getMessage(), ex);
-
-        throw new EmailSendFailedException("Unable to send OTP email at the moment. Please try again.");
+    // -----------------------------
+    // FALLBACKS (NO THROWING!)
+    // -----------------------------
+    public void fallbackVerificationEmail(String email, String token, Throwable ex) {
+        log.error("EmailService FALLBACK: verification email failed email={} reason={}",
+                email, ex.getMessage(), ex);
     }
 
+    public void fallbackPasswordEmail(String email, String token, Throwable ex) {
+        log.error("EmailService FALLBACK: password email failed email={} reason={}",
+                email, ex.getMessage(), ex);
+    }
+
+    public void fallbackOtpEmail(String email, String otp, Throwable ex) {
+        log.error("EmailService FALLBACK: OTP email failed email={} reason={}",
+                email, ex.getMessage(), ex);
+    }
 }
+
 

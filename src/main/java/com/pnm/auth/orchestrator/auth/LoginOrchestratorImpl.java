@@ -1,5 +1,7 @@
 package com.pnm.auth.orchestrator.auth;
 
+import com.pnm.auth.domain.enums.AuthProviderType;
+import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.request.LoginRequest;
 import com.pnm.auth.dto.response.UserResponse;
 import com.pnm.auth.dto.result.AuthenticationResult;
@@ -10,6 +12,7 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.event.LoginSuccessEvent;
 import com.pnm.auth.exception.custom.EmailSendFailedException;
 import com.pnm.auth.exception.custom.RiskOtpRequiredException;
+import com.pnm.auth.security.oauth.AccountLinkTokenService;
 import com.pnm.auth.service.auth.MfaService;
 import com.pnm.auth.service.auth.PasswordAuthService;
 import com.pnm.auth.service.auth.TokenService;
@@ -35,21 +38,69 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
     private final TokenService tokenService;
     private final DeviceTrustService deviceTrustService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AccountLinkTokenService accountLinkTokenService;
 
 
     @Override
     @Transactional
     public AuthenticationResult login(LoginRequest request, String ip, String userAgent) {
 
-        log.info("LoginOrchestrator: login started email={}", request.getEmail());
+        String email = request.getEmail().trim().toLowerCase();
+        log.info("LoginOrchestrator: login started email={}", email);
 
         // ---------------------------------------------------------
-        // 1️⃣ Validate user existence + state (active, verified, etc)
+        // 1️⃣ Validate user existence + basic state (active, verified)
         // ---------------------------------------------------------
-        User user = userValidationService.validateUserForLogin(request.getEmail().trim().toLowerCase());
+        User user = userValidationService.validateUserForLogin(email);
 
         // ---------------------------------------------------------
-        // 2️⃣ Validate password (OAuth users blocked)
+        // 2️⃣ EMAIL provider not linked → OFFER LINKING
+        // ---------------------------------------------------------
+        if (!user.hasProvider(AuthProviderType.EMAIL)) {
+
+            AuthProviderType existingProvider =
+                    user.getAuthProviders().iterator().next().getProviderType();
+
+            log.warn(
+                    "Email login attempted but EMAIL provider not linked email={} existingProvider={}",
+                    email,
+                    existingProvider
+            );
+
+            String linkToken = accountLinkTokenService.createLinkToken(
+                    user,
+                    AuthProviderType.EMAIL,
+                    email
+            );
+
+            return AuthenticationResult.builder()
+                    .outcome(AuthOutcome.LINK_REQUIRED)
+                    .email(email)
+                    .existingProvider(existingProvider)
+                    .attemptedProvider(AuthProviderType.EMAIL)
+                    .nextAction(NextAction.LINK_ACCOUNT)
+                    .linkToken(linkToken)
+                    .message("This account uses a different login method. Link email login?")
+                    .build();
+        }
+
+        // ---------------------------------------------------------
+        // 3️⃣ Password not set → FORCE SET PASSWORD
+        // ---------------------------------------------------------
+        if (user.getPassword() == null) {
+
+            log.warn("Password not set for email login email={}", email);
+
+            return AuthenticationResult.builder()
+                    .outcome(AuthOutcome.PASSWORD_NOT_SET)
+                    .email(email)
+                    .nextAction(NextAction.SET_PASSWORD)
+                    .message("Password not set. Please set your password to continue.")
+                    .build();
+        }
+
+        // ---------------------------------------------------------
+        // 4️⃣ Verify password
         // ---------------------------------------------------------
         passwordAuthService.verifyPassword(user, request.getPassword());
 
@@ -81,7 +132,6 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         // 5️⃣ LOW RISK → SUCCESS: generate tokens
         // ---------------------------------------------------------
         AuthenticationResult result = tokenService.generateTokens(user);
-
 
         //LoginActivity.recordSuccess()
         eventPublisher.publishEvent(

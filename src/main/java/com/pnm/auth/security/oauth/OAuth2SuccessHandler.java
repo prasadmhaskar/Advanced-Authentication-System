@@ -18,6 +18,7 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.Map;
 
 @Component
 @RequiredArgsConstructor
@@ -42,7 +43,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         String registrationId = token.getAuthorizedClientRegistrationId();
         log.info("OAuth2SuccessHandler: Provider={}", registrationId);
 
-        AuthenticationResult authResult = oAuth2Service.handleOAuth2LoginRequest(oAuth2User, registrationId, request);
+        AuthenticationResult authResult =
+                oAuth2Service.handleOAuth2LoginRequest(oAuth2User, registrationId, request);
 
         String path = request.getRequestURI();
 
@@ -61,6 +63,22 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 status = HttpStatus.OK;
             }
 
+            case LINK_REQUIRED -> {
+                body = ApiResponse.errorWithMeta(
+                        "ACCOUNT_LINK_REQUIRED",
+                        "This email is already registered. Do you want to link accounts?",
+                        path,
+                        Map.of(
+                                "email", authResult.getEmail(),
+                                "existingProvider", authResult.getExistingProvider().name(),
+                                "attemptedProvider", authResult.getAttemptedProvider().name(),
+                                "nextAction", authResult.getNextAction().name(),
+                                "linkToken", authResult.getLinkToken()
+                        )
+                );
+                status = HttpStatus.CONFLICT;
+            }
+
             default -> {
                 body = ApiResponse.error(
                         "LOGIN_FAILED",
@@ -69,7 +87,8 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                 );
                 status = HttpStatus.UNAUTHORIZED;
             }
-        };
+        }
+
 
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

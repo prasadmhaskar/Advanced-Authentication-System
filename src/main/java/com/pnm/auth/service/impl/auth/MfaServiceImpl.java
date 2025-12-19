@@ -9,6 +9,7 @@ import com.pnm.auth.exception.custom.EmailSendFailedException;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.auth.MfaService;
+import com.pnm.auth.util.AfterCommitExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class MfaServiceImpl implements MfaService {
 
     private final MfaTokenRepository mfaTokenRepository;
     private final EmailService emailService;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -42,7 +44,10 @@ public class MfaServiceImpl implements MfaService {
             MfaToken token = createMfaToken(user, otp, false);
             mfaTokenRepository.save(token);
 
-            emailService.sendMfaOtpEmail(user.getEmail(), otp);
+            afterCommitExecutor.run(() ->
+                    emailService.sendMfaOtpEmail(user.getEmail(), otp)
+            );
+
 
             return AuthenticationResult.builder()
                     .outcome(AuthOutcome.MFA_REQUIRED)
@@ -73,7 +78,10 @@ public class MfaServiceImpl implements MfaService {
             MfaToken token = createMfaToken(user, otp, true);
             mfaTokenRepository.save(token);
 
-            emailService.sendMfaOtpEmail(user.getEmail(), otp);
+            afterCommitExecutor.run(() ->
+                    emailService.sendMfaOtpEmail(user.getEmail(), otp)
+            );
+
 
             return MfaResult.builder()
                     .outcome(AuthOutcome.RISK_OTP_REQUIRED)
