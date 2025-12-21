@@ -6,6 +6,7 @@ public enum AuthOutcome {
 
     MFA_REQUIRED,
     RISK_OTP_REQUIRED,
+    OTP_REQUIRED,
     OAUTH_LINK_REQUIRED,
     LINK_REQUIRED,
     PASSWORD_NOT_SET,

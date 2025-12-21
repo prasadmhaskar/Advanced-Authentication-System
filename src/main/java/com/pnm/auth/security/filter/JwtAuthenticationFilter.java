@@ -41,6 +41,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 path.startsWith("/api/auth/verify/resend") ||
                 path.startsWith("/api/auth/refresh") ||
                 path.startsWith("/api/auth/forgot-password") ||
+                path.startsWith("/api/auth/link-oauth") ||
                 path.startsWith("/api/auth/setup-password");
 
         if (skip) {

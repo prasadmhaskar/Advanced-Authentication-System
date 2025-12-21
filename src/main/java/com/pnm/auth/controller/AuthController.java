@@ -45,7 +45,6 @@ public class AuthController {
     private final LogoutOrchestrator logoutOrchestrator;
     private final LinkOAuthOrchestrator linkOAuthOrchestrator;
     private final ChangePasswordOrchestrator changePasswordOrchestrator;
-    private final PasswordSetupService passwordSetupService;
 
 
     @PostMapping("/register")

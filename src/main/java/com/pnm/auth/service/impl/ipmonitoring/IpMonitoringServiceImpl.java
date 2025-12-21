@@ -71,9 +71,9 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         // ---------------------------
         // 3) Multi-account intelligence
         // ---------------------------
-        int accountsUsingIp = repo.countByIpAddress(ip);
+        int accountsUsingIp = repo.countDistinctUsersByIp(ip);
         int accountsUsingDevice = deviceSignature != null
-                ? repo.countByDeviceSignature(deviceSignature)
+                ? repo.countDistinctUsersByDevice(deviceSignature)
                 : 0;
 
         // ---------------------------
@@ -129,8 +129,8 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
             }
         }
 
-
-
+//        riskScore = Math.max(riskScore, 0);
+        riskScore = 45;
         boolean suspicious = riskScore >= 40;
 
         // ---------------------------
@@ -148,6 +148,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
                 .deviceSignature(deviceSignature)
                 .deviceType(deviceInfoResult.getDeviceType())
                 .deviceName(deviceInfoResult.getDeviceName())
+                .loginTime(LocalDateTime.now())
                 .build();
 
         UserIpLog saved = repo.save(entity);
@@ -170,7 +171,6 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
 
         log.error("ipMonitoringService fallback triggered for userId={}, ip={}, reason={}",
                 userId, ip, ex.getMessage());
-
 
         UserIpLogResponse userIpLogResponse = new UserIpLogResponse();
         userIpLogResponse.setRiskScore(0);

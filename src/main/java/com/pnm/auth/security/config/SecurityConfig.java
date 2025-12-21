@@ -3,6 +3,7 @@ package com.pnm.auth.security.config;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.security.filter.*;
+import com.pnm.auth.security.oauth.CookieOAuth2AuthorizationRequestRepository;
 import com.pnm.auth.security.oauth.OAuth2SuccessHandler;
 import com.pnm.auth.service.impl.user.UserDetailsServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,6 +45,7 @@ public class SecurityConfig {
     private final ObjectMapper objectMapper;
     private final BlockHttpMethodsFilter blockHttpMethodsFilter;
     private final OAuthRedirectValidationFilter oauthRedirectValidationFilter;
+    private final CookieOAuth2AuthorizationRequestRepository cookieOAuth2AuthorizationRequestRepository;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -79,8 +81,11 @@ public class SecurityConfig {
                                 "/api/auth/verify",
                                 "/api/auth/verify/resend",
                                 "/api/auth/refresh",
+                                "/api/auth/otp/verify",
+                                "/api/auth/otp/resend",
                                 "/api/auth/forgot-password",
                                 "/api/auth/setup-password",
+                                "/api/auth/link-oauth",
                                 "/oauth2/**",
                                 "/login/oauth2/**"
                         ).permitAll()
@@ -91,6 +96,7 @@ public class SecurityConfig {
                 // OAuth2 Login
                 // -----------------------------------------------------
                 .oauth2Login(oauth2 -> {
+                    oauth2.authorizationEndpoint(auth -> auth.authorizationRequestRepository(cookieOAuth2AuthorizationRequestRepository));
                     oauth2.successHandler(oAuth2SuccessHandler);
                     oauth2.failureHandler((request, response, ex) -> {
                         log.error("OAuth2 Login Failed: {}", ex.getMessage());
@@ -112,21 +118,24 @@ public class SecurityConfig {
 // Register filters (correct order)
 // ---------------------------
 
-// 1) Register requestLoggingFilter first so it becomes a valid anchor
+// 1. Request context (MDC, IP, UA)
         http.addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class);
 
-// 2) Now other filters can be added relative to RequestLoggingFilter
-        http.addFilterBefore(blockHttpMethodsFilter, RequestLoggingFilter.class);
-        http.addFilterBefore(oauthRedirectValidationFilter, RequestLoggingFilter.class);
+// 2. Rate limiter (needs IP, path, MDC)
+        http.addFilterAfter(redisRateLimiterFilter, RequestLoggingFilter.class);
 
-// 3) Apply security headers after request logging
-        http.addFilterAfter(securityHeadersFilter, RequestLoggingFilter.class);
+// 3. Block invalid HTTP methods
+        http.addFilterAfter(blockHttpMethodsFilter, RedisRateLimiterFilter.class);
 
-// 4) Rate limiter (requires MDC from requestLoggingFilter)
-        http.addFilterBefore(redisRateLimiterFilter, UsernamePasswordAuthenticationFilter.class);
+// 4. OAuth redirect validation
+        http.addFilterAfter(oauthRedirectValidationFilter, RedisRateLimiterFilter.class);
 
-// 5) JWT Authentication (before UsernamePasswordAuthenticationFilter)
+// 5. JWT authentication
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+// 6. Security headers (last)
+        http.addFilterAfter(securityHeadersFilter, JwtAuthenticationFilter.class);
+
 
         log.info("SecurityConfig.securityFilterChain(): final chain built successfully");
         return http.build();

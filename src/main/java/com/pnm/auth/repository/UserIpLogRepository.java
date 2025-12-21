@@ -3,6 +3,7 @@ package com.pnm.auth.repository;
 import com.pnm.auth.domain.entity.UserIpLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -29,4 +30,19 @@ public interface UserIpLogRepository extends JpaRepository<UserIpLog, Long> {
 
     @Query("SELECT COUNT(l) FROM UserIpLog l WHERE l.riskScore >= 80 AND l.loginTime >= :start")
     long countHighRiskSince(LocalDateTime start);
+
+    @Query("""
+SELECT COUNT(DISTINCT u.userId)
+FROM UserIpLog u
+WHERE u.ipAddress = :ip
+""")
+    int countDistinctUsersByIp(@Param("ip") String ip);
+
+    @Query("""
+SELECT COUNT(DISTINCT u.userId)
+FROM UserIpLog u
+WHERE u.deviceSignature = :deviceSignature
+""")
+    int countDistinctUsersByDevice(@Param("deviceSignature") String deviceSignature);
+
 }

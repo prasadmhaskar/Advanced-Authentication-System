@@ -32,7 +32,8 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
                         path.startsWith("/api/auth/register") ||
                         path.startsWith("/api/auth/forgot-password") ||
                         path.startsWith("/api/auth/refresh") ||
-                        path.startsWith("/api/auth/verify")
+                        path.startsWith("/api/auth/verify") ||
+                        path.startsWith("/api/auth/otp/resend")
         );
     }
 
@@ -43,18 +44,52 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
+        String path = request.getRequestURI();
         String ip = request.getRemoteAddr();
-        String key = ip + ":" + request.getRequestURI();
 
-        boolean allowed = rateLimiterService.isAllowed(key, 5, 60);
+        String rateLimitKey;
+        int maxRequests;
+        int windowSeconds;
+
+        // 🔐 Special handling for MFA resend
+        if (path.startsWith("/api/auth/mfa/resend")) {
+
+            // Prefer tokenId (best), fallback to email
+            String tokenId = request.getParameter("otpTokenId");
+            String email = request.getParameter("email");
+
+            String userKey = tokenId != null ? tokenId : email;
+
+            if (userKey == null) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                response.getWriter().write("Missing otpTokenId or email");
+                return;
+            }
+
+            rateLimitKey = "MFA_RESEND:" + userKey + ":" + ip;
+            maxRequests = 3;      // 🔒 strict
+            windowSeconds = 300;  // 5 minutes
+
+        } else {
+            // Default auth rate limit
+            rateLimitKey = "AUTH:" + ip + ":" + path;
+            maxRequests = 5;
+            windowSeconds = 60;
+        }
+
+        boolean allowed = rateLimiterService.isAllowed(
+                rateLimitKey,
+                maxRequests,
+                windowSeconds
+        );
 
         if (!allowed) {
-            log.warn("RateLimiter: BLOCKED ip={} path={}", ip, request.getServletPath());
+            log.warn("RateLimiter: BLOCKED key={} path={}", rateLimitKey, path);
 
             ApiResponse<Void> body = ApiResponse.error(
                     "RATE_LIMIT_EXCEEDED",
-                    "Too many requests. Try again later.",
-                    request.getRequestURI()
+                    "Too many requests. Please try again later.",
+                    path
             );
 
             response.setStatus(429);
@@ -65,5 +100,6 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
 
         filterChain.doFilter(request, response);
     }
+
 }
 

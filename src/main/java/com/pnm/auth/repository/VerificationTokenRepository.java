@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 @Repository
@@ -27,6 +28,22 @@ AND t.type = :type
 AND t.usedAt IS NULL
 """)
     void invalidateUnusedTokens(@Param("userId") Long userId, @Param("type") String type);
+
+    @Modifying
+    @Query("""
+        DELETE FROM VerificationToken t
+        WHERE t.usedAt IS NOT NULL
+          AND t.usedAt < :cutoff
+    """)
+    int deleteUsedTokensBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    @Modifying
+    @Query("""
+        DELETE FROM VerificationToken t
+        WHERE t.usedAt IS NULL
+          AND t.expiresAt < :cutoff
+    """)
+    int deleteExpiredUnusedTokensBefore(@Param("cutoff") LocalDateTime cutoff);
 
 
 }

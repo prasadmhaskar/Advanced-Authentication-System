@@ -1,5 +1,6 @@
 package com.pnm.auth.orchestrator.auth;
 
+import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.domain.enums.AuthProviderType;
 import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.request.LoginRequest;
@@ -12,19 +13,25 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.event.LoginSuccessEvent;
 import com.pnm.auth.exception.custom.EmailSendFailedException;
 import com.pnm.auth.exception.custom.RiskOtpRequiredException;
+import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.security.oauth.AccountLinkTokenService;
 import com.pnm.auth.service.auth.MfaService;
 import com.pnm.auth.service.auth.PasswordAuthService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.service.auth.UserValidationService;
 import com.pnm.auth.service.device.DeviceTrustService;
+import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.risk.RiskEngineService;
+import com.pnm.auth.util.AfterCommitExecutor;
 import com.pnm.auth.util.UserAgentParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.security.SecureRandom;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +46,11 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
     private final DeviceTrustService deviceTrustService;
     private final ApplicationEventPublisher eventPublisher;
     private final AccountLinkTokenService accountLinkTokenService;
+    private final MfaTokenRepository mfaTokenRepository;
+    private final EmailService emailService;
+    private final AfterCommitExecutor afterCommitExecutor;
+
+    private final SecureRandom secureRandom = new SecureRandom();
 
 
     @Override
@@ -109,7 +121,12 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         // ---------------------------------------------------------
         if (user.isMfaEnabled()) {
             log.info("LoginOrchestrator: MFA enabled for email={}", user.getEmail());
-            return handleMfaFlow(user, ip, userAgent);
+            MfaResult mfaResult = handleMfaFlow(user);
+            return AuthenticationResult.builder()
+                    .outcome(AuthOutcome.MFA_REQUIRED)
+                    .otpTokenId(mfaResult.getTokenId())
+                    .message("Otp is sent to your email successfully. Please enter otp for verification")
+                    .build();
         }
 
         // ---------------------------------------------------------
@@ -125,7 +142,12 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
 
         if (risk.getScore() >= 40) {
             log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", user.getEmail());
-            return handleMediumRiskOtp(user);
+            MfaResult mfaResult = handleMediumRiskOtp(user);
+            return AuthenticationResult.builder()
+                    .outcome(mfaResult.getOutcome())
+                    .otpTokenId(mfaResult.getTokenId())
+                    .message("Suspicious login detected. Please enter otp for verification")
+                    .build();
         }
 
         // ---------------------------------------------------------
@@ -173,38 +195,48 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
     // Helper Methods
     // =====================================================================
 
-    private AuthenticationResult handleMfaFlow(User user, String ip, String userAgent) {
-        var mfa = mfaService.handleMfaLogin(user);
-        if (mfa.getOutcome() == AuthOutcome.MFA_REQUIRED) {
-            return AuthenticationResult.builder()
-                    .outcome(AuthOutcome.MFA_REQUIRED)
-                    .otpTokenId(mfa.getOtpTokenId())
-                    .message("MFA verification needed")
+    @Transactional
+    private MfaResult handleMfaFlow(User user) {
+        // 1. Generate OTP
+        String otp = generateOtp();
+        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
+
+        MfaToken token = new MfaToken();
+        token.setUser(user);
+        token.setOtp(otp);
+        token.setExpiresAt(expiresAt);
+
+        mfaTokenRepository.save(token);
+
+        // 2. Send OTP asynchronously (AFTER COMMIT)
+        afterCommitExecutor.run(() ->
+                emailService.sendMfaOtpEmail(user.getEmail(), otp)
+        );
+
+        log.info("MfaService: OTP generated & sent for userId={}", user.getId());
+
+        return MfaResult.builder()
+                .outcome(AuthOutcome.OTP_REQUIRED)
+                .tokenId(token.getId())
+                .build();
+    }
+
+    private MfaResult handleMediumRiskOtp(User user) {
+
+        MfaResult mfa = mfaService.handleMediumRiskOtp(user);
+
+        if (mfa.getOutcome() == AuthOutcome.RISK_OTP_REQUIRED) {
+            return MfaResult.builder()
+                    .tokenId(mfa.getTokenId())
+                    .outcome(mfa.getOutcome())
                     .build();
         }
-        throw new IllegalStateException("Unexpected MFA outcome");
+        throw new IllegalStateException("Unexpected Risk OTP outcome");
     }
 
-    private AuthenticationResult handleMediumRiskOtp(User user) {
-        try {
-            MfaResult mfa = mfaService.handleMediumRiskOtp(user);
 
-            if (mfa.getOutcome() == AuthOutcome.RISK_OTP_REQUIRED) {
-                throw new RiskOtpRequiredException(
-                        "Suspicious login detected. OTP required.",
-                        mfa.getTokenId()
-                );
-            }
-
-            throw new IllegalStateException("Unexpected Risk OTP outcome");
-
-        } catch (EmailSendFailedException ex) {
-            throw ex;
-
-        } catch (Exception ex) {
-            log.error("LoginOrchestrator: medium-risk OTP error email={} err={}",
-                    user.getEmail(), ex.getMessage(), ex);
-            throw new EmailSendFailedException("Failed to send OTP. Try again later.");
-        }
+    private String generateOtp() {
+        return String.format("%06d", secureRandom.nextInt(1_000_000));
     }
+
 }

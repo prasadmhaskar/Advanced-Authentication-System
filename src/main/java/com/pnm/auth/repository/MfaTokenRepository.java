@@ -24,4 +24,22 @@ public interface MfaTokenRepository extends JpaRepository<MfaToken, Long> {
     @Query("SELECT t FROM MfaToken t WHERE t.user.id = :userId AND t.used = false AND t.expiresAt > :now")
     List<MfaToken> findValidTokens(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
+    // ✅ Cleanup: used tokens older than X time
+    @Modifying
+    @Query("""
+        DELETE FROM MfaToken t
+        WHERE t.used = true
+          AND t.expiresAt < :cutoff
+    """)
+    int deleteUsedTokensBefore(@Param("cutoff") LocalDateTime cutoff);
+
+    // ✅ Cleanup: expired & unused tokens
+    @Modifying
+    @Query("""
+        DELETE FROM MfaToken t
+        WHERE t.used = false
+          AND t.expiresAt < :cutoff
+    """)
+    int deleteExpiredUnusedTokensBefore(@Param("cutoff") LocalDateTime cutoff);
+
 }

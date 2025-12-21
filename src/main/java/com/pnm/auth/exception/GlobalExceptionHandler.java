@@ -520,6 +520,22 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(CooldownActiveException.class)
+    public ResponseEntity<ApiResponse<Void>> handleResendOtpCooldownActive(
+            CooldownActiveException ex,
+            HttpServletRequest request) {
+
+        log.warn("CooldownActiveException at path={} msg={}", request.getRequestURI(), ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(
+                ApiResponse.error(
+                        "MULTIPLE_RESEND_OTP_REQUESTS",
+                        ex.getMessage(),
+                        request.getRequestURI()
+                )
+        );
+    }
+
 
 
 

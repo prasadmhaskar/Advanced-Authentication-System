@@ -4,10 +4,12 @@ import com.pnm.auth.dto.request.OtpResendRequest;
 import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.exception.custom.AccountBlockedException;
+import com.pnm.auth.exception.custom.CooldownActiveException;
 import com.pnm.auth.exception.custom.EmailSendFailedException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.email.EmailService;
+import com.pnm.auth.service.impl.redis.RedisCooldownService;
 import com.pnm.auth.util.AfterCommitExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,7 +17,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -25,12 +29,22 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
     private final MfaTokenRepository mfaTokenRepository;
     private final EmailService emailService;
     private final AfterCommitExecutor afterCommitExecutor;
+    private final RedisCooldownService cooldownService;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Override
     @Transactional
     public void resend(OtpResendRequest request) {
+
+        String cooldownKey = "MFA_RESEND_COOLDOWN:" + request.getTokenId();
+
+        if (cooldownService.isInCooldown(cooldownKey)) {
+            long remaining = cooldownService.getRemainingSeconds(cooldownKey);
+            throw new CooldownActiveException(
+                    "Please wait " + remaining + " seconds before resending OTP"
+            );
+        }
 
         log.info("ResendOtpOrchestrator: resend started tokenId={}", request.getTokenId());
 
@@ -70,6 +84,13 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
 
             afterCommitExecutor.run(() ->
                     emailService.sendMfaOtpEmail(user.getEmail(), otp)
+            );
+
+            cooldownKey = "MFA_RESEND_COOLDOWN:" + newToken.getId();
+
+            cooldownService.startCooldown(
+                    cooldownKey,
+                    Duration.ofSeconds(60)
             );
 
             log.info("ResendOtpOrchestrator: OTP resent successfully email={} newTokenId={}",

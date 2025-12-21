@@ -83,6 +83,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
                 .providerType(linkToken.getProviderToLink())
                 .providerId(linkToken.getProviderUserId())
                 .linkedAt(LocalDateTime.now())
+                .active(true)
                 .user(user)
                 .build();
 
