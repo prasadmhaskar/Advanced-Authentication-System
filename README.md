@@ -1,54 +1,20 @@
 # Advanced Authentication System
-Enterprise-grade authentication system built with Spring Boot 3, JDK 17, and PostgreSQL.
-Supports JWT, Email Verification, OTP-based login, Role-based access, and Secure Password Hashing.
 
-* Features
--User Registration (with validation)
--Login using JWT
--Email Verification Flow
--Forgot Password + Reset Password
--OTP-based Authentication
--Role-based Access Control
--Secure Password Hashing (BCrypt)
--PostgreSQL Integration
--Environment Variable–based Credentials
--Logging + Exception Handling
+A production-style Identity and Access Management system built with Spring Boot 3, JDK 17, and PostgreSQL designed to handle the full lifecycle of secure user authentication and administrative governance.
 
-* Tech Stack
--Java 17
--Spring Boot 3.3
--Spring Security 6
--PostgreSQL 16
--Maven
--JWT
--Lombok
+🏗️ Architectural Excellence
+🔹 **Orchestrator Pattern:** Business logic is abstracted into dedicated orchestrators, ensuring the Web layer remains thin and the system remains testable.
+🔹 **Global Exception Framework:** A centralized `@RestControllerAdvice` ensures 100% consistent API contracts and prevents sensitive data leakage.
 
-* Project Structure
-src/main/java/com/pnm/auth/
-    controller/
-    service/
-    repository/
-    entity/
-    dto/
-    config/
-    security/
-    exceptions/
-src/main/resources/
-    application.properties
-    application-secret.properties (gitignored)
+🛡️ Security & Observability Suite
+🔹 **Stateless Auth + Rotation:** JWT-based session management with **Refresh Token Rotation** and a Redis-backed blacklist.
+🔹 **Adaptive Risk Engine:** Monitors IP heuristics and Device Fingerprinting (User-Agent parsing) to trigger step-up MFA (OTP) upon anomaly detection.
+🔹 **Admin SOC Lite:** Dedicated administrative suite for **IP Monitoring**, **Audit Trails**, and **User Lifecycle Governance** (Blocking/Unblocking/Analytics).
+🔹 **Account Linking:** Automated conflict-resolution flow for linking Social OAuth2 providers (Google/GitHub) to existing local profiles.
 
-* Running the Project
--Set environment variables
-DB_URL=jdbc:postgresql://localhost:5432/project1_auth
-DB_USERNAME=postgres
-DB_PASSWORD=yourpassword
-EMAIL_API_KEY=xxxxx
 
-* Run with Maven
-mvn spring-boot:run
 
-* API Testing
-Use Postman collection
-
-*License
-This project is for learning.
+🛠️ Getting Started
+```bash
+git clone [https://github.com/prasadmhaskar/Advanced-Authentication-System](https://github.com/prasadmhaskar/Advanced-Authentication-System)
+docker-compose up --build
