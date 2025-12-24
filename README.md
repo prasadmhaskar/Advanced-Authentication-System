@@ -1,20 +1,37 @@
-# Advanced Authentication System
+```mermaid
+graph TB
+    %% Client Layer
+    Client((Client/Mobile/Web)) -->|REST API| Gateway[Spring Security Filter Chain]
 
-A production-style Identity and Access Management system built with Spring Boot 3, JDK 17, and PostgreSQL designed to handle the full lifecycle of secure user authentication and administrative governance.
+    %% Security Layer
+    subgraph Security_Engine [Security & Authentication Layer]
+        Gateway -->|Stateless Auth| JWT[JWT & Refresh Token Rotation]
+        Gateway -->|Rate Limiting| RateLimiter[Redis Rate Limiter]
+        JWT -->|Blacklist Check| Redis_S[(Redis Cache)]
+    end
 
-🏗️ Architectural Excellence
-🔹 **Orchestrator Pattern:** Business logic is abstracted into dedicated orchestrators, ensuring the Web layer remains thin and the system remains testable.
-🔹 **Global Exception Framework:** A centralized `@RestControllerAdvice` ensures 100% consistent API contracts and prevents sensitive data leakage.
+    %% Logic Layer
+    subgraph Logic_Layer [Business Logic - Orchestrators]
+        Gateway -->|Delegates| AuthOrch[Auth Orchestrator]
+        Gateway -->|Delegates| AdminOrch[Admin/SOC Orchestrator]
+        
+        AuthOrch -->|Heuristics| RiskEngine[Adaptive Risk Engine]
+        AuthOrch -->|MFA Trigger| OTP[OTP/Email Service]
+        
+        AdminOrch -->|Forensics| IPMonitor[IP Monitoring Service]
+        AdminOrch -->|Tracking| Audit[Audit Logging Service]
+    end
 
-🛡️ Security & Observability Suite
-🔹 **Stateless Auth + Rotation:** JWT-based session management with **Refresh Token Rotation** and a Redis-backed blacklist.
-🔹 **Adaptive Risk Engine:** Monitors IP heuristics and Device Fingerprinting (User-Agent parsing) to trigger step-up MFA (OTP) upon anomaly detection.
-🔹 **Admin SOC Lite:** Dedicated administrative suite for **IP Monitoring**, **Audit Trails**, and **User Lifecycle Governance** (Blocking/Unblocking/Analytics).
-🔹 **Account Linking:** Automated conflict-resolution flow for linking Social OAuth2 providers (Google/GitHub) to existing local profiles.
+    %% Data Layer
+    subgraph Data_Persistence [Persistence Layer]
+        RiskEngine -->|Device Trust| Postgres[(PostgreSQL)]
+        Audit -->|Immutable Logs| Postgres
+        AuthOrch -->|User Data| Postgres
+    end
 
-
-
-🛠️ Getting Started
-```bash
-git clone [https://github.com/prasadmhaskar/Advanced-Authentication-System](https://github.com/prasadmhaskar/Advanced-Authentication-System)
-docker-compose up --build
+    %% Styling
+    style Gateway fill:#f96,stroke:#333,stroke-width:2px
+    style Security_Engine fill:#e1f5fe,stroke:#01579b
+    style Logic_Layer fill:#fff3e0,stroke:#ff6f00
+    style Redis_S fill:#ffcdd2
+    style Postgres fill:#c8e6c9
