@@ -1,37 +1,51 @@
 ```mermaid
-graph TB
+graph TD
     %% Client Layer
-    Client((Client/Mobile/Web)) -->|REST API| Gateway[Spring Security Filter Chain]
+    Client((Client/Consumer)) -->|REST/OAuth2| FilterChain[Spring Security Filter Chain]
 
-    %% Security Layer
-    subgraph Security_Engine [Security & Authentication Layer]
-        Gateway -->|Stateless Auth| JWT[JWT & Refresh Token Rotation]
-        Gateway -->|Rate Limiting| RateLimiter[Redis Rate Limiter]
-        JWT -->|Blacklist Check| Redis_S[(Redis Cache)]
+    %% Filter Chain Details
+    subgraph Filter_Chain [Hardened Security Pipeline]
+        direction TB
+        F1[RequestLoggingFilter - MDC/IP Context]
+        F2[RedisRateLimiterFilter - DDoS Protection]
+        F3[BlockHttpMethodsFilter - Protocol Hardening]
+        F4[OAuthRedirectValidationFilter]
+        F5[JwtAuthenticationFilter - Stateless Auth]
+        F6[SecurityHeadersFilter - OWASP Compliance]
+        
+        F1 --> F2 --> F3 --> F4 --> F5 --> F6
     end
+
+    FilterChain -->|Valid Request| Controllers{API Controllers}
 
     %% Logic Layer
-    subgraph Logic_Layer [Business Logic - Orchestrators]
-        Gateway -->|Delegates| AuthOrch[Auth Orchestrator]
-        Gateway -->|Delegates| AdminOrch[Admin/SOC Orchestrator]
+    subgraph Controllers_Orchestrators [Business Logic Layer]
+        Controllers -->|User Flows| AuthOrch[Auth Orchestrators]
+        Controllers -->|Admin Flows| AdminService[Admin & Analytics Service]
         
-        AuthOrch -->|Heuristics| RiskEngine[Adaptive Risk Engine]
-        AuthOrch -->|MFA Trigger| OTP[OTP/Email Service]
-        
-        AdminOrch -->|Forensics| IPMonitor[IP Monitoring Service]
-        AdminOrch -->|Tracking| Audit[Audit Logging Service]
+        AuthOrch -->|Authn/Authz| Identity[Identity Service]
+        AuthOrch -->|Security| RiskEngine[Adaptive Risk Engine]
+        AdminService -->|Governance| Audit[Audit & IP Monitoring]
     end
 
-    %% Data Layer
-    subgraph Data_Persistence [Persistence Layer]
-        RiskEngine -->|Device Trust| Postgres[(PostgreSQL)]
-        Audit -->|Immutable Logs| Postgres
-        AuthOrch -->|User Data| Postgres
+    %% Persistence Layer
+    subgraph Persistence_Layer [Data & Cache Layer]
+        F2 -.->|Check/Incr| Redis[(Redis)]
+        Identity -->|Session/Blacklist| Redis
+        Identity -->|Users/Devices| Postgres[(PostgreSQL)]
+        RiskEngine -->|Fingerprints| Postgres
+        Audit -->|forensic Logs| Postgres
     end
+
+    %% Error Handling
+    Controllers -.->|Throws| GlobalEx[Global Exception Handler]
+    FilterChain -.->|Fails| SecurityEx[AuthEntryPoint / AccessDeniedHandler]
+    GlobalEx & SecurityEx -->|Unified Response| ApiResponse[JSON ApiResponse DTO]
+    ApiResponse -->|Return| Client
 
     %% Styling
-    style Gateway fill:#f96,stroke:#333,stroke-width:2px
-    style Security_Engine fill:#e1f5fe,stroke:#01579b
-    style Logic_Layer fill:#fff3e0,stroke:#ff6f00
-    style Redis_S fill:#ffcdd2
-    style Postgres fill:#c8e6c9
+    style Filter_Chain fill:#f5f5f5,stroke:#333,stroke-dasharray: 5 5
+    style Redis fill:#ffcccc,stroke:#b91d1d
+    style Postgres fill:#d1fae5,stroke:#065f46
+    style F5 fill:#dbeafe,stroke:#1e40af
+    style ApiResponse fill:#fef3c7,stroke:#92400e
