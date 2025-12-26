@@ -273,7 +273,7 @@ public class OAuth2ServiceImpl implements OAuth2Service{
 
         // 2️⃣ Blocked user
         if (!user.isActive()) {
-            loginActivityService.recordFailure(user.getEmail(), "Blocked OAuth login");
+            loginActivityService.recordFailure(user.getEmail(), "Blocked OAuth login", ip, userAgent);
             throw new AccountBlockedException("Your account has been blocked.");
         }
 
@@ -284,7 +284,7 @@ public class OAuth2ServiceImpl implements OAuth2Service{
             suspiciousLoginAlertService.sendHighRiskAlert(
                     user, ip, userAgent, risk.getReasons()
             );
-            loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login");
+            loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login", ip, userAgent);
             throw new HighRiskLoginException("Login blocked due to high risk activity.");
         }
 

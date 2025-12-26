@@ -26,22 +26,18 @@ public class LoginActivityServiceImpl implements LoginActivityService {
     private final UserRepository userRepository;
     private final LoginActivityRepository loginActivityRepository;
     private final IpMonitoringService ipMonitoringService;
-    private final TrustedDeviceRepository trustedDeviceRepository;
 
     // ---------------------------------------------
     // SUCCESS
     // ---------------------------------------------
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
-    public void recordSuccess(Long userId, String email) {
+    public void recordSuccess(Long userId, String email, String ip, String userAgent) {
 
         log.info("LoginActivityService.recordSuccess(): started userId={} email={}", userId, email);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found for id=" + userId));
-
-        String ip = MDC.get("ip");
-        String userAgent = MDC.get("userAgent");
 
         LoginActivity activity = LoginActivity.builder()
                 .user(user)
@@ -66,10 +62,7 @@ public class LoginActivityServiceImpl implements LoginActivityService {
     // ---------------------------------------------
     @Transactional
     @Override
-    public void recordFailure(String email, String message) {
-
-        String ip = MDC.get("ip");
-        String userAgent = MDC.get("userAgent");
+    public void recordFailure(String email, String message, String ip, String userAgent) {
 
         log.warn("LoginActivityService.recordFailure(): email={} ip={} reason={}", email, ip, message);
 

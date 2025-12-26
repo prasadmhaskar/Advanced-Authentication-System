@@ -29,20 +29,16 @@ public class UserValidationServiceImpl implements UserValidationService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("UserValidationService: user not found email={}", email);
-                    loginActivityService.recordFailure(email, "User not found");
                     return new UserNotFoundException("User not found with email: " + email);
                 });
 
         if (!user.isActive()) {
             log.warn("UserValidationService: blocked account attempted login email={}", email);
-            loginActivityService.recordFailure(email, "Blocked user login attempt");
-
             throw new AccountBlockedException("Your account has been blocked. Contact support.");
         }
 
         if (!user.getEmailVerified()) {
             log.warn("UserValidationService: email not verified email={}", email);
-            loginActivityService.recordFailure(email, "Email not verified");
             throw new EmailNotVerifiedException("Verify your email to continue.");
         }
 

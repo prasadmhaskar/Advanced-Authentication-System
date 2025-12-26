@@ -26,8 +26,12 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         String requestId = Optional.ofNullable(request.getHeader("X-Request-Id"))
                 .filter(h -> !h.isBlank())
                 .orElse(UUID.randomUUID().toString());
-        String ip = getClientIp(request);
+
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null) ip = request.getRemoteAddr();
+
         String userAgent = request.getHeader("User-Agent");
+
         String path = request.getRequestURI();
         String method = request.getMethod();
 

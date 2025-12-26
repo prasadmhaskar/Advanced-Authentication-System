@@ -129,8 +129,8 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
             }
         }
 
-//        riskScore = Math.max(riskScore, 0);
-        riskScore = 45;
+        riskScore = Math.max(riskScore, 0);
+
         boolean suspicious = riskScore >= 40;
 
         // ---------------------------
@@ -164,6 +164,96 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         log.info("IpMonitoringService.recordLogin(): completed userId={} ip={}", userId, ip);
 
         return UserIpLogResponse.fromEntity(saved);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Retry(name = "ipMonitoringRetry")
+    @CircuitBreaker(name = "ipMonitoringCB", fallbackMethod = "fallbackRiskScore")
+    @Override
+    public void recordFirstLogin(Long userId, String ip, String userAgent) {
+
+        log.info("IpMonitoringService.recordFirstLogin(): started userId={} ip={}", userId, ip);
+
+        if (userId == null || ip == null) {
+            log.warn("IpMonitoringService.recordFirstLogin(): invalid parameters userId={} ip={}", userId, ip);
+            return;
+        }
+
+
+        // Parse device info from user-agent
+        DeviceInfoResult deviceInfoResult = UserAgentParser.parse(userAgent);
+        String deviceSignature = deviceInfoResult.getSignature();
+
+
+        // ---------------------------
+        // 3) Multi-account intelligence
+        // ---------------------------
+        int accountsUsingIp = repo.countDistinctUsersByIp(ip);
+        int accountsUsingDevice = deviceSignature != null
+                ? repo.countDistinctUsersByDevice(deviceSignature)
+                : 0;
+
+        // ---------------------------
+        // 4) Geo IP lookup
+        // ---------------------------
+        GeoLocationResponse geo = geoIpService.lookup(ip);
+        String countryCode = geo != null ? geo.getCountryCode() : null;
+        String city = geo != null ? geo.getCity() : null;
+
+        // ---------------------------
+        // 5) Risk scoring
+        // ---------------------------
+        int riskScore = 0;
+        List<String> reasons = new ArrayList<>();
+
+
+// IP used by many accounts
+        if (accountsUsingIp >= 3) {
+            riskScore += 30;
+            reasons.add("SAME_IP_USED_BY_MULTIPLE_ACCOUNTS_" + accountsUsingIp);
+        }
+
+// Device used by many accounts
+        if (deviceSignature != null && accountsUsingDevice >= 3) {
+            riskScore += 40;
+            reasons.add("SAME DEVICE_USED_BY_MULTIPLE_ACCOUNTS_" + accountsUsingDevice);
+        }
+
+        riskScore = Math.max(riskScore, 0);
+
+        boolean suspicious = riskScore >= 40;
+
+        // ---------------------------
+        // 6) Build and save entity
+        // ---------------------------
+        UserIpLog entity = UserIpLog.builder()
+                .userId(userId)
+                .ipAddress(ip)
+                .userAgent(userAgent)
+                .countryCode(countryCode)
+                .city(city)
+                .isSuspicious(suspicious)
+                .riskScore(riskScore)
+                .riskReason(String.join(",", reasons))
+                .deviceSignature(deviceSignature)
+                .deviceType(deviceInfoResult.getDeviceType())
+                .deviceName(deviceInfoResult.getDeviceName())
+                .loginTime(LocalDateTime.now())
+                .build();
+
+        UserIpLog saved = repo.save(entity);
+
+        if (suspicious) {
+            log.warn("IpMonitoringService.recordLogin(): suspicious login userId={} ip={} device={} riskScore={} reasons={}",
+                    userId, ip, deviceInfoResult.getDeviceName(), riskScore, entity.getRiskReason());
+        } else {
+            log.info("IpMonitoringService.recordFirstLogin(): normal login userId={} ip={} device={}",
+                    userId, ip, deviceInfoResult.getDeviceName());
+        }
+
+        log.info("IpMonitoringService.recordFirstLogin(): completed userId={} ip={}", userId, ip);
+
+        UserIpLogResponse.fromEntity(saved);
     }
 
     @Override

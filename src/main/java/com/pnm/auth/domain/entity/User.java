@@ -65,7 +65,7 @@ public class User {
     }
 
     // --------- helper methods ----------
-    public void linkProvider(AuthProviderType type, String providerUserId) {
+    public void linkProvider(AuthProviderType type, String providerId) {
 
         if (hasProvider(type)) {
             throw new IllegalStateException("Auth provider already linked: " + type);
@@ -73,7 +73,7 @@ public class User {
 
         UserOAuthProvider provider = UserOAuthProvider.builder()
                 .providerType(type)
-                .providerId(providerUserId)
+                .providerId(providerId)
                 .active(true)
                 .linkedAt(LocalDateTime.now())
                 .build();

@@ -34,14 +34,14 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
 
     @Override
     @Transactional
-    public ResendVerificationResult resend(String email) {
+    public ResendVerificationResult resend(String email, String ip, String userAgent) {
 
         log.info("ResendVerificationOrchestrator: started email={}", email);
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("ResendVerificationOrchestrator: user not found email={}", email);
-                    loginActivityService.recordFailure(email, "User not found");
+                    loginActivityService.recordFailure(email, "User not found", ip, userAgent);
                     return new UserNotFoundException("User not found with email: " + email);
                 });
 

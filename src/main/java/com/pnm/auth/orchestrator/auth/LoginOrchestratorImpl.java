@@ -11,8 +11,7 @@ import com.pnm.auth.dto.result.RiskResult;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.event.LoginSuccessEvent;
-import com.pnm.auth.exception.custom.EmailSendFailedException;
-import com.pnm.auth.exception.custom.RiskOtpRequiredException;
+import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.security.oauth.AccountLinkTokenService;
 import com.pnm.auth.service.auth.MfaService;
@@ -21,6 +20,7 @@ import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.service.auth.UserValidationService;
 import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.service.email.EmailService;
+import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.risk.RiskEngineService;
 import com.pnm.auth.util.AfterCommitExecutor;
 import com.pnm.auth.util.UserAgentParser;
@@ -49,6 +49,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
     private final MfaTokenRepository mfaTokenRepository;
     private final EmailService emailService;
     private final AfterCommitExecutor afterCommitExecutor;
+    private final LoginActivityService loginActivityService;
 
     private final SecureRandom secureRandom = new SecureRandom();
 
@@ -63,7 +64,21 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         // ---------------------------------------------------------
         // 1️⃣ Validate user existence + basic state (active, verified)
         // ---------------------------------------------------------
-        User user = userValidationService.validateUserForLogin(email);
+        User user;
+
+        try {
+            user = userValidationService.validateUserForLogin(email);
+        } catch (UserNotFoundException ex) {
+            loginActivityService.recordFailure(email,"User not found", ip, userAgent);
+            throw ex;
+        } catch (AccountBlockedException ex) {
+            loginActivityService.recordFailure(email, "Blocked user login attempt", ip, userAgent);
+            throw ex;
+        } catch (EmailNotVerifiedException ex) {
+            loginActivityService.recordFailure(email, "Email not verified", ip, userAgent);
+            throw ex;
+        }
+
 
         // ---------------------------------------------------------
         // 2️⃣ EMAIL provider not linked → OFFER LINKING
@@ -114,7 +129,11 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         // ---------------------------------------------------------
         // 4️⃣ Verify password
         // ---------------------------------------------------------
-        passwordAuthService.verifyPassword(user, request.getPassword());
+        try {
+            passwordAuthService.verifyPassword(user, request.getPassword());
+        }catch (InvalidCredentialsException ex){
+            loginActivityService.recordFailure(email, "Wrong password entered", ip, userAgent);
+        }
 
         // ---------------------------------------------------------
         // 3️⃣ If MFA is enabled → handle MFA and return response

@@ -44,8 +44,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
     })
     @Audit(action = AuditAction.CHANGE_PASSWORD, description = "User password change")
     public AuthenticationResult changePassword(
-            String accessToken,
-            ChangePasswordRequest request
+            String accessToken, ChangePasswordRequest request, String ip, String userAgent
     ) {
 
         log.info("ChangePasswordOrchestrator: started");
@@ -123,7 +122,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
             log.error("ChangePasswordOrchestrator: failed to update password email={} msg={}",
                     email, ex.getMessage(), ex);
 
-            loginActivityService.recordFailure(email, "Password change failed");
+            loginActivityService.recordFailure(email, "Password change failed", ip, userAgent);
             throw new PasswordChangeException("Unable to change password. Please try again later.");
         }
 
@@ -136,7 +135,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
         // 7️⃣ Audit success (best-effort)
         // --------------------------------------------------
         try {
-            loginActivityService.recordSuccess(user.getId(), email);
+            loginActivityService.recordSuccess(user.getId(), email, ip, userAgent);
         } catch (Exception ex) {
             log.warn("ChangePasswordOrchestrator: failed to record success email={}", email);
         }

@@ -56,14 +56,14 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
 
         // 3️⃣ Validate expiry
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            loginActivityService.recordFailure(user.getEmail(), "OTP expired");
+            loginActivityService.recordFailure(user.getEmail(), "OTP expired", ip, userAgent);
             log.warn("VerifyOtpOrchestrator.verify(): token expired id={}", request.getTokenId());
             throw new InvalidTokenException("OTP expired");
         }
 
         // 4️⃣ Validate OTP
         if (!token.getOtp().equals(request.getOtp().trim())) {
-            loginActivityService.recordFailure(user.getEmail(), "Wrong OTP");
+            loginActivityService.recordFailure(user.getEmail(), "Wrong OTP", ip, userAgent);
             log.warn("VerifyOtpOrchestrator.verify(): wrong OTP for id={}", request.getTokenId());
             throw new InvalidCredentialsException("Invalid OTP");
         }
@@ -73,7 +73,7 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
         mfaTokenRepository.save(token);
 
         // 6️⃣ Record success
-        loginActivityService.recordSuccess(user.getId(), user.getEmail());
+        loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
 
         // 7️⃣ Trust device (best-effort)
         try {

@@ -130,7 +130,13 @@ public class AuthController {
     ) {
         log.info("AuthController.resendVerificationEmail(): started email={}", request.getEmail());
 
-        ResendVerificationResult result = resendVerificationOrchestrator.resend(request.getEmail());
+        // Extract IP + User-Agent
+        String ip = httpRequest.getHeader("X-Forwarded-For");
+        if (ip == null) ip = httpRequest.getRemoteAddr();
+
+        String ua = httpRequest.getHeader("User-Agent");
+
+        ResendVerificationResult result = resendVerificationOrchestrator.resend(request.getEmail(), ip, ua);
 
         String path = httpRequest.getRequestURI();
 
@@ -252,10 +258,17 @@ public class AuthController {
             @Valid @RequestBody RefreshTokenRequest request,
             HttpServletRequest httpRequest
     ) {
+
+        // Extract IP + User-Agent
+        String ip = httpRequest.getHeader("X-Forwarded-For");
+        if (ip == null) ip = httpRequest.getRemoteAddr();
+
+        String ua = httpRequest.getHeader("User-Agent");
+
         String path = httpRequest.getRequestURI();
 
         AuthenticationResult result =
-                refreshTokenOrchestrator.refresh(request.getRefreshToken());
+                refreshTokenOrchestrator.refresh(request.getRefreshToken(), ip, ua);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -305,7 +318,13 @@ public class AuthController {
             @Valid @RequestBody ResetPasswordRequest request,
             HttpServletRequest httpRequest
     ) {
-        resetPasswordOrchestrator.reset(request);
+
+        // Extract IP + User-Agent
+        String ip = httpRequest.getHeader("X-Forwarded-For");
+        if (ip == null) ip = httpRequest.getRemoteAddr();
+
+        String ua = httpRequest.getHeader("User-Agent");
+        resetPasswordOrchestrator.reset(request, ip, ua);
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -399,8 +418,14 @@ public class AuthController {
         String token = jwtUtil.resolveToken(httpRequest);
         String path = httpRequest.getRequestURI();
 
+        // Extract IP + User-Agent
+        String ip = httpRequest.getHeader("X-Forwarded-For");
+        if (ip == null) ip = httpRequest.getRemoteAddr();
+
+        String ua = httpRequest.getHeader("User-Agent");
+
         AuthenticationResult result =
-                changePasswordOrchestrator.changePassword(token, request);
+                changePasswordOrchestrator.changePassword(token, request, ip, ua);
 
         return ResponseEntity.ok(
                 ApiResponse.success(

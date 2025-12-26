@@ -37,7 +37,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
     @Transactional
     @Audit(action = AuditAction.REFRESH_TOKEN_ROTATION,
             description = "Refreshing access token")
-    public AuthenticationResult refresh(String rawToken) {
+    public AuthenticationResult refresh(String rawToken, String ip, String userAgent) {
 
         String tokenPrefix = safeTokenPrefix(rawToken);
         log.info("RefreshTokenOrchestrator: started tokenPrefix={}", tokenPrefix);
@@ -82,7 +82,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
             // Best effort logging
             try {
-                loginActivityService.recordSuccess(user.getId(), user.getEmail());
+                loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
             } catch (Exception ex) {
                 log.warn("RefreshTokenOrchestrator: activity log failed userId={}", user.getId());
             }
@@ -102,9 +102,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
                     user.getId(), ex.getMessage(), ex);
 
             loginActivityService.recordFailure(
-                    user.getEmail(),
-                    "Refresh token rotation failed"
-            );
+                    user.getEmail(),"Refresh token rotation failed", ip, userAgent);
 
             throw new TokenGenerationException(
                     "Unable to refresh token. Please login again.",

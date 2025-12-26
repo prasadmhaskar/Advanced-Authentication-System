@@ -25,7 +25,9 @@ public class LoginSuccessListener {
 
         loginActivityService.recordSuccess(
                 event.userId(),
-                event.email()
+                event.email(),
+                event.ip(),
+                event.userAgent()
         );
     }
 }

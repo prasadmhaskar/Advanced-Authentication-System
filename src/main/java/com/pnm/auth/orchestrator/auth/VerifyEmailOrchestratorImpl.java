@@ -11,7 +11,10 @@ import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.service.device.DeviceTrustService;
+import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.service.login.LoginActivityService;
+import com.pnm.auth.util.UserAgentParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -29,6 +32,8 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
     private final UserRepository userRepository;
     private final TokenService tokenService;
     private final ApplicationEventPublisher eventPublisher;
+    private final DeviceTrustService deviceTrustService;
+    private final IpMonitoringService ipMonitoringService;
 
     @Override
     @Transactional
@@ -87,6 +92,22 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                         user.getEmail(),
                         ip,
                         ua));
+
+        //Record login
+        ipMonitoringService.recordFirstLogin(user.getId(), ip, ua);
+
+        //Add to trustedDevice
+        try {
+            var agent = UserAgentParser.parse(ua);
+            deviceTrustService.trustDevice(
+                    user.getId(),
+                    agent.getSignature(),
+                    agent.getDeviceName()
+            );
+        } catch (Exception ex) {
+            log.warn("VerifyEmailOrchestrator: failed to trust device email={} err={}",
+                    user.getEmail(), ex.getMessage());
+        }
 
         return EmailVerificationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)

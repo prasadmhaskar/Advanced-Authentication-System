@@ -29,7 +29,7 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
 
     @Override
     @Transactional
-    public void reset(ResetPasswordRequest request) {
+    public void reset(ResetPasswordRequest request , String ip, String userAgent) {
 
         String tokenPrefix = safeTokenPrefix(request.getToken());
         log.info("ResetPasswordOrchestrator.reset(): started tokenPrefix={}", tokenPrefix);
@@ -72,7 +72,7 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
 
             // 7️⃣ Record audit / activity (best-effort)
             try {
-                loginActivityService.recordSuccess(user.getId(), user.getEmail());
+                loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
             } catch (Exception ex) {
                 log.warn("ResetPasswordOrchestrator: activity log failed userId={} msg={}",
                         user.getId(), ex.getMessage());

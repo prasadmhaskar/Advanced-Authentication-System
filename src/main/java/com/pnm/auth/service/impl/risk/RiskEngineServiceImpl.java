@@ -78,7 +78,7 @@ public class RiskEngineServiceImpl implements RiskEngineService {
                 risk.getReasons()
         );
 
-        loginActivityService.recordFailure(user.getEmail(), "High risk login blocked");
+        loginActivityService.recordFailure(user.getEmail(), "High risk login blocked", ip, userAgent);
 
         return new HighRiskLoginException("Login blocked due to high risk activity.");
     }

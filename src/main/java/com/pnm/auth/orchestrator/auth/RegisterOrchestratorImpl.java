@@ -1,19 +1,20 @@
 package com.pnm.auth.orchestrator.auth;
 
 import com.pnm.auth.domain.entity.UserOAuthProvider;
+import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.request.RegisterRequest;
 import com.pnm.auth.dto.result.RegistrationResult;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.domain.enums.AuthProviderType;
-import com.pnm.auth.exception.custom.EmailSendFailedException;
 import com.pnm.auth.exception.custom.UserAlreadyExistsException;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.security.oauth.AccountLinkTokenService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.auth.VerificationService;
 import com.pnm.auth.util.AfterCommitExecutor;
+import com.pnm.auth.util.Audit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -37,6 +38,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
 
     @Override
     @Transactional
+    @Audit(action = AuditAction.USER_REGISTER, description = "New user registering")
     public RegistrationResult register(RegisterRequest request) {
 
         String email = request.getEmail().trim().toLowerCase();
@@ -49,7 +51,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
 
             User existingUser = optionalUser.get();
 
-            // EMAIL already linked → normal duplicate case
+            // EMAIL already linked -> normal duplicate case
             if (existingUser.hasProvider(AuthProviderType.EMAIL)) {
                 log.warn("RegisterOrchestrator: email already registered with EMAIL email={}", email);
                 throw new UserAlreadyExistsException(
@@ -57,7 +59,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
                 );
             }
 
-            // OAuth exists but EMAIL not linked → LINK REQUIRED
+            // OAuth exists but EMAIL not linked -> LINK REQUIRED
             AuthProviderType existingProvider =
                     existingUser.getAuthProviders().stream()
                             .map(UserOAuthProvider::getProviderType)
@@ -66,6 +68,8 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
                             .orElseThrow(() -> new IllegalStateException(
                                     "OAuth provider expected but not found"
                             ));
+
+
 
             // ⭐ CREATE LINK TOKEN
             String linkToken = accountLinkTokenService.createLinkToken(

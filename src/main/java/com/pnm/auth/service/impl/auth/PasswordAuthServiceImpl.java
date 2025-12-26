@@ -26,8 +26,6 @@ public class PasswordAuthServiceImpl implements PasswordAuthService {
         if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
 
             log.warn("PasswordAuthService: password mismatch email={}", user.getEmail());
-            loginActivityService.recordFailure(user.getEmail(), "Wrong password entered");
-
             throw new InvalidCredentialsException("Wrong password. Please enter the correct password.");
         }
 
