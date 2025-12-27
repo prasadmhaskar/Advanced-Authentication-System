@@ -30,7 +30,6 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
                 .toList();
     }
 
-    @Audit(action = AuditAction.DEVICE_REMOVE, description = "Removing a trusted device")
     @Override
     public void removeDevice(Long userId, Long deviceId) {
         TrustedDevice device = trustedDeviceRepository.findById(deviceId)
@@ -44,7 +43,6 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
         trustedDeviceRepository.save(device);
     }
 
-    @Audit(action = AuditAction.DEVICE_TRUST_ADD, description = "Trusting new device")
     @Override
     public void trustDevice(Long userId, String deviceSignature, String deviceName) {
 
@@ -79,7 +77,6 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     }
 
     @Transactional
-    @Audit(action = AuditAction.DEVICE_REMOVE_OTHERS, description = "Removing all other devices except current")
     @Override
     public void removeAllExceptCurrent(Long userId, String currentDeviceSignature) {
 

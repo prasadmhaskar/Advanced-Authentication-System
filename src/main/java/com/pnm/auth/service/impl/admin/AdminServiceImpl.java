@@ -79,7 +79,7 @@ public class AdminServiceImpl implements AdminService {
     @Override
     @Transactional
     @CacheEvict(value = {"users.list", "users"}, allEntries = true)
-    @Audit(action = AuditAction.ADMIN_DELETE_USER, description = "Admin deleted a user")
+    @Audit(action = AuditAction.ADMIN_DELETE_USER, description = "Admin deleted a user", targetUserArgIndex = 0)
     public void deleteUser(Long id) {
 
         log.info("AdminService.deleteUser(): started for id={}", id);
@@ -106,7 +106,7 @@ public class AdminServiceImpl implements AdminService {
             @CacheEvict(value = "users", allEntries = true),
             @CacheEvict(value = "users.list", allEntries = true)
     })
-    @Audit(action = AuditAction.ADMIN_BLOCK_USER, description = "Admin blocked a user")
+    @Audit(action = AuditAction.ADMIN_BLOCK_USER, description = "Admin blocked a user", targetUserArgIndex = 0)
     public void blockUser(Long id) {
 
         log.info("AdminService.blockUser(): started id={}", id);
@@ -139,7 +139,7 @@ public class AdminServiceImpl implements AdminService {
             @CacheEvict(value = "users", allEntries = true),
             @CacheEvict(value = "users.list", allEntries = true)
     })
-    @Audit(action = AuditAction.ADMIN_UNBLOCK_USER, description = "Admin unblocked a user")
+    @Audit(action = AuditAction.ADMIN_UNBLOCK_USER, description = "Admin unblocked a user", targetUserArgIndex = 0)
     public void unblockUser(Long id) {
 
         log.info("AdminService.unblockUser(): started id={}", id);

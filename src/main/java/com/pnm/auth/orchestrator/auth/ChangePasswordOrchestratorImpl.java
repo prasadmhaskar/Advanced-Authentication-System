@@ -38,15 +38,11 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
 
     @Override
     @Transactional
-    @Caching(evict = {
-            @CacheEvict(value = "users", key = "#accessToken"),
-            @CacheEvict(value = "users.list", allEntries = true)
-    })
+    @Caching(evict = {@CacheEvict(value = "users", key = "#accessToken"),
+            @CacheEvict(value = "users.list", allEntries = true)})
     @Audit(action = AuditAction.CHANGE_PASSWORD, description = "User password change")
-    public AuthenticationResult changePassword(
-            String accessToken, ChangePasswordRequest request, String ip, String userAgent
-    ) {
-
+    public AuthenticationResult changePassword(String accessToken, ChangePasswordRequest request, String ip, String userAgent)
+    {
         log.info("ChangePasswordOrchestrator: started");
 
         // --------------------------------------------------

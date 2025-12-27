@@ -14,9 +14,6 @@ public interface IpMonitoringService {
 
     UserIpLogResponse recordLogin(Long userId, String ip, String userAgent);
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    @Retry(name = "ipMonitoringRetry")
-    @CircuitBreaker(name = "ipMonitoringCB", fallbackMethod = "fallbackRiskScore")
     void recordFirstLogin(Long userId, String ip, String userAgent);
 
     UserIpLogResponse fallbackRiskScore(Long userId, String ip, String userAgent, Throwable ex);

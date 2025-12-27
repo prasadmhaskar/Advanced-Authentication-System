@@ -38,7 +38,6 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
 
     @Override
     @Transactional
-    @Audit(action = AuditAction.USER_REGISTER, description = "New user registering")
     public RegistrationResult register(RegisterRequest request) {
 
         String email = request.getEmail().trim().toLowerCase();

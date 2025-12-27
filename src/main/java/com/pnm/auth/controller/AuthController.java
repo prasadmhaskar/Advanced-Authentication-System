@@ -281,6 +281,8 @@ public class AuthController {
     }
 
 
+    //When user is not logged-in. Uses email for getting reset-email link for setting new password.
+    //Just sends password reset email on users email
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<?>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest req,
@@ -313,6 +315,7 @@ public class AuthController {
     }
 
 
+    //forgotPassword sends this controllers link with token and in this controller actual password change is done.
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request,
@@ -336,6 +339,37 @@ public class AuthController {
         );
     }
 
+
+    //When user is logged-in. In profile settings user can change his password after entering old-Password and new-password.
+    @PostMapping("/change-password")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public ResponseEntity<ApiResponse<?>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        log.info("AuthController.changePassword(): started");
+
+        String token = jwtUtil.resolveToken(httpRequest);
+        String path = httpRequest.getRequestURI();
+
+        // Extract IP + User-Agent
+        String ip = httpRequest.getHeader("X-Forwarded-For");
+        if (ip == null) ip = httpRequest.getRemoteAddr();
+
+        String ua = httpRequest.getHeader("User-Agent");
+
+        AuthenticationResult result =
+                changePasswordOrchestrator.changePassword(token, request, ip, ua);
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "PASSWORD_CHANGED",
+                        result.getMessage(),
+                        result,
+                        path
+                )
+        );
+    }
 
 
     @GetMapping("/me")
@@ -404,38 +438,6 @@ public class AuthController {
     }
 
 
-
-
-
-    @PostMapping("/change-password")
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
-    public ResponseEntity<ApiResponse<?>> changePassword(
-            @Valid @RequestBody ChangePasswordRequest request,
-            HttpServletRequest httpRequest
-    ) {
-        log.info("AuthController.changePassword(): started");
-
-        String token = jwtUtil.resolveToken(httpRequest);
-        String path = httpRequest.getRequestURI();
-
-        // Extract IP + User-Agent
-        String ip = httpRequest.getHeader("X-Forwarded-For");
-        if (ip == null) ip = httpRequest.getRemoteAddr();
-
-        String ua = httpRequest.getHeader("User-Agent");
-
-        AuthenticationResult result =
-                changePasswordOrchestrator.changePassword(token, request, ip, ua);
-
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        "PASSWORD_CHANGED",
-                        result.getMessage(),
-                        result,
-                        path
-                )
-        );
-    }
 
 
     @PutMapping("/update-profile")

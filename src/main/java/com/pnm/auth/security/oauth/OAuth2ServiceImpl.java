@@ -227,7 +227,6 @@ public class OAuth2ServiceImpl implements OAuth2Service{
 
     @Override
     @Transactional
-    @Audit(action = AuditAction.OAUTH_LOGIN, description = "OAuth2 login attempt")
     public AuthenticationResult handleOAuth2LoginRequest(
             OAuth2User oAuth2User,
             String registrationId,

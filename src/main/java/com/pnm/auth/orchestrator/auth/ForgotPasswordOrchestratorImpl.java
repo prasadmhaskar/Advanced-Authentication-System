@@ -26,8 +26,6 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
     private final AfterCommitExecutor afterCommitExecutor;
 
     @Override
-    @Audit(action = AuditAction.PASSWORD_RESET_REQUEST,
-            description = "Forgot password request")
     public ForgotPasswordResult requestReset(String rawEmail) {
 
         String email = rawEmail.trim().toLowerCase();

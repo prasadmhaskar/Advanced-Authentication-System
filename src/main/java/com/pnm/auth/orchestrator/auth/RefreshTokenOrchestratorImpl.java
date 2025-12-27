@@ -35,8 +35,6 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
     @Override
     @Transactional
-    @Audit(action = AuditAction.REFRESH_TOKEN_ROTATION,
-            description = "Refreshing access token")
     public AuthenticationResult refresh(String rawToken, String ip, String userAgent) {
 
         String tokenPrefix = safeTokenPrefix(rawToken);

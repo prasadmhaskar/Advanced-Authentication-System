@@ -30,7 +30,6 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
             @CacheEvict(value = "users", key = "#accessToken"),
             @CacheEvict(value = "users.list", allEntries = true)
     })
-    @Audit(action = AuditAction.LOGOUT, description = "User logout")
     public void logout(String accessToken, String refreshToken) {
 
         log.info("LogoutOrchestrator: logout started");

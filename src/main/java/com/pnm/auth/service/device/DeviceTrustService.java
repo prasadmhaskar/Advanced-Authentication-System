@@ -11,14 +11,11 @@ public interface DeviceTrustService {
 
     List<DeviceTrustResponse> getTrustedDevices(Long userId);
 
-    @Audit(action = AuditAction.DEVICE_REMOVE, description = "Removing a trusted device")
     void removeDevice(Long userId, Long deviceId);
 
-    @Audit(action = AuditAction.DEVICE_TRUST_ADD, description = "Trusting new device")
     void trustDevice(Long userId, String deviceSignature, String deviceName);
 
     @Transactional
-    @Audit(action = AuditAction.DEVICE_REMOVE_OTHERS, description = "Removing all other devices except current")
     void removeAllExceptCurrent(Long userId, String currentDeviceSignature);
 
     boolean isTrusted(Long userId, String deviceSignature);

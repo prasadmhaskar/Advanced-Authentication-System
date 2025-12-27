@@ -28,35 +28,35 @@ public class AuditAspect {
         Long actorUserId = null;
         try {
             actorUserId = authUtil.getCurrentUserId();
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+            // actor may be null only in rare cases, acceptable
+        }
 
-        HttpServletRequest request = null;
         String ip = "UNKNOWN";
         String userAgent = "UNKNOWN";
 
         ServletRequestAttributes attrs =
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
 
-        if (attrs != null) {
-            request = attrs.getRequest();
+        if (attrs != null && attrs.getRequest() != null) {
+            HttpServletRequest request = attrs.getRequest();
 
-            if (request != null) {
-                ip = request.getHeader("X-Forwarded-For");
-                if (ip == null) ip = request.getRemoteAddr();
+            ip = request.getHeader("X-Forwarded-For");
+            if (ip == null) ip = request.getRemoteAddr();
 
-                userAgent = request.getHeader("User-Agent");
-                if (userAgent == null) userAgent = "UNKNOWN";
-            }
+            userAgent = request.getHeader("User-Agent");
+            if (userAgent == null) userAgent = "UNKNOWN";
         }
+
+        Long targetUserId = resolveTargetUserId(pjp, audit, actorUserId);
 
         try {
             Object result = pjp.proceed();
 
-            // SUCCESS AUDIT
             auditService.record(
                     audit.action(),
                     actorUserId,
-                    null,                          // target user not known automatically
+                    targetUserId,
                     audit.description(),
                     ip,
                     userAgent
@@ -66,11 +66,10 @@ public class AuditAspect {
 
         } catch (Throwable ex) {
 
-            // FAILURE AUDIT
             auditService.record(
                     audit.action(),
                     actorUserId,
-                    null,
+                    targetUserId,
                     "FAILED: " + audit.description(),
                     ip,
                     userAgent
@@ -79,5 +78,35 @@ public class AuditAspect {
             throw ex;
         }
     }
+
+    private Long resolveTargetUserId(
+            ProceedingJoinPoint pjp,
+            Audit audit,
+            Long actorUserId
+    ) {
+
+        int index = audit.targetUserArgIndex();
+
+        if (index == -1) {
+            return actorUserId; // self-action
+        }
+
+        Object[] args = pjp.getArgs();
+
+        if (index >= args.length) {
+            log.warn("AuditAspect: targetUserArgIndex out of bounds");
+            return null;
+        }
+
+        Object arg = args[index];
+
+        if (arg instanceof Long userId) {
+            return userId;
+        }
+
+        log.warn("AuditAspect: targetUserId arg is not Long");
+        return null;
+    }
 }
+
 
