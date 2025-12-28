@@ -13,8 +13,10 @@ import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.repository.AccountLinkTokenRepository;
 import com.pnm.auth.repository.UserOAuthProviderRepository;
-import com.pnm.auth.service.PasswordSetupService;
 import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.service.auth.VerificationService;
+import com.pnm.auth.service.email.EmailService;
+import com.pnm.auth.util.AfterCommitExecutor;
 import com.pnm.auth.util.Audit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -30,8 +34,10 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
 
     private final AccountLinkTokenRepository accountLinkTokenRepository;
     private final UserOAuthProviderRepository providerRepository;
-    private final PasswordSetupService passwordSetupService;
     private final TokenService tokenService;
+    private final VerificationService verificationService;
+    private final AfterCommitExecutor afterCommitExecutor;
+    private final EmailService emailService;
 
     @Override
     @Transactional
@@ -98,10 +104,28 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
         boolean passwordSetupRequired = false;
         NextAction nextAction = NextAction.LOGIN;
         String message = "Account linked and logged in successfully.";
+        boolean emailSent = true;
 
         // 7️⃣ Password setup (only if EMAIL added & password missing)
         if (request.getProvider() == AuthProviderType.EMAIL && user.getPassword() == null) {
-            passwordSetupService.sendSetupEmail(user.getEmail());
+            String token = verificationService.createVerificationToken(user, "PASSWORD_RESET");
+            CompletableFuture<Boolean> emailResultFuture = new CompletableFuture<>();
+
+            afterCommitExecutor.run(() -> {
+                emailService.sendSetPasswordEmail(user.getEmail(), token)
+                        .thenAccept(emailResultFuture::complete)
+                        .exceptionally(ex -> {
+                            emailResultFuture.complete(false);
+                            return null;
+                        });
+            });
+
+            try {
+                // 2 seconds is plenty for an async handoff/circuit breaker check
+                emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                emailSent = false;
+            }
             passwordSetupRequired = true;
             nextAction = NextAction.RESET_PASSWORD;
             message = "Account linked. Please set a password to enable email login.";
@@ -117,6 +141,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
                 .refreshToken(auth.getRefreshToken())
                 .passwordSetupRequired(passwordSetupRequired)
                 .nextAction(nextAction)
+                .emailSent(emailSent)
                 .message(message)
                 .build();
     }

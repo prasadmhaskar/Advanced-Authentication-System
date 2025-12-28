@@ -19,6 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -72,18 +75,36 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
 
         String token = verificationService.createVerificationToken(user, "EMAIL_VERIFICATION");
 
-        // ✅ Send email
-        afterCommitExecutor.run(() ->
-                emailService.sendVerificationEmail(email, token)
-        );
+        // Send email
 
+        CompletableFuture<Boolean> emailResultFuture = new CompletableFuture<>();
 
-        log.info("ResendVerificationOrchestrator: verification email resent email={}", email);
+        afterCommitExecutor.run(() -> {
+            // This runs after DB commit
+            emailService.sendVerificationEmail(email, token)
+                    .thenAccept(emailResultFuture::complete)
+                    .exceptionally(ex -> {
+                        emailResultFuture.complete(false);
+                        return null;
+                    });
+        });
+
+// Now we wait for the email result (with a timeout so we don't hang the API)
+        boolean emailSent;
+        try {
+            // 2 seconds is plenty for an async handoff/circuit breaker check
+            emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            emailSent = false;
+        }
+
+        log.info("ResendVerificationOrchestrator: verification email resent to email={}. Email sent={}", email, emailSent);
 
         return ResendVerificationResult.builder()
                 .outcome(ResendVerificationOutcome.EMAIL_SENT)
                 .email(email)
                 .nextAction(NextAction.VERIFY_EMAIL)
+                .emailSent(emailSent)
                 .build();
     }
 }

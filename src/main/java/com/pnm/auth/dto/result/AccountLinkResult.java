@@ -19,5 +19,7 @@ public class AccountLinkResult {
     private NextAction nextAction;         // RESET_PASSWORD | LOGIN
 
     private String message;
+    private Boolean emailSent;
+
 }
 

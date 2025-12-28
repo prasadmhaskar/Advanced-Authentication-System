@@ -11,6 +11,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import java.util.concurrent.CompletableFuture;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -22,7 +24,7 @@ public class EmailServiceImpl implements EmailService {
     @Async("emailExecutor")
     @Retry(name = "emailRetry")
     @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackVerificationEmail")
-    public void sendVerificationEmail(String toEmail, String token) {
+    public CompletableFuture<Boolean> sendVerificationEmail(String toEmail, String token) {
 
         log.info("EmailService: sending verification email to={}", toEmail);
 
@@ -37,13 +39,14 @@ public class EmailServiceImpl implements EmailService {
                 """.formatted(verificationLink);
 
         sendEmail(toEmail, subject, body);
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
     @Async("emailExecutor")
     @Retry(name = "emailRetry")
     @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackPasswordEmail")
-    public void sendSetPasswordEmail(String email, String token) {
+    public CompletableFuture<Boolean> sendSetPasswordEmail(String email, String token) {
 
         log.info("EmailService: sending set-password email to={}", email);
 
@@ -60,6 +63,7 @@ public class EmailServiceImpl implements EmailService {
                 """.formatted(link);
 
         sendEmail(email, subject, body);
+        return CompletableFuture.completedFuture(true);
     }
 
     @Override
@@ -93,14 +97,15 @@ public class EmailServiceImpl implements EmailService {
     // -----------------------------
     // FALLBACKS (NO THROWING!)
     // -----------------------------
-    public void fallbackVerificationEmail(String email, String token, Throwable ex) {
-        log.error("EmailService FALLBACK: verification email failed email={} reason={}",
-                email, ex.getMessage(), ex);
+    public CompletableFuture<Boolean> fallbackVerificationEmail(String email, String token, Throwable ex) {
+        log.error("EmailService FALLBACK: verification email failed email={} reason={}", email, ex.getMessage(), ex);
+        return CompletableFuture.completedFuture(false);
     }
 
-    public void fallbackPasswordEmail(String email, String token, Throwable ex) {
+    public CompletableFuture<Boolean> fallbackPasswordEmail(String email, String token, Throwable ex) {
         log.error("EmailService FALLBACK: password email failed email={} reason={}",
                 email, ex.getMessage(), ex);
+        return CompletableFuture.completedFuture(false);
     }
 
     public void fallbackOtpEmail(String email, String otp, Throwable ex) {

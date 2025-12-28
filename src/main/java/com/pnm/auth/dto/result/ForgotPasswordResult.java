@@ -1,6 +1,7 @@
 package com.pnm.auth.dto.result;
 
 import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.domain.enums.NextAction;
 import lombok.*;
 
 @Data
@@ -14,5 +15,9 @@ public class ForgotPasswordResult {
     private String message;
 
     private String email;
+
+    private NextAction nextAction;
+
+    private Boolean emailSent;
 }
 

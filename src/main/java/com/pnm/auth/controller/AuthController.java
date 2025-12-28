@@ -6,7 +6,6 @@ import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.orchestrator.auth.*;
-import com.pnm.auth.service.PasswordSetupService;
 import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.util.AuthUtil;
@@ -62,14 +61,25 @@ public class AuthController {
 
         return switch (result.getOutcome()) {
 
-            case REGISTERED -> ResponseEntity.status(HttpStatus.CREATED).body(
-                    ApiResponse.success(
-                            "USER_REGISTERED",
-                            "Registration successful. Please verify your email.",
-                            result,
-                            path
-                    )
-            );
+//            case REGISTERED -> ResponseEntity.status(HttpStatus.CREATED).body(
+//                    ApiResponse.success(
+//                            "USER_REGISTERED",
+//                            "Registration successful. Please verify your email.",
+//                            result,
+//                            path
+//                    )
+//            );
+
+            case REGISTERED -> {
+                if (result.getEmailSent()) {
+                    yield ResponseEntity.status(HttpStatus.CREATED).body(
+                            ApiResponse.success("USER_REGISTERED", "Registration successful. Verify email.", result, path));
+                } else {
+                    // 202 Accepted means "I've started the process, but it's not finished"
+                    yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
+                            ApiResponse.success("REGISTRATION_PARTIAL", "User created, but email service is delayed.", result, path));
+                }
+            }
 
             case LINK_REQUIRED -> ResponseEntity.status(HttpStatus.CONFLICT).body(
                     ApiResponse.errorWithMeta(
@@ -143,15 +153,18 @@ public class AuthController {
         log.info("AuthController.resendVerificationEmail(): finished email={}", request.getEmail());
 
         return switch (result.getOutcome()) {
+            case EMAIL_SENT -> {
+                if (result.getEmailSent()) {
+                    yield ResponseEntity.ok(
+                            ApiResponse.success("VERIFICATION_EMAIL_SENT",
+                                    "Verification email sent successfully.", result, path));
+                } else {
+                    yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
+                            ApiResponse.success("VERIFICATION_EMAIL_PENDING",
+                                    "Verification request processed, but our email service is currently delayed. Please try resending in a few minutes.", result, path));
+                }
+            }
 
-            case EMAIL_SENT -> ResponseEntity.ok(
-                    ApiResponse.success(
-                            "VERIFICATION_EMAIL_SENT",
-                            "Verification email sent successfully",
-                            result,
-                            path
-                    )
-            );
             case ALREADY_VERIFIED -> ResponseEntity.ok(
                     ApiResponse.success(
                             "EMAIL_ALREADY_VERIFIED",
@@ -295,14 +308,26 @@ public class AuthController {
 
         return switch (result.getOutcome()) {
 
-            case PASSWORD_RESET -> ResponseEntity.ok(
-                    ApiResponse.success(
-                            "PASSWORD_RESET_LINK_SENT",
-                            result.getMessage(),
-                            result,
-                            path
-                    )
-            );
+//            case PASSWORD_RESET -> ResponseEntity.ok(
+//                    ApiResponse.success(
+//                            "PASSWORD_RESET_LINK_SENT",
+//                            result.getMessage(),
+//                            result,
+//                            path
+//                    )
+//            );
+
+            case PASSWORD_RESET -> {
+                if (result.getEmailSent()){
+                    yield ResponseEntity.ok(ApiResponse.success("PASSWORD_RESET_LINK_SENT",
+                            "Password reset link sent successfully to your email", result, path));
+                }
+                else {
+                    yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
+                            ApiResponse.success("EMAIL_NOT_SENT",
+                                    "Our email service is currently delayed. Please try resending in a few minutes", result, path));
+                }
+            }
 
             default -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                     ApiResponse.error(
@@ -427,17 +452,15 @@ public class AuthController {
 
         AccountLinkResult result = linkOAuthOrchestrator.link(request);
 
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        "ACCOUNT_LINKED",
-                        result.getMessage(),
-                        result,
-                        httpRequest.getRequestURI()
-                )
-        );
+        if(result.getEmailSent()){
+            return ResponseEntity.ok(
+                ApiResponse.success("ACCOUNT_LINKED", result.getMessage(), result, httpRequest.getRequestURI()));
+        }
+        else {
+            return ResponseEntity.ok(
+                    ApiResponse.success("ACCOUNT_LINKED", result.getMessage() + ". Our email service is currently delayed. Please try resending in a few minutes.", result, httpRequest.getRequestURI()));
+        }
     }
-
-
 
 
     @PutMapping("/update-profile")

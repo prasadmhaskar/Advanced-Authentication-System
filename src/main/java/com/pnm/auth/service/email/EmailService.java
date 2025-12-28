@@ -1,12 +1,14 @@
 package com.pnm.auth.service.email;
 
+import java.util.concurrent.CompletableFuture;
+
 public interface EmailService {
 
-    void sendVerificationEmail(String toEmail, String token);
+    CompletableFuture<Boolean> sendVerificationEmail(String toEmail, String token);
 
     void sendEmail(String toEmail, String subject, String body);
 
     void sendMfaOtpEmail(String toEmail, String otp);
 
-    void sendSetPasswordEmail(String email, String token);
+    CompletableFuture<Boolean> sendSetPasswordEmail(String email, String token);
 }

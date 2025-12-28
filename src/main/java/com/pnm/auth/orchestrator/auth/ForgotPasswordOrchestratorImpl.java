@@ -15,6 +15,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -46,18 +49,33 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
                 "PASSWORD_RESET"
         );
 
-        // 3️⃣ Send reset email
-        afterCommitExecutor.run(() ->
-                emailService.sendSetPasswordEmail(email, token)
-        );
+        CompletableFuture<Boolean> emailResultFuture = new CompletableFuture<>();
 
+        afterCommitExecutor.run(() -> {
+            // This runs after DB commit
+            emailService.sendSetPasswordEmail(user.getEmail(), token)
+                    .thenAccept(emailResultFuture::complete)
+                    .exceptionally(ex -> {
+                        emailResultFuture.complete(false);
+                        return null;
+                    });
+        });
 
-        log.info("ForgotPasswordOrchestrator: reset link sent email={}", email);
+// Now we wait for the email result (with a timeout so we don't hang the API)
+        boolean emailSent;
+        try {
+            // 2 seconds is plenty for an async handoff/circuit breaker check
+            emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            emailSent = false;
+        }
+
+        log.info("ForgotPasswordOrchestrator: reset link sent email={}. Email sent={}", email, emailSent);
 
         return ForgotPasswordResult.builder()
                 .outcome(AuthOutcome.PASSWORD_RESET)
-                .message("Password reset link sent to email")
                 .email(email)
+                .emailSent(emailSent)
                 .build();
     }
 }

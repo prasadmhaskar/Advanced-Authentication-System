@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -108,14 +110,35 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         );
 
         // Send verification email
-            afterCommitExecutor.run(() ->
-                    emailService.sendVerificationEmail(email, token));
 
-        log.info("RegisterOrchestrator: registration completed email={}", email);
+// We use a manual future to bridge the transaction boundary
+        CompletableFuture<Boolean> emailResultFuture = new CompletableFuture<>();
+
+        afterCommitExecutor.run(() -> {
+            // This runs after DB commit
+            emailService.sendVerificationEmail(email, token)
+                    .thenAccept(emailResultFuture::complete)
+                    .exceptionally(ex -> {
+                        emailResultFuture.complete(false);
+                        return null;
+                    });
+        });
+
+// Now we wait for the email result (with a timeout so we don't hang the API)
+        boolean emailSent;
+        try {
+            // 2 seconds is plenty for an async handoff/circuit breaker check
+            emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            emailSent = false;
+        }
+
+        log.info("RegisterOrchestratorImpl: Verification email sent to email={}. Email sent={}", email, emailSent);
 
         return RegistrationResult.builder()
                 .outcome(AuthOutcome.REGISTERED)
                 .email(email)
+                .emailSent(emailSent) // 👈 Pass this to the controller
                 .nextAction(NextAction.VERIFY_EMAIL)
                 .build();
     }

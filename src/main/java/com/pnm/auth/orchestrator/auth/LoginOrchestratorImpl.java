@@ -139,6 +139,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
             passwordAuthService.verifyPassword(user, request.getPassword());
         }catch (InvalidCredentialsException ex){
             loginActivityService.recordFailure(email, "Wrong password entered", ip, userAgent);
+            throw ex;
         }
 
         // ---------------------------------------------------------
