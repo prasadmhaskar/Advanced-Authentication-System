@@ -114,27 +114,50 @@ public class SecurityConfig {
                 // -----------------------------------------------------
                 .userDetailsService(userDetailsServiceImpl);
 
-        // ---------------------------
 // Register filters (correct order)
+//// 1. Request context (MDC, IP, UA)
+//        http.addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class);
+//// 2. Rate limiter (needs IP, path, MDC)
+//        http.addFilterAfter(redisRateLimiterFilter, RequestLoggingFilter.class);
+//// 3. Block invalid HTTP methods
+//        http.addFilterAfter(blockHttpMethodsFilter, RedisRateLimiterFilter.class);
+//// 4. OAuth redirect validation
+//        http.addFilterAfter(oauthRedirectValidationFilter, RedisRateLimiterFilter.class);
+//// 5. JWT authentication
+//        http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+//// 6. Security headers (last)
+//        http.addFilterAfter(securityHeadersFilter, JwtAuthenticationFilter.class);
+
+        // ---------------------------
+// Register filters (Robust Anchoring)
 // ---------------------------
 
-// 1. Request context (MDC, IP, UA)
-        http.addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class);
+// 1. Logging - Run this as early as possible (e.g., before the Security Context is even loaded)
+// Anchor: ChannelProcessingFilter is typically the very first filter.
+        http.addFilterBefore(requestLoggingFilter, org.springframework.security.web.access.channel.ChannelProcessingFilter.class);
 
-// 2. Rate limiter (needs IP, path, MDC)
-        http.addFilterAfter(redisRateLimiterFilter, RequestLoggingFilter.class);
+// 2. Block Bad Methods - Run early to reject requests before wasting resources on Rate Limiting
+// Anchor: HeaderWriterFilter usually runs after context setup but before Auth.
+        http.addFilterBefore(blockHttpMethodsFilter, org.springframework.security.web.header.HeaderWriterFilter.class);
 
-// 3. Block invalid HTTP methods
-        http.addFilterAfter(blockHttpMethodsFilter, RedisRateLimiterFilter.class);
+// 3. Rate Limiter - Run before we attempt any expensive authentication logic
+// Anchor: UsernamePasswordAuthenticationFilter is the standard "Auth" phase.
+// We add "Before" it, so we limit rates before checking passwords/tokens.
+        http.addFilterBefore(redisRateLimiterFilter, UsernamePasswordAuthenticationFilter.class);
 
-// 4. OAuth redirect validation
-        http.addFilterAfter(oauthRedirectValidationFilter, RedisRateLimiterFilter.class);
+// 4. OAuth Redirect Validation - Specific check, can also run just before Auth
+// Note: Since we are adding multiple filters "Before" the same class,
+// the order of these lines matters (FIFO).
+        http.addFilterBefore(oauthRedirectValidationFilter, UsernamePasswordAuthenticationFilter.class);
 
-// 5. JWT authentication
+// 5. JWT Authentication - The core auth logic
+// This must run before the standard UsernamePasswordAuthenticationFilter
+// so we can populate the context with our JWT user.
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
-// 6. Security headers (last)
-        http.addFilterAfter(securityHeadersFilter, JwtAuthenticationFilter.class);
+// 6. Security Headers - If this is a custom header filter, you can place it
+// after the standard HeaderWriterFilter to append/override defaults.
+        http.addFilterAfter(securityHeadersFilter, org.springframework.security.web.header.HeaderWriterFilter.class);
 
 
         log.info("SecurityConfig.securityFilterChain(): final chain built successfully");

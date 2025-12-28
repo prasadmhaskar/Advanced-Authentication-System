@@ -59,6 +59,11 @@ public class OAuth2ServiceImpl implements OAuth2Service{
     @Value("${jwt.refresh.expiration}")
     private Long jwtRefreshExpirationMillis;
 
+    @Value("${auth.risk.threshold.high}")
+    private int highRiskScore;
+
+    @Value("${auth.risk.threshold.medium}")
+    private int mediumRiskScore;
 
 //    @Override
 //    @Transactional
@@ -279,7 +284,7 @@ public class OAuth2ServiceImpl implements OAuth2Service{
         // 3️⃣ Risk engine
         RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
 
-        if (risk.getScore() >= 80) {
+        if (risk.getScore() >= highRiskScore) {
             suspiciousLoginAlertService.sendHighRiskAlert(
                     user, ip, userAgent, risk.getReasons()
             );
@@ -287,7 +292,7 @@ public class OAuth2ServiceImpl implements OAuth2Service{
             throw new HighRiskLoginException("Login blocked due to high risk activity.");
         }
 
-        if (risk.getScore() >= 40) {
+        if (risk.getScore() >= mediumRiskScore) {
             return handleMediumRiskOtp(user);
         }
 

@@ -10,6 +10,7 @@ import com.pnm.auth.service.login.SuspiciousLoginAlertService;
 import com.pnm.auth.service.risk.RiskEngineService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -23,6 +24,12 @@ public class RiskEngineServiceImpl implements RiskEngineService {
     private final IpMonitoringService ipMonitoringService;
     private final LoginActivityService loginActivityService;
     private final SuspiciousLoginAlertService suspiciousLoginAlertService;
+
+    @Value("${auth.risk.threshold.high}")
+    private int highRiskScore;
+
+    @Value("${auth.risk.threshold.medium}")
+    private int mediumRiskScore;
 
     @Override
     public RiskResult evaluateRisk(User user, String ip, String userAgent) {
@@ -40,7 +47,7 @@ public class RiskEngineServiceImpl implements RiskEngineService {
         log.info("RiskEngineService: riskScore={} reasons={}", score, reasons);
 
         // 2) HIGH RISK → Block login
-        if (score >= 80) {
+        if (score >= highRiskScore) {
             return RiskResult.builder()
                     .score(score)
                     .reasons(reasons)
@@ -50,7 +57,7 @@ public class RiskEngineServiceImpl implements RiskEngineService {
         }
 
         // 3) MEDIUM RISK → OTP required
-        if (score >= 40) {
+        if (score >= mediumRiskScore) {
             return RiskResult.builder()
                     .score(score)
                     .reasons(reasons)

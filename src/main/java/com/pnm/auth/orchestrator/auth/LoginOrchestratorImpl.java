@@ -26,6 +26,7 @@ import com.pnm.auth.util.AfterCommitExecutor;
 import com.pnm.auth.util.UserAgentParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,6 +54,11 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
 
     private final SecureRandom secureRandom = new SecureRandom();
 
+    @Value("${auth.risk.threshold.high}")
+    private int highRiskScore;
+
+    @Value("${auth.risk.threshold.medium}")
+    private int mediumRiskScore;
 
     @Override
     @Transactional
@@ -153,13 +159,13 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         // ---------------------------------------------------------
         RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
 
-        if (risk.getScore() >= 80) {
+        if (risk.getScore() >= highRiskScore) {
             log.error("LoginOrchestrator: HIGH RISK login blocked email={} score={}",
                     user.getEmail(), risk.getScore());
             throw riskEngineService.blockHighRiskLogin(user, risk, ip, userAgent);
         }
 
-        if (risk.getScore() >= 40) {
+        if (risk.getScore() >= mediumRiskScore) {
             log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", user.getEmail());
             MfaResult mfaResult = handleMediumRiskOtp(user);
             return AuthenticationResult.builder()

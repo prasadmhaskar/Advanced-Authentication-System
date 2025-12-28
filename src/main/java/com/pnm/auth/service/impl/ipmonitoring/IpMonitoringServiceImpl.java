@@ -15,6 +15,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,12 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
     private final UserIpLogRepository repo;
     private final GeoIpService geoIpService;
     private final TrustedDeviceRepository trustedDeviceRepository;
+
+    @Value("${auth.risk.threshold.high}")
+    private int highRiskScore;
+
+    @Value("${auth.risk.threshold.medium}")
+    private int mediumRiskScore;
 
 
     // -------------------------------------------------------
@@ -131,7 +138,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
 
         riskScore = Math.max(riskScore, 0);
 
-        boolean suspicious = riskScore >= 40;
+        boolean suspicious = riskScore >= mediumRiskScore;
 
         // ---------------------------
         // 6) Build and save entity
