@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
@@ -30,29 +31,32 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
 
     @Override
     public ForgotPasswordResult requestReset(String rawEmail) {
-
         String email = rawEmail.trim().toLowerCase();
-        log.info("ForgotPasswordOrchestrator: started email={}", email);
+        log.info("ForgotPasswordOrchestrator: request for email={}", email);
 
-        // 1️⃣ Validate user existence
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    log.warn("ForgotPasswordOrchestrator: user not found email={}", email);
-                    return new UserNotFoundException(
-                            "User not found with email: " + email
-                    );
-                });
+        // 1️⃣ Validate user existence (Privacy-First)
+        Optional<User> userOpt = userRepository.findByEmail(email);
 
-        // 2️⃣ Create reset token
-        String token = verificationService.createVerificationToken(
-                user,
-                "PASSWORD_RESET"
-        );
+        if (userOpt.isEmpty()) {
+            // Log it internally for security monitoring
+            log.warn("ForgotPasswordOrchestrator: email not found={}", email);
+
+            // Return a successful response to the API consumer
+            return ForgotPasswordResult.builder()
+                    .outcome(AuthOutcome.PASSWORD_RESET)
+                    .emailSent(true) // Lie to the client to prevent enumeration
+                    .message("If an account exists, a reset link has been sent.")
+                    .build();
+        }
+
+        User user = userOpt.get();
+
+        // 2️⃣ Create reset token (Standard flow)
+        String token = verificationService.createVerificationToken(user, "PASSWORD_RESET");
 
         CompletableFuture<Boolean> emailResultFuture = new CompletableFuture<>();
 
         afterCommitExecutor.run(() -> {
-            // This runs after DB commit
             emailService.sendSetPasswordEmail(user.getEmail(), token)
                     .thenAccept(emailResultFuture::complete)
                     .exceptionally(ex -> {
@@ -61,10 +65,8 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
                     });
         });
 
-// Now we wait for the email result (with a timeout so we don't hang the API)
         boolean emailSent;
         try {
-            // 2 seconds is plenty for an async handoff/circuit breaker check
             emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
         } catch (Exception e) {
             emailSent = false;

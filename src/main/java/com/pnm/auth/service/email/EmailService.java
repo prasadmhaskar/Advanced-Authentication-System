@@ -8,7 +8,7 @@ public interface EmailService {
 
     void sendEmail(String toEmail, String subject, String body);
 
-    void sendMfaOtpEmail(String toEmail, String otp);
+    CompletableFuture<Boolean> sendMfaOtpEmail(String toEmail, String otp);
 
     CompletableFuture<Boolean> sendSetPasswordEmail(String email, String token);
 }

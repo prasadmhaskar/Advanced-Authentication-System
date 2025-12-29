@@ -1,6 +1,5 @@
 package com.pnm.auth.service.impl.auth;
 
-import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.dto.result.MfaResult;
 import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.domain.entity.User;
@@ -13,9 +12,12 @@ import com.pnm.auth.util.AfterCommitExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -32,11 +34,11 @@ public class MfaServiceImpl implements MfaService {
     // MFA FOR USERS WHO HAVE MFA ENABLED
     // =========================================================
     @Override
-    public AuthenticationResult handleMfaLogin(User user) {
+    @Transactional
+    public MfaResult handleMfaLogin(User user) {
 
         log.info("MfaService: handling MFA login for email={}", user.getEmail());
 
-        try {
             mfaTokenRepository.markAllUnusedTokensAsUsed(user.getId());
 
             String otp = generateOtp();
@@ -44,28 +46,39 @@ public class MfaServiceImpl implements MfaService {
             MfaToken token = createMfaToken(user, otp, false);
             mfaTokenRepository.save(token);
 
-            afterCommitExecutor.run(() ->
-                    emailService.sendMfaOtpEmail(user.getEmail(), otp)
-            );
+        CompletableFuture<Boolean> emailResultFuture = new CompletableFuture<>();
 
+        afterCommitExecutor.run(() -> {
+            emailService.sendMfaOtpEmail(user.getEmail(), token.getOtp())
+                    .thenAccept(emailResultFuture::complete)
+                    .exceptionally(ex -> {
+                        emailResultFuture.complete(false);
+                        return null;
+                    });
+        });
 
-            return AuthenticationResult.builder()
-                    .outcome(AuthOutcome.MFA_REQUIRED)
-                    .otpTokenId(token.getId())
-                    .message("MFA verification required.")
+        boolean emailSent;
+        try {
+            emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            emailSent = false;
+        }
+
+            log.info("MfaService.handleMfaLogin(): OTP generated for Mfa login for email={}. Email sent={}", user.getEmail(), emailSent);
+
+            return MfaResult.builder()
+                    .outcome(AuthOutcome.OTP_REQUIRED)
+                    .tokenId(token.getId())
+                    .emailSent(emailSent)
                     .build();
 
-        } catch (Exception ex) {
-            log.error("MfaService: MFA OTP generation failed for user={} msg={}",
-                    user.getEmail(), ex.getMessage(), ex);
-            throw new EmailSendFailedException("Failed to generate/send MFA OTP. Please try again later.");
-        }
     }
 
     // =========================================================
     // MEDIUM RISK → OTP REQUIRED (RISK-BASED MFA)
     // =========================================================
     @Override
+    @Transactional
     public MfaResult handleMediumRiskOtp(User user) {
 
         log.warn("MfaService: handling RISK OTP for email={}", user.getEmail());
@@ -78,14 +91,31 @@ public class MfaServiceImpl implements MfaService {
             MfaToken token = createMfaToken(user, otp, true);
             mfaTokenRepository.save(token);
 
-            afterCommitExecutor.run(() ->
-                    emailService.sendMfaOtpEmail(user.getEmail(), otp)
-            );
+            CompletableFuture<Boolean> emailResultFuture = new CompletableFuture<>();
+
+            afterCommitExecutor.run(() -> {
+                emailService.sendMfaOtpEmail(user.getEmail(), token.getOtp())
+                        .thenAccept(emailResultFuture::complete)
+                        .exceptionally(ex -> {
+                            emailResultFuture.complete(false);
+                            return null;
+                        });
+            });
+
+            boolean emailSent;
+            try {
+                emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
+            } catch (Exception e) {
+                emailSent = false;
+            }
+
+            log.info("MfaService.handleMfaLogin(): OTP generated for medium risk login for email={}. Email sent={}", user.getEmail(), emailSent);
 
 
             return MfaResult.builder()
                     .outcome(AuthOutcome.RISK_OTP_REQUIRED)
                     .tokenId(token.getId())
+                    .emailSent(emailSent)
                     .build();
 
         } catch (EmailSendFailedException ex) {

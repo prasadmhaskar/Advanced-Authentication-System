@@ -5,7 +5,7 @@ import com.pnm.auth.dto.result.MfaResult;
 import com.pnm.auth.domain.entity.User;
 
 public interface MfaService {
-    AuthenticationResult handleMfaLogin(User user);
+    MfaResult handleMfaLogin(User user);
     MfaResult handleMediumRiskOtp(User user);
 }
 

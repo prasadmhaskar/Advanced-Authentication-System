@@ -1,5 +1,6 @@
 package com.pnm.auth.controller;
 
+import com.pnm.auth.dto.response.ResendOtpResponse;
 import com.pnm.auth.dto.result.*;
 import com.pnm.auth.dto.request.*;
 import com.pnm.auth.dto.response.ApiResponse;
@@ -161,7 +162,8 @@ public class AuthController {
                 } else {
                     yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
                             ApiResponse.success("VERIFICATION_EMAIL_PENDING",
-                                    "Verification request processed, but our email service is currently delayed. Please try resending in a few minutes.", result, path));
+                                    "Account updated, but our email service is currently delayed. Please try again in a few minutes.",
+                                    result, path));
                 }
             }
 
@@ -307,25 +309,16 @@ public class AuthController {
         String path = request.getRequestURI();
 
         return switch (result.getOutcome()) {
-
-//            case PASSWORD_RESET -> ResponseEntity.ok(
-//                    ApiResponse.success(
-//                            "PASSWORD_RESET_LINK_SENT",
-//                            result.getMessage(),
-//                            result,
-//                            path
-//                    )
-//            );
-
             case PASSWORD_RESET -> {
-                if (result.getEmailSent()){
+                if (result.getEmailSent()) {
                     yield ResponseEntity.ok(ApiResponse.success("PASSWORD_RESET_LINK_SENT",
-                            "Password reset link sent successfully to your email", result, path));
-                }
-                else {
+                            "If your email is registered, you will receive a reset link shortly.", result, path));
+                } else {
+                    // Return 202 Accepted: Business logic (token) created, but delivery (email) is pending
                     yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                            ApiResponse.success("EMAIL_NOT_SENT",
-                                    "Our email service is currently delayed. Please try resending in a few minutes", result, path));
+                            ApiResponse.success("PASSWORD_RESET_PENDING",
+                                    "If your email is registered, the request has been processed, but our email service is currently delayed.",
+                                    result, path));
                 }
             }
 
@@ -447,18 +440,18 @@ public class AuthController {
             @RequestBody @Valid LinkOAuthRequest request,
             HttpServletRequest httpRequest
     ) {
-
         log.info("AuthController.linkOAuth(): started");
-
         AccountLinkResult result = linkOAuthOrchestrator.link(request);
 
-        if(result.getEmailSent()){
+        if (result.getEmailSent()) {
             return ResponseEntity.ok(
-                ApiResponse.success("ACCOUNT_LINKED", result.getMessage(), result, httpRequest.getRequestURI()));
-        }
-        else {
-            return ResponseEntity.ok(
-                    ApiResponse.success("ACCOUNT_LINKED", result.getMessage() + ". Our email service is currently delayed. Please try resending in a few minutes.", result, httpRequest.getRequestURI()));
+                    ApiResponse.success("ACCOUNT_LINKED", result.getMessage(), result, httpRequest.getRequestURI()));
+        } else {
+            // Return 202 Accepted to signal partial success
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(
+                    ApiResponse.success("ACCOUNT_LINKED_EMAIL_DELAYED",
+                            result.getMessage() + " However, our email service is currently delayed. Please use 'Forgot Password' if you do not receive the link.",
+                            result, httpRequest.getRequestURI()));
         }
     }
 
@@ -511,20 +504,33 @@ public class AuthController {
 
 
     @PostMapping("/otp/resend")
-    public ResponseEntity<ApiResponse<Void>> resendOtp(
+    public ResponseEntity<ApiResponse<ResendOtpResponse>> resendOtp(
             @Valid @RequestBody OtpResendRequest request,
             HttpServletRequest httpRequest
     ) {
-        resendOtpOrchestrator.resend(request);
+        ResendOtpResponse resend = resendOtpOrchestrator.resend(request);
 
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        "OTP_RESENT",
-                        "OTP resent successfully",
-                        null,
-                        httpRequest.getRequestURI()
-                )
-        );
+        if (resend.getEmailSent()){
+            return ResponseEntity.ok(
+                    ApiResponse.success(
+                            "OTP_RESENT",
+                            "OTP resent successfully",
+                            resend,
+                            httpRequest.getRequestURI()
+                    )
+            );
+        }
+
+        else {
+            return ResponseEntity.status(HttpStatus.ACCEPTED).body(
+                    ApiResponse.success(
+                            "OTP_RESEND_DELAYED",
+                            "OTP session updated, but our email service is currently delayed. Please try resending in a few minutes.",
+                            resend,
+                            httpRequest.getRequestURI()
+                    )
+            );
+        }
     }
 
 

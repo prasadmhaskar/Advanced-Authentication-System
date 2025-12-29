@@ -15,12 +15,6 @@ public class RedisRateLimiterServiceImpl implements RedisRateLimiterService {
 
     private final StringRedisTemplate redisTemplate;
 
-    /**
-     * @param key - the unique key (IP or IP+path)
-     * @param limit - max allowed requests
-     * @param windowSeconds - time window
-     * @return true = allowed, false = blocked
-     */
     @Override
     public boolean isAllowed(String key, int limit, int windowSeconds) {
 

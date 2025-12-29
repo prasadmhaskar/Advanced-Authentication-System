@@ -147,12 +147,23 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         // ---------------------------------------------------------
         if (user.isMfaEnabled()) {
             log.info("LoginOrchestrator: MFA enabled for email={}", user.getEmail());
-            MfaResult mfaResult = handleMfaFlow(user);
-            return AuthenticationResult.builder()
-                    .outcome(AuthOutcome.MFA_REQUIRED)
-                    .otpTokenId(mfaResult.getTokenId())
-                    .message("Otp is sent to your email successfully. Please enter otp for verification")
-                    .build();
+//            MfaResult mfaResult = handleMfaFlow(user);
+            MfaResult mfaResult = mfaService.handleMfaLogin(user);
+
+            if (mfaResult.getEmailSent()){
+                return AuthenticationResult.builder()
+                        .outcome(AuthOutcome.MFA_REQUIRED)
+                        .otpTokenId(mfaResult.getTokenId())
+                        .message("Otp is sent to your email successfully. Please enter otp for verification")
+                        .build();
+            }
+            else {
+                return AuthenticationResult.builder()
+                        .outcome(AuthOutcome.MFA_REQUIRED)
+                        .otpTokenId(mfaResult.getTokenId())
+                        .message("Our email service is currently delayed. Please try resending in a few minutes.")
+                        .build();
+            }
         }
 
         // ---------------------------------------------------------
@@ -168,12 +179,23 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
 
         if (risk.getScore() >= mediumRiskScore) {
             log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", user.getEmail());
-            MfaResult mfaResult = handleMediumRiskOtp(user);
-            return AuthenticationResult.builder()
-                    .outcome(mfaResult.getOutcome())
-                    .otpTokenId(mfaResult.getTokenId())
-                    .message("Suspicious login detected. Please enter otp for verification")
-                    .build();
+//            MfaResult mfaResult = handleMediumRiskOtp(user);
+            MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
+            if (mfaResult.getEmailSent()){
+                return AuthenticationResult.builder()
+                        .outcome(mfaResult.getOutcome())
+                        .otpTokenId(mfaResult.getTokenId())
+                        .message("Suspicious login detected. Please enter otp for verification")
+                        .build();
+            }
+            else {
+                return AuthenticationResult.builder()
+                        .outcome(mfaResult.getOutcome())
+                        .otpTokenId(mfaResult.getTokenId())
+                        .message("Suspicious login detected. Otp verification needed. Our email service is currently delayed. Please try resending in a few minutes.")
+                        .build();
+            }
+
         }
 
         // ---------------------------------------------------------
@@ -221,48 +243,47 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
     // Helper Methods
     // =====================================================================
 
-    @Transactional
-    private MfaResult handleMfaFlow(User user) {
-        // 1. Generate OTP
-        String otp = generateOtp();
-        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
+//    @Transactional
+//    private MfaResult handleMfaFlow(User user) {
+//        // 1. Generate OTP
+//        String otp = generateOtp();
+//        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
+//
+//        MfaToken token = new MfaToken();
+//        token.setUser(user);
+//        token.setOtp(otp);
+//        token.setExpiresAt(expiresAt);
+//
+//        mfaTokenRepository.save(token);
+//
+//        // 2. Send OTP asynchronously (AFTER COMMIT)
+//        afterCommitExecutor.run(() ->
+//                emailService.sendMfaOtpEmail(user.getEmail(), otp)
+//        );
+//
+//        log.info("MfaService: OTP generated & sent for userId={}", user.getId());
+//
+//        return MfaResult.builder()
+//                .outcome(AuthOutcome.OTP_REQUIRED)
+//                .tokenId(token.getId())
+//                .build();
+//    }
 
-        MfaToken token = new MfaToken();
-        token.setUser(user);
-        token.setOtp(otp);
-        token.setExpiresAt(expiresAt);
-
-        mfaTokenRepository.save(token);
-
-        // 2. Send OTP asynchronously (AFTER COMMIT)
-        afterCommitExecutor.run(() ->
-                emailService.sendMfaOtpEmail(user.getEmail(), otp)
-        );
-
-        log.info("MfaService: OTP generated & sent for userId={}", user.getId());
-
-        return MfaResult.builder()
-                .outcome(AuthOutcome.OTP_REQUIRED)
-                .tokenId(token.getId())
-                .build();
-    }
-
-    private MfaResult handleMediumRiskOtp(User user) {
-
-        MfaResult mfa = mfaService.handleMediumRiskOtp(user);
-
-        if (mfa.getOutcome() == AuthOutcome.RISK_OTP_REQUIRED) {
-            return MfaResult.builder()
-                    .tokenId(mfa.getTokenId())
-                    .outcome(mfa.getOutcome())
-                    .build();
-        }
-        throw new IllegalStateException("Unexpected Risk OTP outcome");
-    }
-
-
-    private String generateOtp() {
-        return String.format("%06d", secureRandom.nextInt(1_000_000));
-    }
+//    private MfaResult handleMediumRiskOtp(User user) {
+//
+//        MfaResult mfa = mfaService.handleMediumRiskOtp(user);
+//
+//        if (mfa.getOutcome() == AuthOutcome.RISK_OTP_REQUIRED) {
+//            return MfaResult.builder()
+//                    .tokenId(mfa.getTokenId())
+//                    .outcome(mfa.getOutcome())
+//                    .build();
+//        }
+//        throw new IllegalStateException("Unexpected Risk OTP outcome");
+//    }
+//
+//    private String generateOtp() {
+//        return String.format("%06d", secureRandom.nextInt(1_000_000));
+//    }
 
 }

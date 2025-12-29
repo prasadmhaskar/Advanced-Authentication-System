@@ -58,11 +58,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
 
         // 2️⃣ Validate provider matches token
         if (linkToken.getProviderToLink() != request.getProvider()) {
-            log.warn(
-                    "LinkOAuthOrchestrator: provider mismatch tokenProvider={} requestProvider={}",
-                    linkToken.getProviderToLink(),
-                    request.getProvider()
-            );
+            log.warn("LinkOAuthOrchestrator: provider mismatch tokenProvider={} requestProvider={}", linkToken.getProviderToLink(), request.getProvider());
             throw new InvalidTokenException("Invalid provider for link token");
         }
 
@@ -103,8 +99,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
 
         boolean passwordSetupRequired = false;
         NextAction nextAction = NextAction.LOGIN;
-        String message = "Account linked and logged in successfully.";
-        boolean emailSent = true;
+        String message1 = "Account linked and logged in successfully.";
 
         // 7️⃣ Password setup (only if EMAIL added & password missing)
         if (request.getProvider() == AuthProviderType.EMAIL && user.getPassword() == null) {
@@ -119,7 +114,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
                             return null;
                         });
             });
-
+            boolean emailSent = true;
             try {
                 // 2 seconds is plenty for an async handoff/circuit breaker check
                 emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
@@ -128,7 +123,20 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
             }
             passwordSetupRequired = true;
             nextAction = NextAction.RESET_PASSWORD;
-            message = "Account linked. Please set a password to enable email login.";
+            String message2 = "Account linked. Please set a password to enable email login.";
+
+            log.info("LinkOAuthOrchestrator: Account linked for email={}, provider={}, emailSent={}", user.getEmail(), request.getProvider(), emailSent);
+
+            return AccountLinkResult.builder()
+                    .outcome(AuthOutcome.SUCCESS)
+                    .email(user.getEmail())
+                    .accessToken(auth.getAccessToken())
+                    .refreshToken(auth.getRefreshToken())
+                    .passwordSetupRequired(passwordSetupRequired)
+                    .nextAction(nextAction)
+                    .emailSent(emailSent)
+                    .message(message2)
+                    .build();
         }
 
         log.info("LinkOAuthOrchestrator: completed email={} provider={}",
@@ -140,9 +148,9 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
                 .accessToken(auth.getAccessToken())
                 .refreshToken(auth.getRefreshToken())
                 .passwordSetupRequired(passwordSetupRequired)
+                .emailSent(true)
                 .nextAction(nextAction)
-                .emailSent(emailSent)
-                .message(message)
+                .message(message1)
                 .build();
     }
 }

@@ -34,20 +34,14 @@ public class TokenServiceImpl implements TokenService {
         log.info("TokenService: generating tokens for email={}", user.getEmail());
 
         try {
-            // --------------------------------------------------------
             // 1) Invalidate OLD refresh tokens
-            // --------------------------------------------------------
             refreshTokenRepository.invalidateAllForUser(user.getId());
 
-            // --------------------------------------------------------
             // 2) Create new access + refresh tokens
-            // --------------------------------------------------------
             String accessToken = jwtUtil.generateAccessToken(user);
             String refreshToken = jwtUtil.generateRefreshToken(user);
 
-            // --------------------------------------------------------
             // 3) Save new refresh token entity
-            // --------------------------------------------------------
             RefreshToken token = new RefreshToken();
             token.setToken(refreshToken);
             token.setUser(user);
@@ -61,9 +55,7 @@ public class TokenServiceImpl implements TokenService {
 
             log.info("TokenService: tokens generated successfully for user={}", user.getEmail());
 
-            // --------------------------------------------------------
             // 5) Return unified AuthenticationResult
-            // --------------------------------------------------------
             return AuthenticationResult.builder()
                     .outcome(AuthOutcome.SUCCESS)
                     .user(UserResponse.from(user))

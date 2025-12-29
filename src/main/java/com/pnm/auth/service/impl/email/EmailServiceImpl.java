@@ -70,7 +70,7 @@ public class EmailServiceImpl implements EmailService {
     @Async("emailExecutor")
     @Retry(name = "emailRetry")
     @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackOtpEmail")
-    public void sendMfaOtpEmail(String toEmail, String otp) {
+    public CompletableFuture<Boolean> sendMfaOtpEmail(String toEmail, String otp) {
 
         log.info("EmailService: sending MFA OTP email to={}", toEmail);
 
@@ -78,6 +78,7 @@ public class EmailServiceImpl implements EmailService {
         String body = "Your OTP is: " + otp + " (valid for 5 minutes)";
 
         sendEmail(toEmail, subject, body);
+        return CompletableFuture.completedFuture(true);
     }
 
     // -----------------------------
@@ -108,9 +109,10 @@ public class EmailServiceImpl implements EmailService {
         return CompletableFuture.completedFuture(false);
     }
 
-    public void fallbackOtpEmail(String email, String otp, Throwable ex) {
+    public CompletableFuture<Boolean> fallbackOtpEmail(String email, String otp, Throwable ex) {
         log.error("EmailService FALLBACK: OTP email failed email={} reason={}",
                 email, ex.getMessage(), ex);
+        return CompletableFuture.completedFuture(false);
     }
 }
 

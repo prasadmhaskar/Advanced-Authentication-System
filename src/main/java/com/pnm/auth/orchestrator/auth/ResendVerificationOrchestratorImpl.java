@@ -16,6 +16,8 @@ import com.pnm.auth.service.redis.RedisRateLimiterService;
 import com.pnm.auth.util.AfterCommitExecutor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,6 +36,7 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
     private final LoginActivityService loginActivityService;
     private final RedisRateLimiterService redisRateLimiterService;
     private final AfterCommitExecutor afterCommitExecutor;
+    private final StringRedisTemplate redisTemplate;
 
     @Override
     @Transactional
@@ -69,7 +72,7 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
 
         if (!allowed) {
             throw new TooManyRequestsException(
-                    "Please wait before requesting another verification email"
+                    "Please wait 2 minutes before requesting another email."
             );
         }
 
@@ -96,6 +99,12 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
             emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
         } catch (Exception e) {
             emailSent = false;
+        }
+
+        // ⭐ CRITICAL FIX: If email failed, "refund" the rate limit token
+        if (!emailSent) {
+            redisTemplate.delete("rate_limit:" + key);
+            log.warn("Email failed to send. Rate limit reset for email={}", email);
         }
 
         log.info("ResendVerificationOrchestrator: verification email resent to email={}. Email sent={}", email, emailSent);
