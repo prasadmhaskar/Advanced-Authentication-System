@@ -3,7 +3,6 @@ package com.pnm.auth.service.impl.login;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.login.SuspiciousLoginAlertService;
-import com.pnm.auth.util.AfterCommitExecutor;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +17,6 @@ import java.util.List;
 public class SuspiciousLoginAlertServiceImpl implements SuspiciousLoginAlertService {
 
     private final EmailService emailService;
-    private final AfterCommitExecutor afterCommitExecutor;
 
     @Override
     @Retry(name = "emailRetry")
@@ -28,7 +26,6 @@ public class SuspiciousLoginAlertServiceImpl implements SuspiciousLoginAlertServ
         log.warn("Sending suspicious login alert to user={} from IP={}", user.getEmail(), ip);
 
         String subject = "⚠ Suspicious Login Attempt Blocked";
-
         String reasonText = String.join(", ", reasons);
 
         String body = """
@@ -52,25 +49,18 @@ public class SuspiciousLoginAlertServiceImpl implements SuspiciousLoginAlertServ
                 reasonText
         );
 
-        afterCommitExecutor.run(() ->
-                emailService.sendEmail(user.getEmail(), subject, body)
-        );
-
+        // ✅ DIRECT CALL: Fire and forget.
+        // Since EmailService.sendEmail is @Async, this does not block the thread.
+        // It runs regardless of whether the Login transaction commits or rolls back.
+        emailService.sendEmail(user.getEmail(), subject, body);
     }
 
     // ==========================================================
-    // FALLBACK METHOD (MUST MATCH PARAMETERS + Throwable)
+    // FALLBACK METHOD
     // ==========================================================
     public void fallbackHighRiskAlert(User user, String ip, String userAgent, List<String> reasons, Throwable ex) {
-
-        log.error(
-                "Fallback triggered for SuspiciousLoginAlertService: email={} reason={}",
-                user.getEmail(),
-                ex.getMessage()
-        );
-
-        // Do NOT throw. Alerts should never block login flow.
-        // Optional: save alert failure in logs or audit system.
+        log.error("SuspiciousLoginAlertService: Failed to send alert email={} reason={}", user.getEmail(), ex.getMessage());
+        // Swallow exception so we don't crash the already-failing request logic
     }
 }
 

@@ -4,5 +4,5 @@ import com.pnm.auth.dto.request.RegisterRequest;
 import com.pnm.auth.dto.result.RegistrationResult;
 
 public interface RegisterOrchestrator {
-    RegistrationResult register(RegisterRequest request);
+    RegistrationResult register(RegisterRequest request, String ip, String ua);
 }

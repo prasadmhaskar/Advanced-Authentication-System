@@ -22,7 +22,6 @@ public class RegistrationResult {
     private AuthProviderType attemptedProvider;
 
     private Boolean emailSent;
-
     private NextAction nextAction;
 }
 

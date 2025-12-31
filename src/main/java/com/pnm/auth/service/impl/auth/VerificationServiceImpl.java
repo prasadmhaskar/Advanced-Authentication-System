@@ -2,14 +2,13 @@ package com.pnm.auth.service.impl.auth;
 
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.entity.VerificationToken;
-import com.pnm.auth.exception.custom.InvalidTokenException;
-import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.auth.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -20,12 +19,12 @@ import java.util.UUID;
 public class VerificationServiceImpl implements VerificationService {
 
     private final VerificationTokenRepository verificationTokenRepository;
-    private final UserRepository userRepository;
 
     @Value("${verification.token.expiry-minutes}")
     private long verificationExpiryMinutes;
 
     @Override
+    @Transactional
     public String createVerificationToken(User user, String type) {
 
         log.info("VerificationService.createVerificationToken: Started for email={} type={}",
@@ -42,9 +41,7 @@ public class VerificationServiceImpl implements VerificationService {
         verificationToken.setUser(user);
         verificationToken.setType(type);
         verificationToken.setUsedAt(null);
-
-        LocalDateTime now = LocalDateTime.now();
-        verificationToken.setExpiresAt(now.plusMinutes(verificationExpiryMinutes));
+        verificationToken.setExpiresAt(LocalDateTime.now().plusMinutes(verificationExpiryMinutes));
         //Saving to repository
         verificationTokenRepository.save(verificationToken);
 

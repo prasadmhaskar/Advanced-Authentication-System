@@ -5,6 +5,7 @@ import com.pnm.auth.dto.response.GeoLocationResponse;
 import com.pnm.auth.dto.response.IpUsageResponse;
 import com.pnm.auth.dto.response.UserIpLogResponse;
 import com.pnm.auth.domain.entity.UserIpLog;
+import com.pnm.auth.exception.custom.RegistrationFailedException;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
 import com.pnm.auth.repository.TrustedDeviceRepository;
 import com.pnm.auth.repository.UserIpLogRepository;
@@ -173,95 +174,61 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         return UserIpLogResponse.fromEntity(saved);
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    @Retry(name = "ipMonitoringRetry")
-    @CircuitBreaker(name = "ipMonitoringCB", fallbackMethod = "fallbackRiskScore")
+@Transactional(readOnly = true)
+@Override
+public void checkRegistrationEligibility(String ip, String userAgent) {
+    if (ip == null) return;
+
+    // 2. Check Device Limit
+    DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
+    String signature = deviceInfo.getSignature();
+
+    if (signature != null) {
+        int accountsUsingDevice = repo.countDistinctUsersByDevice(signature);
+        if (accountsUsingDevice >= 3) {
+            log.warn("Registration blocked: Device {} has already created {} accounts.", signature, accountsUsingDevice);
+            throw new RegistrationFailedException("Registration limit reached for this device.");
+        }
+    }
+
+    // 1. Check IP Limit
+    // CRITICAL: This query must only count DISTINCT emails that were SUCCESSFUL.
+    // Ensure your repository query handles this correctly.
+    int accountsUsingIp = repo.countDistinctUsersByIp(ip);
+
+    if (accountsUsingIp >= 20) {
+        log.warn("Registration blocked: IP {} has already created {} accounts.", ip, accountsUsingIp);
+        throw new RegistrationFailedException("Registration limit reached for this ip.");
+    }
+
+}
+
+    @Transactional
     @Override
-    public void recordFirstLogin(Long userId, String ip, String userAgent) {
+    public void recordRegistrationSuccess(Long userId, String ip, String userAgent) {
+        // This runs ONLY after the user is successfully created.
 
-        log.info("IpMonitoringService.recordFirstLogin(): started userId={} ip={}", userId, ip);
+        DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
+        GeoLocationResponse geo = geoIpService.lookup(ip); // Acceptable latency here, or move to @Async
 
-        if (userId == null || ip == null) {
-            log.warn("IpMonitoringService.recordFirstLogin(): invalid parameters userId={} ip={}", userId, ip);
-            return;
-        }
-
-
-        // Parse device info from user-agent
-        DeviceInfoResult deviceInfoResult = UserAgentParser.parse(userAgent);
-        String deviceSignature = deviceInfoResult.getSignature();
-
-
-        // ---------------------------
-        // 3) Multi-account intelligence
-        // ---------------------------
-        int accountsUsingIp = repo.countDistinctUsersByIp(ip);
-        int accountsUsingDevice = deviceSignature != null
-                ? repo.countDistinctUsersByDevice(deviceSignature)
-                : 0;
-
-        // ---------------------------
-        // 4) Geo IP lookup
-        // ---------------------------
-        GeoLocationResponse geo = geoIpService.lookup(ip);
-        String countryCode = geo != null ? geo.getCountryCode() : null;
-        String city = geo != null ? geo.getCity() : null;
-
-        // ---------------------------
-        // 5) Risk scoring
-        // ---------------------------
-        int riskScore = 0;
-        List<String> reasons = new ArrayList<>();
-
-
-// IP used by many accounts
-        if (accountsUsingIp >= 3) {
-            riskScore += 30;
-            reasons.add("SAME_IP_USED_BY_MULTIPLE_ACCOUNTS_" + accountsUsingIp);
-        }
-
-// Device used by many accounts
-        if (deviceSignature != null && accountsUsingDevice >= 3) {
-            riskScore += 40;
-            reasons.add("SAME DEVICE_USED_BY_MULTIPLE_ACCOUNTS_" + accountsUsingDevice);
-        }
-
-        riskScore = Math.max(riskScore, 0);
-
-        boolean suspicious = riskScore >= 40;
-
-        // ---------------------------
-        // 6) Build and save entity
-        // ---------------------------
         UserIpLog entity = UserIpLog.builder()
                 .userId(userId)
                 .ipAddress(ip)
                 .userAgent(userAgent)
-                .countryCode(countryCode)
-                .city(city)
-                .isSuspicious(suspicious)
-                .riskScore(riskScore)
-                .riskReason(String.join(",", reasons))
-                .deviceSignature(deviceSignature)
-                .deviceType(deviceInfoResult.getDeviceType())
-                .deviceName(deviceInfoResult.getDeviceName())
+                .countryCode(geo != null ? geo.getCountryCode() : null)
+                .city(geo != null ? geo.getCity() : null)
+                .deviceSignature(deviceInfo.getSignature())
+                .deviceType(deviceInfo.getDeviceType())
+                .deviceName(deviceInfo.getDeviceName())
                 .loginTime(LocalDateTime.now())
+                .isSuspicious(false) // It's successful, so not suspicious by definition
                 .build();
 
-        UserIpLog saved = repo.save(entity);
-
-        if (suspicious) {
-            log.warn("IpMonitoringService.recordLogin(): suspicious login userId={} ip={} device={} riskScore={} reasons={}",
-                    userId, ip, deviceInfoResult.getDeviceName(), riskScore, entity.getRiskReason());
-        } else {
-            log.info("IpMonitoringService.recordFirstLogin(): normal login userId={} ip={} device={}",
-                    userId, ip, deviceInfoResult.getDeviceName());
-        }
-
-        log.info("IpMonitoringService.recordFirstLogin(): completed userId={} ip={}", userId, ip);
-
-        UserIpLogResponse.fromEntity(saved);
+        repo.save(entity);
+        log.info("IpMonitoring: Recorded new account creation for userId={} ip={}", userId, ip);
     }
+
+
 
     @Override
     public UserIpLogResponse fallbackRiskScore(Long userId, String ip, String userAgent, Throwable ex) {

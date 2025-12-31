@@ -35,6 +35,7 @@ public interface UserIpLogRepository extends JpaRepository<UserIpLog, Long> {
 SELECT COUNT(DISTINCT u.userId)
 FROM UserIpLog u
 WHERE u.ipAddress = :ip
+AND u.userId IS NOT NULL
 """)
     int countDistinctUsersByIp(@Param("ip") String ip);
 
@@ -42,6 +43,7 @@ WHERE u.ipAddress = :ip
 SELECT COUNT(DISTINCT u.userId)
 FROM UserIpLog u
 WHERE u.deviceSignature = :deviceSignature
+AND u.userId IS NOT NULL
 """)
     int countDistinctUsersByDevice(@Param("deviceSignature") String deviceSignature);
 

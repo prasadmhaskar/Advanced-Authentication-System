@@ -51,10 +51,14 @@ public class AuthController {
     public ResponseEntity<ApiResponse<?>> register(@Valid @RequestBody RegisterRequest request,
                                                    HttpServletRequest httpRequest)
     {
-
         log.info("AuthController.register(): started for email={}", request.getEmail());
 
-        RegistrationResult result = registerOrchestrator.register(request);
+        // Extract IP + User-Agent
+        String ip = httpRequest.getHeader("X-Forwarded-For");
+        if (ip == null) ip = httpRequest.getRemoteAddr();
+        String ua = httpRequest.getHeader("User-Agent");
+
+        RegistrationResult result = registerOrchestrator.register(request, ip, ua);
 
         String path = httpRequest.getRequestURI();
 
@@ -62,23 +66,13 @@ public class AuthController {
 
         return switch (result.getOutcome()) {
 
-//            case REGISTERED -> ResponseEntity.status(HttpStatus.CREATED).body(
-//                    ApiResponse.success(
-//                            "USER_REGISTERED",
-//                            "Registration successful. Please verify your email.",
-//                            result,
-//                            path
-//                    )
-//            );
-
             case REGISTERED -> {
                 if (result.getEmailSent()) {
                     yield ResponseEntity.status(HttpStatus.CREATED).body(
-                            ApiResponse.success("USER_REGISTERED", "Registration successful. Verify email.", result, path));
+                            ApiResponse.success("USER_REGISTERED", "Registration successful. Email verification link is sent successfully.", result, path));
                 } else {
-                    // 202 Accepted means "I've started the process, but it's not finished"
-                    yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                            ApiResponse.success("REGISTRATION_PARTIAL", "User created, but email service is delayed.", result, path));
+                    yield ResponseEntity.status(HttpStatus.CREATED).body(
+                            ApiResponse.success("USER_REGISTERED", "Registration successful! Your verification email is on its way.", result, path));
                 }
             }
 
@@ -111,17 +105,17 @@ public class AuthController {
     @GetMapping("/verify")
     public ResponseEntity<ApiResponse<?>> verifyEmail(@RequestParam("token") String token, HttpServletRequest request) {
 
+        log.info("AuthController.verifyEmail(): started for tokenPrefix={}", token.length() > 8 ? token.substring(0, 8) : "short");
+
         // Extract IP + User-Agent
         String ip = request.getHeader("X-Forwarded-For");
         if (ip == null) ip = request.getRemoteAddr();
-
         String ua = request.getHeader("User-Agent");
 
-        log.info("AuthController.verifyEmail(): started tokenPrefix={}", token.length() > 8 ? token.substring(0, 8) : "short");
 
         EmailVerificationResult result = verifyEmailOrchestrator.verify(token, ip, ua);
 
-        log.info("AuthController.verifyEmail(): success email={}", result.getEmail());
+        log.info("AuthController.verifyEmail(): finished for email={}", result.getEmail());
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -139,19 +133,18 @@ public class AuthController {
             @Valid @RequestBody ResendVerificationRequest request,
             HttpServletRequest httpRequest
     ) {
-        log.info("AuthController.resendVerificationEmail(): started email={}", request.getEmail());
+        log.info("AuthController.resendVerificationEmail(): started for email={}", request.getEmail());
 
         // Extract IP + User-Agent
         String ip = httpRequest.getHeader("X-Forwarded-For");
         if (ip == null) ip = httpRequest.getRemoteAddr();
-
         String ua = httpRequest.getHeader("User-Agent");
 
         ResendVerificationResult result = resendVerificationOrchestrator.resend(request.getEmail(), ip, ua);
 
         String path = httpRequest.getRequestURI();
 
-        log.info("AuthController.resendVerificationEmail(): finished email={}", request.getEmail());
+        log.info("AuthController.resendVerificationEmail(): finished for email={}", request.getEmail());
 
         return switch (result.getOutcome()) {
             case EMAIL_SENT -> {
@@ -160,10 +153,9 @@ public class AuthController {
                             ApiResponse.success("VERIFICATION_EMAIL_SENT",
                                     "Verification email sent successfully.", result, path));
                 } else {
-                    yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
+                    yield ResponseEntity.ok(
                             ApiResponse.success("VERIFICATION_EMAIL_PENDING",
-                                    "Account updated, but our email service is currently delayed. Please try again in a few minutes.",
-                                    result, path));
+                                    "Your verification email is on its way.", result, path));
                 }
             }
 
@@ -185,6 +177,7 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest
     ) {
+        log.info("AuthController.login(): started for email={}",request.getEmail());
 
         // Extract IP + User-Agent
         String ip = httpRequest.getHeader("X-Forwarded-For");
@@ -192,14 +185,11 @@ public class AuthController {
 
         String ua = httpRequest.getHeader("User-Agent");
 
-        log.info(
-                "AuthController.login(): started email={} ip={} ua={}",
-                request.getEmail(), ip, ua
-        );
-
         AuthenticationResult result = loginOrchestrator.login(request, ip, ua);
 
         String path = httpRequest.getRequestURI();
+
+        log.info("AuthController.login(): finished for email={}",request.getEmail());
 
         return switch (result.getOutcome()) {
 
@@ -312,12 +302,12 @@ public class AuthController {
             case PASSWORD_RESET -> {
                 if (result.getEmailSent()) {
                     yield ResponseEntity.ok(ApiResponse.success("PASSWORD_RESET_LINK_SENT",
-                            "If your email is registered, you will receive a reset link shortly.", result, path));
+                            "If your email is registered, reset link email sent successfully", result, path));
                 } else {
                     // Return 202 Accepted: Business logic (token) created, but delivery (email) is pending
                     yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
                             ApiResponse.success("PASSWORD_RESET_PENDING",
-                                    "If your email is registered, the request has been processed, but our email service is currently delayed.",
+                                    "If your email is registered, the request has been processed. Your reset link email is on its way.",
                                     result, path));
                 }
             }
@@ -449,8 +439,8 @@ public class AuthController {
         } else {
             // Return 202 Accepted to signal partial success
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                    ApiResponse.success("ACCOUNT_LINKED_EMAIL_DELAYED",
-                            result.getMessage() + " However, our email service is currently delayed. Please use 'Forgot Password' if you do not receive the link.",
+                    ApiResponse.success("ACCOUNT_LINKED",
+                            result.getMessage(),
                             result, httpRequest.getRequestURI()));
         }
     }
@@ -510,27 +500,17 @@ public class AuthController {
     ) {
         ResendOtpResponse resend = resendOtpOrchestrator.resend(request);
 
-        if (resend.getEmailSent()){
-            return ResponseEntity.ok(
+        String msg = resend.getEmailSent() ? "OTP sent successfully to your email" : "OTP generated, email is on its way.";
+
+        return ResponseEntity.ok(
                     ApiResponse.success(
                             "OTP_RESENT",
-                            "OTP resent successfully",
+                            msg,
                             resend,
                             httpRequest.getRequestURI()
                     )
             );
-        }
 
-        else {
-            return ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                    ApiResponse.success(
-                            "OTP_RESEND_DELAYED",
-                            "OTP session updated, but our email service is currently delayed. Please try resending in a few minutes.",
-                            resend,
-                            httpRequest.getRequestURI()
-                    )
-            );
-        }
     }
 
 

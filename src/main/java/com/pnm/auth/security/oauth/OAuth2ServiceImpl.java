@@ -1,20 +1,12 @@
 package com.pnm.auth.security.oauth;
 
-import com.pnm.auth.domain.entity.UserOAuthProvider;
 import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.response.UserResponse;
 import com.pnm.auth.dto.result.*;
 import com.pnm.auth.domain.entity.User;
-import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.domain.enums.AuthProviderType;
 import com.pnm.auth.exception.custom.*;
-import com.pnm.auth.repository.MfaTokenRepository;
-import com.pnm.auth.repository.RefreshTokenRepository;
-import com.pnm.auth.repository.UserOAuthProviderRepository;
-import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.util.JwtUtil;
-import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.login.SuspiciousLoginAlertService;
@@ -22,7 +14,6 @@ import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.service.auth.MfaService;
 import com.pnm.auth.service.risk.RiskEngineService;
 import com.pnm.auth.service.auth.TokenService;
-import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.OAuth2Util;
 import com.pnm.auth.util.UserAgentParser;
 import jakarta.servlet.http.HttpServletRequest;
@@ -31,39 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.Optional;
-
-@Service
-@RequiredArgsConstructor
-@Slf4j
-public class OAuth2ServiceImpl implements OAuth2Service{
-    private final OAuth2Util oAuth2Util;
-    private final UserRepository userRepository;
-    private final JwtUtil jwtUtil;
-    private final RefreshTokenRepository refreshTokenRepository;
-    private final LoginActivityService loginActivityService;
-    private final IpMonitoringService ipMonitoringService;
-    private final MfaTokenRepository mfaTokenRepository;
-    private final EmailService emailService;
-    private final SuspiciousLoginAlertService suspiciousLoginAlertService;
-    private final RiskEngineService riskEngineService;
-    private final MfaService mfaService;
-    private final TokenService tokenService;
-    private final DeviceTrustService deviceTrustService;
-    private final UserOAuthProviderRepository oAuthProviderRepository;
-    private final AccountLinkTokenService accountLinkTokenService;
-
-    @Value("${jwt.refresh.expiration}")
-    private Long jwtRefreshExpirationMillis;
-
-    @Value("${auth.risk.threshold.high}")
-    private int highRiskScore;
-
-    @Value("${auth.risk.threshold.medium}")
-    private int mediumRiskScore;
 
 //    @Override
 //    @Transactional
@@ -230,191 +189,328 @@ public class OAuth2ServiceImpl implements OAuth2Service{
 //    }
 
 
-    @Override
-    @Transactional
-    public AuthenticationResult handleOAuth2LoginRequest(
-            OAuth2User oAuth2User,
-            String registrationId,
-            HttpServletRequest request
-    ) {
+//    @Override
+//    @Transactional
+//    public AuthenticationResult handleOAuth2LoginRequest(
+//            OAuth2User oAuth2User,
+//            String registrationId,
+//            HttpServletRequest request
+//    ) {
+//
+//        log.info("OAuth2Service: started provider={}", registrationId);
+//
+//        AuthProviderType providerType =
+//                oAuth2Util.getProviderTypeFromRegistrationId(registrationId);
+//
+//        String providerId =
+//                oAuth2Util.determineProviderIdFromOAuth2User(oAuth2User, registrationId);
+//
+//        String ip = request.getHeader("X-Forwarded-For");
+//        if (ip == null) ip = request.getRemoteAddr();
+//        String userAgent = request.getHeader("User-Agent");
+//
+//        // 1️⃣ Resolve user OR return LINK_REQUIRED
+//        ResolveOAuthResult resolveResult =
+//                resolveOrCreateUser(oAuth2User, providerType, providerId);
+//
+//        User user = resolveResult.getUser();
+//
+//        String linkToken = accountLinkTokenService.createLinkToken(
+//                user,
+//                AuthProviderType.EMAIL,
+//                providerId
+//
+//        );
+//
+//        if (resolveResult.getOutcome() == AuthOutcome.LINK_REQUIRED) {
+//            return AuthenticationResult.builder()
+//                    .outcome(AuthOutcome.LINK_REQUIRED)
+//                    .email(resolveResult.getEmail())
+//                    .existingProvider(resolveResult.getExistingProvider())
+//                    .attemptedProvider(providerType)
+//                    .nextAction(NextAction.LINK_OAUTH)
+//                    .linkToken(linkToken)
+//                    .message("Account linking required")
+//                    .build();
+//        }
+//
+//        // 2️⃣ Blocked user
+//        if (!user.isActive()) {
+//            loginActivityService.recordFailure(user.getEmail(), "Blocked OAuth login", ip, userAgent);
+//            throw new AccountBlockedException("Your account has been blocked.");
+//        }
+//
+//        // 3️⃣ Risk engine
+//        RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
+//
+//        if (risk.getScore() >= highRiskScore) {
+//            suspiciousLoginAlertService.sendHighRiskAlert(
+//                    user, ip, userAgent, risk.getReasons()
+//            );
+//            loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login", ip, userAgent);
+//            throw new HighRiskLoginException("Login blocked due to high risk activity.");
+//        }
+//
+//        if (risk.getScore() >= mediumRiskScore) {
+////            return handleMediumRiskOtp(user);
+//
+//            log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", user.getEmail());
+//            MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
+//
+//            String msg = mfaResult.getEmailSent()
+//                    ? "Suspicious login detected. OTP sent."
+//                    : "Suspicious login detected. OTP generated but email is delayed.";
+//
+//            return AuthenticationResult.builder()
+//                    .outcome(mfaResult.getOutcome())
+//                    .otpTokenId(mfaResult.getTokenId())
+//                    .message(msg)
+//                    .build();
+//        }
+//
+//        // 4️⃣ Success → tokens
+//        AuthenticationResult tokenResult = tokenService.generateTokens(user);
+//
+//        // 5️⃣ Best-effort logging
+//        try {
+//            ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
+//            DeviceInfoResult device = UserAgentParser.parse(userAgent);
+//            deviceTrustService.trustDevice(
+//                    user.getId(),
+//                    device.getSignature(),
+//                    device.getDeviceName()
+//            );
+//        } catch (Exception ex) {
+//            log.warn("OAuth login post-processing failed userId={}", user.getId());
+//        }
+//
+//        return AuthenticationResult.builder()
+//                .outcome(AuthOutcome.SUCCESS)
+//                .accessToken(tokenResult.getAccessToken())
+//                .refreshToken(tokenResult.getRefreshToken())
+//                .user(UserResponse.from(user))
+//                .message("Login successful")
+//                .build();
+//    }
+//
+//
+//
+//    private ResolveOAuthResult resolveOrCreateUser(
+//            OAuth2User oAuth2User,
+//            AuthProviderType providerType,
+//            String providerId
+//    ) {
+//
+//        String email = oAuth2User.getAttribute("email");
+//
+//        if (email == null) {
+//            throw new OAuth2LoginFailedException("Provider did not supply email");
+//        }
+//
+//        // 1️⃣ Provider already linked
+//        Optional<UserOAuthProvider> provider =
+//                oAuthProviderRepository
+//                        .findByProviderTypeAndProviderId(providerType, providerId);
+//
+//        if (provider.isPresent()) {
+//            return ResolveOAuthResult.builder()
+//                    .outcome(AuthOutcome.SUCCESS)
+//                    .user(provider.get().getUser())
+//                    .build();
+//        }
+//
+//        // 2️⃣ Email exists but provider NOT linked → LINK_REQUIRED
+//        Optional<User> emailUser = userRepository.findByEmail(email);
+//
+//        if (emailUser.isPresent()) {
+//            AuthProviderType existingProvider =
+//                    emailUser.get().getAuthProviders()
+//                            .iterator()
+//                            .next()
+//                            .getProviderType();
+//
+//            String linkToken = accountLinkTokenService.createLinkToken(
+//                    emailUser.get(),
+//                    providerType,
+//                    providerId
+//            );
+//
+//
+//            log.warn("OAuth login requires linking email={}", email);
+//
+//            return ResolveOAuthResult.builder()
+//                    .outcome(AuthOutcome.LINK_REQUIRED)
+//                    .email(email)
+//                    .existingProvider(existingProvider)
+//                    .build();
+//        }
+//
+//        // 3️⃣ New OAuth user
+//        User user = new User();
+//        user.setFullName(
+//                oAuth2Util.determineUsernameFromOAuth2User(
+//                        oAuth2User, providerType.name()
+//                )
+//        );
+//        user.setEmail(email);
+//        user.setEmailVerified(true);
+//        user.setRoles(List.of("ROLE_USER"));
+//        user.setActive(true);
+//
+//        user.linkProvider(providerType, providerId);
+//
+//        userRepository.save(user);
+//
+//        return ResolveOAuthResult.builder()
+//                .outcome(AuthOutcome.SUCCESS)
+//                .user(user)
+//                .build();
+//    }
+//
+//    private AuthenticationResult handleMediumRiskOtp(User user) {
+//        try {
+//            MfaResult mfa = mfaService.handleMediumRiskOtp(user);
+//
+//            if (mfa.getOutcome() == AuthOutcome.RISK_OTP_REQUIRED) {
+//                throw new RiskOtpRequiredException(
+//                        "Suspicious login detected. OTP required.",
+//                        mfa.getTokenId()
+//                );
+//            }
+//
+//            throw new IllegalStateException("Unexpected Risk OTP outcome");
+//
+//        } catch (EmailSendFailedException ex) {
+//            throw ex;
+//
+//        } catch (Exception ex) {
+//            log.error("OAuth2Service: medium-risk OTP error email={} err={}",
+//                    user.getEmail(), ex.getMessage(), ex);
+//            throw new EmailSendFailedException("Failed to send OTP. Try again later.");
+//        }
+//    }
 
-        log.info("OAuth2Service: started provider={}", registrationId);
 
-        AuthProviderType providerType =
-                oAuth2Util.getProviderTypeFromRegistrationId(registrationId);
+    @Service
+    @RequiredArgsConstructor
+    @Slf4j
+    public class OAuth2ServiceImpl implements OAuth2Service {
 
-        String providerId =
-                oAuth2Util.determineProviderIdFromOAuth2User(oAuth2User, registrationId);
+        private final OAuth2Util oAuth2Util;
+        private final OAuthPersistenceService oAuthPersistenceService; // 👈 New Service
+        private final LoginActivityService loginActivityService;
+        private final IpMonitoringService ipMonitoringService;
+        private final SuspiciousLoginAlertService suspiciousLoginAlertService;
+        private final RiskEngineService riskEngineService;
+        private final MfaService mfaService;
+        private final TokenService tokenService;
+        private final DeviceTrustService deviceTrustService;
 
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null) ip = request.getRemoteAddr();
-        String userAgent = request.getHeader("User-Agent");
+        // ❌ Removed: Repositories, JwtUtil, AccountLinkTokenService (Handled in Persistence/TokenService)
 
-        // 1️⃣ Resolve user OR return LINK_REQUIRED
-        ResolveOAuthResult resolveResult =
-                resolveOrCreateUser(oAuth2User, providerType, providerId);
+        @Value("${auth.risk.threshold.high}")
+        private int highRiskScore;
 
-        User user = resolveResult.getUser();
+        @Value("${auth.risk.threshold.medium}")
+        private int mediumRiskScore;
 
-        String linkToken = accountLinkTokenService.createLinkToken(
-                user,
-                AuthProviderType.EMAIL,
-                providerId
+        @Override
+        // ❌ REMOVED: @Transactional (Critical for async email soft-fail)
+        public AuthenticationResult handleOAuth2LoginRequest(
+                OAuth2User oAuth2User,
+                String registrationId,
+                HttpServletRequest request
+        ) {
+            log.info("OAuth2Service: started provider={}", registrationId);
 
-        );
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip == null) ip = request.getRemoteAddr();
+            String userAgent = request.getHeader("User-Agent");
 
-        if (resolveResult.getOutcome() == AuthOutcome.LINK_REQUIRED) {
-            return AuthenticationResult.builder()
-                    .outcome(AuthOutcome.LINK_REQUIRED)
-                    .email(resolveResult.getEmail())
-                    .existingProvider(resolveResult.getExistingProvider())
-                    .attemptedProvider(providerType)
-                    .nextAction(NextAction.LINK_OAUTH)
-                    .linkToken(linkToken)
-                    .message("Account linking required")
-                    .build();
-        }
+            AuthProviderType providerType = oAuth2Util.getProviderTypeFromRegistrationId(registrationId);
+            String providerId = oAuth2Util.determineProviderIdFromOAuth2User(oAuth2User, registrationId);
 
-        // 2️⃣ Blocked user
-        if (!user.isActive()) {
-            loginActivityService.recordFailure(user.getEmail(), "Blocked OAuth login", ip, userAgent);
-            throw new AccountBlockedException("Your account has been blocked.");
-        }
-
-        // 3️⃣ Risk engine
-        RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
-
-        if (risk.getScore() >= highRiskScore) {
-            suspiciousLoginAlertService.sendHighRiskAlert(
-                    user, ip, userAgent, risk.getReasons()
+            // 1️⃣ Resolve user (Transactional DB op)
+            ResolveOAuthResult resolveResult = oAuthPersistenceService.resolveOrCreateUser(
+                    oAuth2User, providerType, providerId, ip, userAgent
             );
-            loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login", ip, userAgent);
-            throw new HighRiskLoginException("Login blocked due to high risk activity.");
-        }
 
-        if (risk.getScore() >= mediumRiskScore) {
-            return handleMediumRiskOtp(user);
-        }
-
-        // 4️⃣ Success → tokens
-        AuthenticationResult tokenResult = tokenService.generateTokens(user);
-
-        // 5️⃣ Best-effort logging
-        try {
-            ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
-            DeviceInfoResult device = UserAgentParser.parse(userAgent);
-            deviceTrustService.trustDevice(
-                    user.getId(),
-                    device.getSignature(),
-                    device.getDeviceName()
-            );
-        } catch (Exception ex) {
-            log.warn("OAuth login post-processing failed userId={}", user.getId());
-        }
-
-        return AuthenticationResult.builder()
-                .outcome(AuthOutcome.SUCCESS)
-                .accessToken(tokenResult.getAccessToken())
-                .refreshToken(tokenResult.getRefreshToken())
-                .user(UserResponse.from(user))
-                .message("Login successful")
-                .build();
-    }
-
-
-
-    private ResolveOAuthResult resolveOrCreateUser(
-            OAuth2User oAuth2User,
-            AuthProviderType providerType,
-            String providerId
-    ) {
-
-        String email = oAuth2User.getAttribute("email");
-
-        if (email == null) {
-            throw new OAuth2LoginFailedException("Provider did not supply email");
-        }
-
-        // 1️⃣ Provider already linked
-        Optional<UserOAuthProvider> provider =
-                oAuthProviderRepository
-                        .findByProviderTypeAndProviderId(providerType, providerId);
-
-        if (provider.isPresent()) {
-            return ResolveOAuthResult.builder()
-                    .outcome(AuthOutcome.SUCCESS)
-                    .user(provider.get().getUser())
-                    .build();
-        }
-
-        // 2️⃣ Email exists but provider NOT linked → LINK_REQUIRED
-        Optional<User> emailUser = userRepository.findByEmail(email);
-
-        if (emailUser.isPresent()) {
-            AuthProviderType existingProvider =
-                    emailUser.get().getAuthProviders()
-                            .iterator()
-                            .next()
-                            .getProviderType();
-
-            String linkToken = accountLinkTokenService.createLinkToken(
-                    emailUser.get(),
-                    providerType,
-                    providerId
-            );
-
-
-            log.warn("OAuth login requires linking email={}", email);
-
-            return ResolveOAuthResult.builder()
-                    .outcome(AuthOutcome.LINK_REQUIRED)
-                    .email(email)
-                    .existingProvider(existingProvider)
-                    .build();
-        }
-
-        // 3️⃣ New OAuth user
-        User user = new User();
-        user.setFullName(
-                oAuth2Util.determineUsernameFromOAuth2User(
-                        oAuth2User, providerType.name()
-                )
-        );
-        user.setEmail(email);
-        user.setEmailVerified(true);
-        user.setRoles(List.of("ROLE_USER"));
-        user.setActive(true);
-
-        user.linkProvider(providerType, providerId);
-
-        userRepository.save(user);
-
-        return ResolveOAuthResult.builder()
-                .outcome(AuthOutcome.SUCCESS)
-                .user(user)
-                .build();
-    }
-
-    private AuthenticationResult handleMediumRiskOtp(User user) {
-        try {
-            MfaResult mfa = mfaService.handleMediumRiskOtp(user);
-
-            if (mfa.getOutcome() == AuthOutcome.RISK_OTP_REQUIRED) {
-                throw new RiskOtpRequiredException(
-                        "Suspicious login detected. OTP required.",
-                        mfa.getTokenId()
-                );
+            // 2️⃣ Handle Link Required
+            if (resolveResult.getOutcome() == AuthOutcome.LINK_REQUIRED) {
+                return AuthenticationResult.builder()
+                        .outcome(AuthOutcome.LINK_REQUIRED)
+                        .email(resolveResult.getEmail())
+                        .existingProvider(resolveResult.getExistingProvider())
+                        .attemptedProvider(providerType)
+                        .nextAction(NextAction.LINK_OAUTH)
+                        .linkToken(resolveResult.getLinkToken()) // This now comes from the service
+                        .message("Account linking required")
+                        .build();
             }
 
-            throw new IllegalStateException("Unexpected Risk OTP outcome");
+            User user = resolveResult.getUser();
 
-        } catch (EmailSendFailedException ex) {
-            throw ex;
+            // ✅ LOG SUCCESS (Only if a new user was created)
+            if (resolveResult.isNewUser()) {
+                try {
+                    ipMonitoringService.recordRegistrationSuccess(user.getId(), ip, userAgent);
+                } catch (Exception ex) {
+                    log.warn("Failed to audit OAuth registration userId={}", user.getId());
+                }
+            }
 
-        } catch (Exception ex) {
-            log.error("OAuth2Service: medium-risk OTP error email={} err={}",
-                    user.getEmail(), ex.getMessage(), ex);
-            throw new EmailSendFailedException("Failed to send OTP. Try again later.");
+            // 3️⃣ Check Blocked Status
+            if (!user.isActive()) {
+                loginActivityService.recordFailure(user.getEmail(), "Blocked OAuth login", ip, userAgent);
+                throw new AccountBlockedException("Your account has been blocked.");
+            }
+
+            // 4️⃣ Risk Engine
+            RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
+
+            if (risk.getScore() >= highRiskScore) {
+                // Send Alert (Async/Fire-and-forget)
+                suspiciousLoginAlertService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
+                loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login", ip, userAgent);
+                throw new HighRiskLoginException("Login blocked due to high risk activity.");
+            }
+
+            if (risk.getScore() >= mediumRiskScore) {
+                // Handle Soft Fail for Risk OTP
+//                return handleMediumRiskOtp(user);
+                log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", user.getEmail());
+                MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
+
+                String msg = mfaResult.getEmailSent()
+                        ? "Suspicious login detected. OTP sent."
+                        : "Suspicious login detected. OTP generated, email is on its way.";
+
+                return AuthenticationResult.builder()
+                        .outcome(mfaResult.getOutcome())
+                        .otpTokenId(mfaResult.getTokenId())
+                        .message(msg)
+                        .build();
+            }
+
+            // 5️⃣ Success → Generate Tokens
+            AuthenticationResult tokenResult = tokenService.generateTokens(user);
+
+            // 6️⃣ Post-Login Logging (Best Effort)
+            try {
+                ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
+                var device = UserAgentParser.parse(userAgent);
+                deviceTrustService.trustDevice(user.getId(), device.getSignature(), device.getDeviceName());
+            } catch (Exception ex) {
+                log.warn("OAuth login post-processing failed userId={}", user.getId());
+            }
+
+            return AuthenticationResult.builder()
+                    .outcome(AuthOutcome.SUCCESS)
+                    .accessToken(tokenResult.getAccessToken())
+                    .refreshToken(tokenResult.getRefreshToken())
+                    .user(UserResponse.from(user))
+                    .message("Login successful")
+                    .build();
         }
+
     }
-}

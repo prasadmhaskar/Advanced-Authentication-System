@@ -1,6 +1,5 @@
 package com.pnm.auth.orchestrator.auth;
 
-import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.domain.enums.AuthProviderType;
 import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.request.LoginRequest;
@@ -12,27 +11,225 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.event.LoginSuccessEvent;
 import com.pnm.auth.exception.custom.*;
-import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.security.oauth.AccountLinkTokenService;
 import com.pnm.auth.service.auth.MfaService;
 import com.pnm.auth.service.auth.PasswordAuthService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.service.auth.UserValidationService;
 import com.pnm.auth.service.device.DeviceTrustService;
-import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.risk.RiskEngineService;
-import com.pnm.auth.util.AfterCommitExecutor;
 import com.pnm.auth.util.UserAgentParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
-import java.security.SecureRandom;
-import java.time.LocalDateTime;
+import java.util.Optional;
+
+//@Service
+//@RequiredArgsConstructor
+//@Slf4j
+//public class LoginOrchestratorImpl implements LoginOrchestrator {
+//
+//    private final UserValidationService userValidationService;
+//    private final PasswordAuthService passwordAuthService;
+//    private final RiskEngineService riskEngineService;
+//    private final MfaService mfaService;
+//    private final TokenService tokenService;
+//    private final DeviceTrustService deviceTrustService;
+//    private final ApplicationEventPublisher eventPublisher;
+//    private final AccountLinkTokenService accountLinkTokenService;
+//    private final LoginActivityService loginActivityService;
+//
+//    private final SecureRandom secureRandom = new SecureRandom();
+//
+//    @Value("${auth.risk.threshold.high}")
+//    private int highRiskScore;
+//
+//    @Value("${auth.risk.threshold.medium}")
+//    private int mediumRiskScore;
+//
+//    @Override
+//    public AuthenticationResult login(LoginRequest request, String ip, String userAgent) {
+//
+//        String email = request.getEmail().trim().toLowerCase();
+//        log.info("LoginOrchestrator: login started email={}", email);
+//
+//        // ---------------------------------------------------------
+//        // 1️⃣ Validate user existence + basic state (active, verified)
+//        // ---------------------------------------------------------
+//        User user;
+//
+//        try {
+//            user = userValidationService.validateUserForLogin(email);
+//        } catch (UserNotFoundException ex) {
+//            loginActivityService.recordFailure(email,"User not found", ip, userAgent);
+//            throw ex;
+//        } catch (AccountBlockedException ex) {
+//            loginActivityService.recordFailure(email, "Blocked user login attempt", ip, userAgent);
+//            throw ex;
+//        } catch (EmailNotVerifiedException ex) {
+//            loginActivityService.recordFailure(email, "Email not verified", ip, userAgent);
+//            throw ex;
+//        }
+//
+//
+//        // ---------------------------------------------------------
+//        // 2️⃣ EMAIL provider not linked → OFFER LINKING
+//        // ---------------------------------------------------------
+//        if (!user.hasProvider(AuthProviderType.EMAIL)) {
+//
+//            AuthProviderType existingProvider =
+//                    user.getAuthProviders().iterator().next().getProviderType();
+//
+//            log.warn(
+//                    "Email login attempted but EMAIL provider not linked email={} existingProvider={}",
+//                    email,
+//                    existingProvider
+//            );
+//
+//            String linkToken = accountLinkTokenService.createLinkToken(
+//                    user,
+//                    AuthProviderType.EMAIL,
+//                    email
+//            );
+//
+//            return AuthenticationResult.builder()
+//                    .outcome(AuthOutcome.LINK_REQUIRED)
+//                    .email(email)
+//                    .existingProvider(existingProvider)
+//                    .attemptedProvider(AuthProviderType.EMAIL)
+//                    .nextAction(NextAction.LINK_ACCOUNT)
+//                    .linkToken(linkToken)
+//                    .message("This account uses a different login method. Link email login?")
+//                    .build();
+//        }
+//
+//        // ---------------------------------------------------------
+//        // 3️⃣ Password not set → FORCE SET PASSWORD
+//        // ---------------------------------------------------------
+//        if (user.getPassword() == null) {
+//
+//            log.warn("Password not set for email login email={}", email);
+//
+//            return AuthenticationResult.builder()
+//                    .outcome(AuthOutcome.PASSWORD_NOT_SET)
+//                    .email(email)
+//                    .nextAction(NextAction.SET_PASSWORD)
+//                    .message("Password not set. Please set your password to continue.")
+//                    .build();
+//        }
+//
+//        // ---------------------------------------------------------
+//        // 4️⃣ Verify password
+//        // ---------------------------------------------------------
+//        try {
+//            passwordAuthService.verifyPassword(user, request.getPassword());
+//        }catch (InvalidCredentialsException ex){
+//            loginActivityService.recordFailure(email, "Wrong password entered", ip, userAgent);
+//            throw ex;
+//        }
+//
+//        // ---------------------------------------------------------
+//        // 3️⃣ If MFA is enabled → handle MFA and return response
+//        // ---------------------------------------------------------
+//        if (user.isMfaEnabled()) {
+//            log.info("LoginOrchestrator: MFA enabled for email={}", user.getEmail());
+//            MfaResult mfaResult = mfaService.handleMfaLogin(user);
+//
+//            if (mfaResult.getEmailSent()){
+//                return AuthenticationResult.builder()
+//                        .outcome(AuthOutcome.MFA_REQUIRED)
+//                        .otpTokenId(mfaResult.getTokenId())
+//                        .message("Otp is sent to your email successfully. Please enter otp for verification")
+//                        .build();
+//            }
+//            else {
+//                return AuthenticationResult.builder()
+//                        .outcome(AuthOutcome.MFA_REQUIRED)
+//                        .otpTokenId(mfaResult.getTokenId())
+//                        .message("Our email service is currently delayed. Please try resending in a few minutes.")
+//                        .build();
+//            }
+//        }
+//
+//        // ---------------------------------------------------------
+//        // 4️⃣ RUN RISK ENGINE (only for non-MFA users)
+//        // ---------------------------------------------------------
+//        RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
+//
+//        if (risk.getScore() >= highRiskScore) {
+//            log.error("LoginOrchestrator: HIGH RISK login blocked email={} score={}",
+//                    user.getEmail(), risk.getScore());
+//            throw riskEngineService.blockHighRiskLogin(user, risk, ip, userAgent);
+//        }
+//
+//        if (risk.getScore() >= mediumRiskScore) {
+//            log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", user.getEmail());
+////            MfaResult mfaResult = handleMediumRiskOtp(user);
+//            MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
+//            if (mfaResult.getEmailSent()){
+//                return AuthenticationResult.builder()
+//                        .outcome(mfaResult.getOutcome())
+//                        .otpTokenId(mfaResult.getTokenId())
+//                        .message("Suspicious login detected. Please enter otp for verification")
+//                        .build();
+//            }
+//            else {
+//                return AuthenticationResult.builder()
+//                        .outcome(mfaResult.getOutcome())
+//                        .otpTokenId(mfaResult.getTokenId())
+//                        .message("Suspicious login detected. Otp verification needed. Our email service is currently delayed. Please try resending in a few minutes.")
+//                        .build();
+//            }
+//
+//        }
+//
+//        // ---------------------------------------------------------
+//        // 5️⃣ LOW RISK → SUCCESS: generate tokens
+//        // ---------------------------------------------------------
+//        AuthenticationResult result = tokenService.generateTokens(user);
+//
+//        //LoginActivity.recordSuccess()
+//        eventPublisher.publishEvent(
+//                new LoginSuccessEvent(
+//                        user.getId(),
+//                        user.getEmail(),
+//                        ip,
+//                        userAgent));
+//
+//        // ---------------------------------------------------------
+//        // 6️⃣ Save trusted device (non-critical)
+//        // ---------------------------------------------------------
+//        try {
+//            var agent = UserAgentParser.parse(userAgent);
+//            deviceTrustService.trustDevice(
+//                    user.getId(),
+//                    agent.getSignature(),
+//                    agent.getDeviceName()
+//            );
+//        } catch (Exception ex) {
+//            log.warn("LoginOrchestrator: failed to trust device email={} err={}",
+//                    user.getEmail(), ex.getMessage());
+//        }
+//
+//        // ---------------------------------------------------------
+//        // 7️⃣ Return SUCCESS response
+//        // ---------------------------------------------------------
+//        return AuthenticationResult.builder()
+//                .outcome(AuthOutcome.SUCCESS)
+//                .accessToken(result.getAccessToken())
+//                .refreshToken(result.getRefreshToken())
+//                .message("Login successful")
+//                .user(UserResponse.from(user))
+//                .build();
+//
+//    }
+//
+//}
+
 
 @Service
 @RequiredArgsConstructor
@@ -47,12 +244,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
     private final DeviceTrustService deviceTrustService;
     private final ApplicationEventPublisher eventPublisher;
     private final AccountLinkTokenService accountLinkTokenService;
-    private final MfaTokenRepository mfaTokenRepository;
-    private final EmailService emailService;
-    private final AfterCommitExecutor afterCommitExecutor;
     private final LoginActivityService loginActivityService;
-
-    private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${auth.risk.threshold.high}")
     private int highRiskScore;
@@ -61,50 +253,52 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
     private int mediumRiskScore;
 
     @Override
-    @Transactional
     public AuthenticationResult login(LoginRequest request, String ip, String userAgent) {
 
         String email = request.getEmail().trim().toLowerCase();
-        log.info("LoginOrchestrator: login started email={}", email);
+
+        log.info("LoginOrchestrator: started for email={}", email);
 
         // ---------------------------------------------------------
-        // 1️⃣ Validate user existence + basic state (active, verified)
+        // 1️⃣ Load User (Silent)
         // ---------------------------------------------------------
-        User user;
+        // We do NOT throw exceptions here if missing.
+        Optional<User> userOpt = userValidationService.findUserByEmail(email);
+        User user = userOpt.orElse(null);
 
+        // ---------------------------------------------------------
+        // 2️⃣ Verify Password (CRITICAL SECURITY STEP)
+        // ---------------------------------------------------------
+        // If user is null, this performs a dummy hash check to prevent timing attacks.
+        // If password is wrong, it throws InvalidCredentialsException.
         try {
-            user = userValidationService.validateUserForLogin(email);
-        } catch (UserNotFoundException ex) {
-            loginActivityService.recordFailure(email,"User not found", ip, userAgent);
-            throw ex;
-        } catch (AccountBlockedException ex) {
-            loginActivityService.recordFailure(email, "Blocked user login attempt", ip, userAgent);
-            throw ex;
-        } catch (EmailNotVerifiedException ex) {
-            loginActivityService.recordFailure(email, "Email not verified", ip, userAgent);
+            passwordAuthService.verifyPassword(user, request.getPassword());
+        } catch (InvalidCredentialsException ex) {
+            loginActivityService.recordFailure(email, "Invalid email or password", ip, userAgent);
             throw ex;
         }
 
+        // ⭐ Security Note: If we reach here, the User exists AND Password is correct.
+        // It is now safe to reveal specific account status errors.
 
         // ---------------------------------------------------------
-        // 2️⃣ EMAIL provider not linked → OFFER LINKING
+        // 3️⃣ Validate Status (Blocked / Verified)
+        // ---------------------------------------------------------
+        try {
+            userValidationService.validateUserStatus(user);
+        } catch (Exception ex) {
+            loginActivityService.recordFailure(email, ex.getMessage(), ip, userAgent);
+            throw ex;
+        }
+
+        // ---------------------------------------------------------
+        // 4️⃣ Provider Check (Account Linking)
         // ---------------------------------------------------------
         if (!user.hasProvider(AuthProviderType.EMAIL)) {
+            AuthProviderType existingProvider = user.getAuthProviders().iterator().next().getProviderType();
+            log.warn("LoginOrchestrator: EMAIL provider not linked email={} existing={}", email, existingProvider);
 
-            AuthProviderType existingProvider =
-                    user.getAuthProviders().iterator().next().getProviderType();
-
-            log.warn(
-                    "Email login attempted but EMAIL provider not linked email={} existingProvider={}",
-                    email,
-                    existingProvider
-            );
-
-            String linkToken = accountLinkTokenService.createLinkToken(
-                    user,
-                    AuthProviderType.EMAIL,
-                    email
-            );
+            String linkToken = accountLinkTokenService.createLinkToken(user, AuthProviderType.EMAIL, email);
 
             return AuthenticationResult.builder()
                     .outcome(AuthOutcome.LINK_REQUIRED)
@@ -113,122 +307,83 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
                     .attemptedProvider(AuthProviderType.EMAIL)
                     .nextAction(NextAction.LINK_ACCOUNT)
                     .linkToken(linkToken)
-                    .message("This account uses a different login method. Link email login?")
+                    .message("This account uses " + existingProvider + ". Link email login?")
                     .build();
         }
 
         // ---------------------------------------------------------
-        // 3️⃣ Password not set → FORCE SET PASSWORD
+        // 5️⃣ Password Set Check (Edge case)
         // ---------------------------------------------------------
         if (user.getPassword() == null) {
-
-            log.warn("Password not set for email login email={}", email);
-
             return AuthenticationResult.builder()
                     .outcome(AuthOutcome.PASSWORD_NOT_SET)
                     .email(email)
                     .nextAction(NextAction.SET_PASSWORD)
-                    .message("Password not set. Please set your password to continue.")
+                    .message("Password not set. Please reset your password.")
                     .build();
         }
 
         // ---------------------------------------------------------
-        // 4️⃣ Verify password
-        // ---------------------------------------------------------
-        try {
-            passwordAuthService.verifyPassword(user, request.getPassword());
-        }catch (InvalidCredentialsException ex){
-            loginActivityService.recordFailure(email, "Wrong password entered", ip, userAgent);
-            throw ex;
-        }
-
-        // ---------------------------------------------------------
-        // 3️⃣ If MFA is enabled → handle MFA and return response
+        // 6️⃣ MFA Handling
         // ---------------------------------------------------------
         if (user.isMfaEnabled()) {
             log.info("LoginOrchestrator: MFA enabled for email={}", user.getEmail());
-//            MfaResult mfaResult = handleMfaFlow(user);
+            // Since we removed @Transactional, the DB transaction inside mfaService closes immediately,
+            // allowing the email future to complete without deadlock.
             MfaResult mfaResult = mfaService.handleMfaLogin(user);
 
-            if (mfaResult.getEmailSent()){
-                return AuthenticationResult.builder()
-                        .outcome(AuthOutcome.MFA_REQUIRED)
-                        .otpTokenId(mfaResult.getTokenId())
-                        .message("Otp is sent to your email successfully. Please enter otp for verification")
-                        .build();
-            }
-            else {
-                return AuthenticationResult.builder()
-                        .outcome(AuthOutcome.MFA_REQUIRED)
-                        .otpTokenId(mfaResult.getTokenId())
-                        .message("Our email service is currently delayed. Please try resending in a few minutes.")
-                        .build();
-            }
+            String msg = mfaResult.getEmailSent()
+                    ? "OTP sent successfully."
+                    : "OTP generated, email is on its way.";
+
+            return AuthenticationResult.builder()
+                    .outcome(AuthOutcome.MFA_REQUIRED)
+                    .otpTokenId(mfaResult.getTokenId())
+                    .message(msg)
+                    .build();
         }
 
         // ---------------------------------------------------------
-        // 4️⃣ RUN RISK ENGINE (only for non-MFA users)
+        // 7️⃣ Risk Engine (Only for non-MFA users)
         // ---------------------------------------------------------
         RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
 
         if (risk.getScore() >= highRiskScore) {
-            log.error("LoginOrchestrator: HIGH RISK login blocked email={} score={}",
-                    user.getEmail(), risk.getScore());
+            log.error("LoginOrchestrator: HIGH RISK blocked email={} score={}", email, risk.getScore());
             throw riskEngineService.blockHighRiskLogin(user, risk, ip, userAgent);
         }
 
         if (risk.getScore() >= mediumRiskScore) {
-            log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", user.getEmail());
-//            MfaResult mfaResult = handleMediumRiskOtp(user);
+            log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", email);
             MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
-            if (mfaResult.getEmailSent()){
-                return AuthenticationResult.builder()
-                        .outcome(mfaResult.getOutcome())
-                        .otpTokenId(mfaResult.getTokenId())
-                        .message("Suspicious login detected. Please enter otp for verification")
-                        .build();
-            }
-            else {
-                return AuthenticationResult.builder()
-                        .outcome(mfaResult.getOutcome())
-                        .otpTokenId(mfaResult.getTokenId())
-                        .message("Suspicious login detected. Otp verification needed. Our email service is currently delayed. Please try resending in a few minutes.")
-                        .build();
-            }
 
+            String msg = mfaResult.getEmailSent()
+                    ? "Suspicious login detected, verification required. OTP sent successfully."
+                    : "Suspicious login detected, verification required. OTP generated, email is on its way.";
+
+            return AuthenticationResult.builder()
+                    .outcome(mfaResult.getOutcome())
+                    .otpTokenId(mfaResult.getTokenId())
+                    .message(msg)
+                    .build();
         }
 
         // ---------------------------------------------------------
-        // 5️⃣ LOW RISK → SUCCESS: generate tokens
+        // 8️⃣ Success: Generate Tokens
         // ---------------------------------------------------------
         AuthenticationResult result = tokenService.generateTokens(user);
 
-        //LoginActivity.recordSuccess()
-        eventPublisher.publishEvent(
-                new LoginSuccessEvent(
-                        user.getId(),
-                        user.getEmail(),
-                        ip,
-                        userAgent));
+        eventPublisher.publishEvent(new LoginSuccessEvent(user.getId(), user.getEmail(), ip, userAgent));
 
-        // ---------------------------------------------------------
-        // 6️⃣ Save trusted device (non-critical)
-        // ---------------------------------------------------------
         try {
             var agent = UserAgentParser.parse(userAgent);
-            deviceTrustService.trustDevice(
-                    user.getId(),
-                    agent.getSignature(),
-                    agent.getDeviceName()
-            );
+            deviceTrustService.trustDevice(user.getId(), agent.getSignature(), agent.getDeviceName());
         } catch (Exception ex) {
-            log.warn("LoginOrchestrator: failed to trust device email={} err={}",
-                    user.getEmail(), ex.getMessage());
+            log.warn("LoginOrchestrator: failed to trust device", ex);
         }
 
-        // ---------------------------------------------------------
-        // 7️⃣ Return SUCCESS response
-        // ---------------------------------------------------------
+        log.info("LoginOrchestrator: finished for email={}", email);
+
         return AuthenticationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)
                 .accessToken(result.getAccessToken())
@@ -236,54 +391,5 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
                 .message("Login successful")
                 .user(UserResponse.from(user))
                 .build();
-
     }
-
-    // =====================================================================
-    // Helper Methods
-    // =====================================================================
-
-//    @Transactional
-//    private MfaResult handleMfaFlow(User user) {
-//        // 1. Generate OTP
-//        String otp = generateOtp();
-//        LocalDateTime expiresAt = LocalDateTime.now().plusMinutes(5);
-//
-//        MfaToken token = new MfaToken();
-//        token.setUser(user);
-//        token.setOtp(otp);
-//        token.setExpiresAt(expiresAt);
-//
-//        mfaTokenRepository.save(token);
-//
-//        // 2. Send OTP asynchronously (AFTER COMMIT)
-//        afterCommitExecutor.run(() ->
-//                emailService.sendMfaOtpEmail(user.getEmail(), otp)
-//        );
-//
-//        log.info("MfaService: OTP generated & sent for userId={}", user.getId());
-//
-//        return MfaResult.builder()
-//                .outcome(AuthOutcome.OTP_REQUIRED)
-//                .tokenId(token.getId())
-//                .build();
-//    }
-
-//    private MfaResult handleMediumRiskOtp(User user) {
-//
-//        MfaResult mfa = mfaService.handleMediumRiskOtp(user);
-//
-//        if (mfa.getOutcome() == AuthOutcome.RISK_OTP_REQUIRED) {
-//            return MfaResult.builder()
-//                    .tokenId(mfa.getTokenId())
-//                    .outcome(mfa.getOutcome())
-//                    .build();
-//        }
-//        throw new IllegalStateException("Unexpected Risk OTP outcome");
-//    }
-//
-//    private String generateOtp() {
-//        return String.format("%06d", secureRandom.nextInt(1_000_000));
-//    }
-
 }

@@ -1,6 +1,5 @@
 package com.pnm.auth.service.impl.email;
 
-import com.pnm.auth.exception.custom.EmailSendFailedException;
 import com.pnm.auth.service.email.EmailService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;

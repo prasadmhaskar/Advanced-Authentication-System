@@ -41,7 +41,7 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
 
         String token = rawToken.trim();
 
-        log.info("VerifyEmailOrchestrator: started tokenPrefix={}", token.length() > 8 ? token.substring(0,8) : "short");
+        log.info("VerifyEmailOrchestrator: started for tokenPrefix={}", token.length() > 8 ? token.substring(0,8) : "short");
 
         // 1️⃣ Load token
         VerificationToken verificationToken =
@@ -75,6 +75,7 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                     .nextAction(NextAction.LOGIN)
                     .build();
         }
+
         user.setEmailVerified(true);
         verificationToken.setUsedAt(LocalDateTime.now());
 
@@ -83,18 +84,12 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
 
         AuthenticationResult result = tokenService.generateTokens(user);
 
-
-        log.info("VerifyEmailOrchestrator: email verified email={}", user.getEmail());
-
         eventPublisher.publishEvent(
                 new LoginSuccessEvent(
                         user.getId(),
                         user.getEmail(),
                         ip,
                         ua));
-
-        //Record login
-        ipMonitoringService.recordFirstLogin(user.getId(), ip, ua);
 
         //Add to trustedDevice
         try {
@@ -108,6 +103,8 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
             log.warn("VerifyEmailOrchestrator: failed to trust device email={} err={}",
                     user.getEmail(), ex.getMessage());
         }
+
+        log.info("VerifyEmailOrchestrator: finished, verified email={}", user.getEmail());
 
         return EmailVerificationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)

@@ -15,20 +15,27 @@ import org.springframework.stereotype.Service;
 public class PasswordAuthServiceImpl implements PasswordAuthService {
 
     private final PasswordEncoder passwordEncoder;
-    private final LoginActivityService loginActivityService;
+
+    private static final String DUMMY_HASH = "$2a$10$3euPcmQFCiblsZeEu5s7p.9OVHszj5j.M1/.n./6.1./0.1.1.1.";
 
     @Override
-    public void verifyPassword(User user, String rawPassword) {
-
-        log.info("PasswordAuthService: verifying password for email={}", user.getEmail());
-
-        // Check if password matches
-        if (!passwordEncoder.matches(rawPassword, user.getPassword())) {
-
-            log.warn("PasswordAuthService: password mismatch email={}", user.getEmail());
-            throw new InvalidCredentialsException("Wrong password. Please enter the correct password.");
+    public void verifyPassword(User userOrNull, String rawPassword) {
+        // 1. Handling "User Not Found" (Timing Attack Mitigation)
+        if (userOrNull == null) {
+            log.warn("PasswordAuthService: User not found, performing dummy hash check to prevent timing attacks.");
+            // Burn CPU time matching against dummy hash
+            passwordEncoder.matches(rawPassword, DUMMY_HASH);
+            throw new InvalidCredentialsException("Invalid email or password.");
         }
 
-        log.info("PasswordAuthService: password validated for email={}", user.getEmail());
+        log.info("PasswordAuthService: verifying password for email={}", userOrNull.getEmail());
+
+        // 2. Handling "Wrong Password"
+        if (!passwordEncoder.matches(rawPassword, userOrNull.getPassword())) {
+            log.warn("PasswordAuthService: password mismatch email={}", userOrNull.getEmail());
+            throw new InvalidCredentialsException("Invalid email or password.");
+        }
+
+        log.info("PasswordAuthService: password validated for email={}", userOrNull.getEmail());
     }
 }

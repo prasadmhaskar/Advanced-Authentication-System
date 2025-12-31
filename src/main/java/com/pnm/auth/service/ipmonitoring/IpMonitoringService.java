@@ -3,9 +3,6 @@ package com.pnm.auth.service.ipmonitoring;
 
 import com.pnm.auth.dto.response.IpUsageResponse;
 import com.pnm.auth.dto.response.UserIpLogResponse;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -14,7 +11,12 @@ public interface IpMonitoringService {
 
     UserIpLogResponse recordLogin(Long userId, String ip, String userAgent);
 
-    void recordFirstLogin(Long userId, String ip, String userAgent);
+//    void recordNewRegistration(String email, String ip, String userAgent);
+
+
+    void checkRegistrationEligibility(String ip, String userAgent);
+
+    void recordRegistrationSuccess(Long userId, String ip, String userAgent);
 
     UserIpLogResponse fallbackRiskScore(Long userId, String ip, String userAgent, Throwable ex);
 

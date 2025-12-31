@@ -17,5 +17,9 @@ public class ResolveOAuthResult {
     // link required
     private String email;
     private AuthProviderType existingProvider;
+    private String linkToken;
+
+    @Builder.Default
+    private boolean isNewUser = false;
 }
 

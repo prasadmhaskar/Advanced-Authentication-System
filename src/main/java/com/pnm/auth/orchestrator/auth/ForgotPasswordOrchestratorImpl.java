@@ -2,22 +2,19 @@ package com.pnm.auth.orchestrator.auth;
 
 import com.pnm.auth.dto.result.ForgotPasswordResult;
 import com.pnm.auth.domain.entity.User;
-import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.domain.enums.AuthOutcome;
-import com.pnm.auth.exception.custom.EmailSendFailedException;
-import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.auth.VerificationService;
-import com.pnm.auth.util.AfterCommitExecutor;
-import com.pnm.auth.util.Audit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 @RequiredArgsConstructor
@@ -27,7 +24,6 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
     private final UserRepository userRepository;
     private final VerificationService verificationService;
     private final EmailService emailService;
-    private final AfterCommitExecutor afterCommitExecutor;
 
     @Override
     public ForgotPasswordResult requestReset(String rawEmail) {
@@ -54,21 +50,23 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
         // 2️⃣ Create reset token (Standard flow)
         String token = verificationService.createVerificationToken(user, "PASSWORD_RESET");
 
-        CompletableFuture<Boolean> emailResultFuture = new CompletableFuture<>();
-
-        afterCommitExecutor.run(() -> {
-            emailService.sendSetPasswordEmail(user.getEmail(), token)
-                    .thenAccept(emailResultFuture::complete)
-                    .exceptionally(ex -> {
-                        emailResultFuture.complete(false);
-                        return null;
-                    });
-        });
+        // 3️⃣ Send Email Directly
+        CompletableFuture<Boolean> emailResultFuture = emailService.sendSetPasswordEmail(user.getEmail(), token);
 
         boolean emailSent;
         try {
-            emailSent = emailResultFuture.get(2, TimeUnit.SECONDS);
-        } catch (Exception e) {
+            emailSent = emailResultFuture.get(1000, TimeUnit.MILLISECONDS);
+
+        } catch (TimeoutException e) {
+            log.warn("ForgotPasswordOrchestrator: Email timed out. User will receive it eventually.");
+            emailSent = false;
+
+        } catch (ExecutionException e) {
+            log.error("ForgotPasswordOrchestrator: CRITICAL EMAIL FAILURE. Cause: {}", e.getCause().getMessage());
+            emailSent = false;
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             emailSent = false;
         }
 

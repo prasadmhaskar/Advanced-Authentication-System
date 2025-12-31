@@ -9,4 +9,5 @@ import lombok.*;
 @NoArgsConstructor
 public class ResendOtpResponse {
     private Boolean emailSent;
+    private Long newTokenId;
 }
