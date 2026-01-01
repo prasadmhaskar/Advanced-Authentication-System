@@ -180,19 +180,19 @@ public void checkRegistrationEligibility(String ip, String userAgent) {
     if (ip == null) return;
 
     // 2. Check Device Limit
-    DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
-    String signature = deviceInfo.getSignature();
-
-    if (signature != null) {
-        int accountsUsingDevice = repo.countDistinctUsersByDevice(signature);
-        //This is just a sample code for restricting multiple users per device. We have kept limit to 20 because,
-        // we have added basic UserAgentParser logic hence, different clients can have same device signature.
-        // In future we can replace this with frontEnd fingerprint library which generates unique hash for different users.
-        if (accountsUsingDevice >= 20) {
-            log.warn("Registration blocked: Device {} has already created {} accounts.", signature, accountsUsingDevice);
-            throw new RegistrationFailedException("Registration limit reached for this device.");
-        }
-    }
+//    DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
+//    String signature = deviceInfo.getSignature();
+//
+//    if (signature != null) {
+//        int accountsUsingDevice = repo.countDistinctUsersByDevice(signature);
+//        //This is just a sample code for restricting multiple users per device. We have kept limit to 20 because,
+//        // we have added basic UserAgentParser logic hence, different clients can have same device signature.
+//        // In future we can replace this with frontEnd fingerprint library which generates unique hash for different users.
+//        if (accountsUsingDevice >= 20) {
+//            log.warn("Registration blocked: Device {} has already created {} accounts.", signature, accountsUsingDevice);
+//            throw new RegistrationFailedException("Registration limit reached for this device.");
+//        }
+//    }
 
     // 1. Check IP Limit
     // CRITICAL: This query must only count DISTINCT emails that were SUCCESSFUL.
@@ -241,8 +241,8 @@ public void checkRegistrationEligibility(String ip, String userAgent) {
                 userId, ip, ex.getMessage());
 
         UserIpLogResponse userIpLogResponse = new UserIpLogResponse();
-        userIpLogResponse.setRiskScore(0);
-        userIpLogResponse.setRiskReason("monitoring_failed");
+        userIpLogResponse.setRiskScore(50);
+        userIpLogResponse.setRiskReason("monitoring_unavailable_caution");
         return userIpLogResponse;
 
     }

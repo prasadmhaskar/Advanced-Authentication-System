@@ -7,6 +7,7 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.entity.VerificationToken;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.event.LoginSuccessEvent;
+import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
@@ -65,6 +66,10 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
 
         // 4️⃣ Verify user
         User user = verificationToken.getUser();
+
+        if (!user.isActive()) {
+            throw new AccountBlockedException("Account is blocked.");
+        }
 
         if (user.getEmailVerified()) {
             log.info("VerifyEmailOrchestrator: email already verified email={}", user.getEmail());
