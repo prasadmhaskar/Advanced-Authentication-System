@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.security.SecureRandom;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -24,6 +25,7 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
     private final UserRepository userRepository;
     private final VerificationService verificationService;
     private final EmailService emailService;
+    private final SecureRandom secureRandom;
 
     @Override
     public ForgotPasswordResult requestReset(String rawEmail) {
@@ -35,7 +37,9 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
 
         if (userOpt.isEmpty()) {
             // Log it internally for security monitoring
-            log.warn("ForgotPasswordOrchestrator: email not found={}", email);
+            log.warn("ForgotPasswordOrchestrator: account not found with email={}", email);
+
+            try { Thread.sleep(secureRandom.nextInt(200) + 300); } catch (InterruptedException ignored) {}
 
             // Return a successful response to the API consumer
             return ForgotPasswordResult.builder()

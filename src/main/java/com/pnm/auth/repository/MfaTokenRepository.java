@@ -42,4 +42,8 @@ public interface MfaTokenRepository extends JpaRepository<MfaToken, Long> {
     """)
     int deleteExpiredUnusedTokensBefore(@Param("cutoff") LocalDateTime cutoff);
 
+    @Modifying
+    @Query("UPDATE MfaToken t SET t.used = true WHERE t.id = :id AND t.used = false")
+    int markAsUsed(@Param("id") Long id);
+
 }

@@ -185,7 +185,10 @@ public void checkRegistrationEligibility(String ip, String userAgent) {
 
     if (signature != null) {
         int accountsUsingDevice = repo.countDistinctUsersByDevice(signature);
-        if (accountsUsingDevice >= 3) {
+        //This is just a sample code for restricting multiple users per device. We have kept limit to 20 because,
+        // we have added basic UserAgentParser logic hence, different clients can have same device signature.
+        // In future we can replace this with frontEnd fingerprint library which generates unique hash for different users.
+        if (accountsUsingDevice >= 20) {
             log.warn("Registration blocked: Device {} has already created {} accounts.", signature, accountsUsingDevice);
             throw new RegistrationFailedException("Registration limit reached for this device.");
         }
@@ -197,6 +200,7 @@ public void checkRegistrationEligibility(String ip, String userAgent) {
     int accountsUsingIp = repo.countDistinctUsersByIp(ip);
 
     if (accountsUsingIp >= 20) {
+        //Same here also, different users using same public network will have same public ip. Hence we have kept limit to 20.
         log.warn("Registration blocked: IP {} has already created {} accounts.", ip, accountsUsingIp);
         throw new RegistrationFailedException("Registration limit reached for this ip.");
     }

@@ -33,7 +33,6 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
     private final TokenService tokenService;
     private final ApplicationEventPublisher eventPublisher;
     private final DeviceTrustService deviceTrustService;
-    private final IpMonitoringService ipMonitoringService;
 
     @Override
     @Transactional
@@ -48,20 +47,20 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                 verificationTokenRepository.findByTokenAndUsedAtIsNull(token)
                         .orElseThrow(() -> {
                             log.warn("VerifyEmailOrchestrator: invalid or already used token");
-                            return new InvalidTokenException("Invalid or expired token");
+                            return new InvalidTokenException("Invalid or expired verification link, please resend verification link and try again");
                         });
 
         // 2️⃣ Validate type
         if (!"EMAIL_VERIFICATION".equals(verificationToken.getType())) {
             log.warn("VerifyEmailOrchestrator: token type mismatch expected=EMAIL_VERIFICATION actual={}",
                     verificationToken.getType());
-            throw new InvalidTokenException("Invalid verification token");
+            throw new InvalidTokenException("Invalid verification link, please resend verification link and try again");
         }
 
         // 3️⃣ Validate expiry
         if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
             log.warn("VerifyEmailOrchestrator: token expired");
-            throw new InvalidTokenException("Verification link expired");
+            throw new InvalidTokenException("Verification link expired, please resend verification link and try again");
         }
 
         // 4️⃣ Verify user
@@ -76,11 +75,25 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                     .build();
         }
 
-        user.setEmailVerified(true);
-        verificationToken.setUsedAt(LocalDateTime.now());
 
-        userRepository.save(user);
-        verificationTokenRepository.save(verificationToken);
+        // 4️⃣ ATOMIC LOCK (The Fix)
+        // We only mark the token. We DO NOT update the user here.
+        int rowsUpdated = verificationTokenRepository.markAsUsed(verificationToken.getId());
+
+        if (rowsUpdated == 0) {
+            // RACE CONDITION HIT: Another thread used this token 1ms ago.
+            // We return SUCCESS (Idempotent) but do NOT issue new tokens.
+            log.info("VerifyEmailOrchestrator: Race condition caught. Token already used.");
+            return EmailVerificationResult.builder()
+                    .outcome(AuthOutcome.SUCCESS)
+                    .email(user.getEmail())
+                    .nextAction(NextAction.LOGIN)
+                    .build();
+        }
+
+        // 5️⃣ Update User (Since we won the lock)
+        user.setEmailVerified(true);
+        userRepository.save(user); // Standard JPA save
 
         AuthenticationResult result = tokenService.generateTokens(user);
 
@@ -94,11 +107,7 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
         //Add to trustedDevice
         try {
             var agent = UserAgentParser.parse(ua);
-            deviceTrustService.trustDevice(
-                    user.getId(),
-                    agent.getSignature(),
-                    agent.getDeviceName()
-            );
+            deviceTrustService.trustDevice(user.getId(), agent.getSignature(), agent.getDeviceName());
         } catch (Exception ex) {
             log.warn("VerifyEmailOrchestrator: failed to trust device email={} err={}",
                     user.getEmail(), ex.getMessage());

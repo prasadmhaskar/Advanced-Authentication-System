@@ -46,4 +46,9 @@ AND t.usedAt IS NULL
     int deleteExpiredUnusedTokensBefore(@Param("cutoff") LocalDateTime cutoff);
 
 
+    // VerificationTokenRepository.java
+    @Modifying
+    @Query("UPDATE VerificationToken t SET t.usedAt = CURRENT_TIMESTAMP WHERE t.id = :id AND t.usedAt IS NULL")
+    int markAsUsed(@Param("id") Long id);
+
 }

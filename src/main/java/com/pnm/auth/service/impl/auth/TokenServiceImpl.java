@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -29,13 +30,23 @@ public class TokenServiceImpl implements TokenService {
     private Long jwtRefreshExpiration;
 
     @Override
+    @Transactional
     public AuthenticationResult generateTokens(User user) {
 
         log.info("TokenService: generating tokens for email={}", user.getEmail());
 
         try {
-            // 1) Invalidate OLD refresh tokens
-            refreshTokenRepository.invalidateAllForUser(user.getId());
+            // ✅ ADDED: Session Capping Logic (Max 5)
+            long activeSessions = refreshTokenRepository.countByUserId(user.getId());
+
+            if (activeSessions >= 5) {
+                // Queue full: Remove the oldest session to make room
+                refreshTokenRepository.findOldestTokenId(user.getId())
+                        .ifPresent(id -> {
+                            refreshTokenRepository.deleteById(id);
+                            log.info("TokenService: limit reached (5), removed oldest session id={}", id);
+                        });
+            }
 
             // 2) Create new access + refresh tokens
             String accessToken = jwtUtil.generateAccessToken(user);
@@ -51,7 +62,6 @@ public class TokenServiceImpl implements TokenService {
             token.setInvalidated(false);
 
             refreshTokenRepository.save(token);
-
 
             log.info("TokenService: tokens generated successfully for user={}", user.getEmail());
 

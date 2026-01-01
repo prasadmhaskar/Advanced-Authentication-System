@@ -1,26 +1,25 @@
 package com.pnm.auth.orchestrator.auth;
 
-import com.pnm.auth.dto.response.UserResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.domain.entity.RefreshToken;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
-import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.TokenGenerationException;
 import com.pnm.auth.repository.RefreshTokenRepository;
-import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.service.audit.AuditService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.auth.TokenService;
-import com.pnm.auth.util.Audit;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -28,10 +27,13 @@ import java.time.LocalDateTime;
 public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
     private final RefreshTokenRepository refreshTokenRepository;
-    private final JwtUtil jwtUtil;
     private final TokenService tokenService;
     private final LoginActivityService loginActivityService;
     private final AuditService auditService;
+
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+
 
     @Override
     @Transactional
@@ -52,59 +54,59 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
             throw new InvalidTokenException("Refresh token expired");
         }
 
-        // 3️⃣ Reuse detection (CRITICAL SECURITY)
+        // 3️⃣ Reuse detection with GRACE PERIOD (Redis)
         if (stored.isUsed()) {
-            log.error("RefreshTokenOrchestrator: TOKEN REUSE DETECTED userId={}", user.getId());
 
+            // ✅ CHECK REDIS: Is this a network retry?
+            String graceKey = "refresh_grace:" + rawToken;
+            String cachedTokens = redisTemplate.opsForValue().get(graceKey);
+
+            if (cachedTokens != null) {
+                log.info("RefreshTokenOrchestrator: Grace period hit. Returning cached tokens for userId={}", user.getId());
+                try {
+                    // Return the tokens we generated 1 second ago
+                    return objectMapper.readValue(cachedTokens, AuthenticationResult.class);
+                } catch (Exception e) {
+                    log.error("Failed to parse cached tokens", e);
+                }
+            }
+
+            // ❌ NO GRACE ENTRY FOUND: This is a real theft attempt!
+            log.error("RefreshTokenOrchestrator: TOKEN REUSE DETECTED (No Grace Period) userId={}", user.getId());
+
+            // Nuke ALL sessions for security
             refreshTokenRepository.invalidateAllForUser(user.getId());
 
-            auditService.record(
-                    AuditAction.REFRESH_TOKEN_REUSE,
-                    user.getId(),
-                    user.getId(),
-                    "Refresh token reuse detected",
-                    null, null
-            );
-
-            throw new InvalidCredentialsException(
-                    "Session compromised. Please login again."
-            );
+            auditService.record(AuditAction.REFRESH_TOKEN_REUSE, user.getId(), user.getId(), "Token reuse detected", null, null);
+            throw new InvalidCredentialsException("Session compromised. Please login again.");
         }
 
-        // 4️⃣ Rotate token (ONLY place for try–catch)
+        // 4️⃣ Rotate token
         try {
+            // Mark old token as used
             stored.setUsed(true);
             refreshTokenRepository.save(stored);
 
-            AuthenticationResult tokens = tokenService.generateTokens(user);
+            // Generate new tokens (Cap logic happens inside here automatically)
+            AuthenticationResult result = tokenService.generateTokens(user);
 
-            // Best effort logging
+            // ✅ SAVE TO REDIS (Grace Period: 60 Seconds)
+            // If the user retries with 'rawToken' within 60s, we return 'result' immediately.
+            String graceKey = "refresh_grace:" + rawToken;
+            String jsonResult = objectMapper.writeValueAsString(result);
+
+            redisTemplate.opsForValue().set(graceKey, jsonResult, 60, TimeUnit.SECONDS);
+
+            // Log success
             try {
                 loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
-            } catch (Exception ex) {
-                log.warn("RefreshTokenOrchestrator: activity log failed userId={}", user.getId());
-            }
+            } catch (Exception ignored) {}
 
-            log.info("RefreshTokenOrchestrator: completed userId={}", user.getId());
-
-            return AuthenticationResult.builder()
-                    .outcome(AuthOutcome.TOKEN_REFRESHED)
-                    .accessToken(tokens.getAccessToken())
-                    .refreshToken(tokens.getRefreshToken())
-                    .user(UserResponse.from(user))
-                    .message("Token refreshed successfully")
-                    .build();
+            return result;
 
         } catch (Exception ex) {
-            log.error("RefreshTokenOrchestrator: rotation failed userId={} msg={}",
-                    user.getId(), ex.getMessage(), ex);
-
-            loginActivityService.recordFailure(
-                    user.getEmail(),"Refresh token rotation failed", ip, userAgent);
-
-            throw new TokenGenerationException(
-                    "Unable to refresh token. Please login again.",
-                    ex);
+            log.error("RefreshTokenOrchestrator: rotation failed", ex);
+            throw new TokenGenerationException("Unable to refresh token", ex);
         }
     }
 

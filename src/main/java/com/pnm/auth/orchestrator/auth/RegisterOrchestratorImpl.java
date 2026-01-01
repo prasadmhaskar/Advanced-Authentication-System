@@ -129,8 +129,10 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         String email = request.getEmail().trim().toLowerCase();
         log.info("RegisterOrchestrator: started for email={}", email);
 
-        // 1️⃣ PREVENTATIVE CHECK (Read-Only)
-        // If they are over limit, we throw exception HERE.
+        // 1️⃣ PREVENTATIVE CHECK (For restricting multiple accounts registration per device)
+        //This is just a basic check code for restricting multiple users per device. We have kept limit to 20 because,
+        // we have added basic UserAgentParser logic. Hence, different clients can have same device signature.
+        // In future we can replace this with frontEnd fingerprint library which generates unique hash for different users.
         ipMonitoringService.checkRegistrationEligibility(ip, ua);
 
         // 1️⃣ Check if user exists (Privacy-First Handling)

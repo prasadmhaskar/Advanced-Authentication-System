@@ -16,13 +16,23 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     void deleteByToken(String token);
 
-    void deleteAllByUserId(Long id);
-
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
     UPDATE RefreshToken rt
     SET rt.invalidated = true
     WHERE rt.user.id = :userId""")
     void invalidateAllForUser(@Param("userId") Long userId);
+
+    // 1. Count active sessions for a user
+    @Query("SELECT COUNT(t) FROM RefreshToken t WHERE t.user.id = :userId")
+    long countByUserId(@Param("userId") Long userId);
+
+    // 2. Find the oldest session ID (to delete it)
+    @Query("SELECT t.id FROM RefreshToken t WHERE t.user.id = :userId ORDER BY t.createdAt ASC LIMIT 1")
+    Optional<Long> findOldestTokenId(@Param("userId") Long userId);
+
+    @Modifying
+    @Query("DELETE FROM RefreshToken t WHERE t.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId); // Optional: for "Logout All"
 
 }

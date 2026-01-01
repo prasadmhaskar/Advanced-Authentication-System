@@ -69,8 +69,10 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
         }
 
         // 5️⃣ Mark OTP as used
-        token.setUsed(true);
-        mfaTokenRepository.save(token);
+        int rowsUpdated = mfaTokenRepository.markAsUsed(token.getId());
+        if (rowsUpdated == 0){
+            throw new InvalidTokenException("OTP already used");
+        }
 
         // 6️⃣ Record success
         loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
