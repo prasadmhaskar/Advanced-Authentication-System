@@ -25,7 +25,8 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
     private final UserRepository userRepository;
     private final VerificationService verificationService;
     private final EmailService emailService;
-    private final SecureRandom secureRandom;
+
+    private final SecureRandom secureRandom = new SecureRandom();
 
     @Override
     public ForgotPasswordResult requestReset(String rawEmail) {

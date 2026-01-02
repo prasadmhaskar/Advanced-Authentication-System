@@ -29,7 +29,9 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
         // We want to rate limit EVERY request to the API.
         // Only skip static resources or health checks if necessary.
         String path = request.getRequestURI();
-        return path.startsWith("/actuator") || path.startsWith("/favicon.ico");
+
+        return path.startsWith("/actuator") || path.startsWith("/favicon.ico") ||
+                path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui");
     }
 
     @Override

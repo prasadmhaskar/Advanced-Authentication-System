@@ -84,10 +84,14 @@ public class SecurityConfig {
                                 "/api/auth/otp/verify",
                                 "/api/auth/otp/resend",
                                 "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
                                 "/api/auth/setup-password",
                                 "/api/auth/link-oauth",
                                 "/oauth2/**",
-                                "/login/oauth2/**"
+                                "/login/oauth2/**",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
