@@ -43,7 +43,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 path.startsWith("/api/auth/forgot-password") ||
                 path.startsWith("/api/auth/reset-password") ||
                 path.startsWith("/api/auth/link-oauth") ||
-                path.startsWith("/api/auth/setup-password");
+                path.startsWith("/api/auth/setup-password") ||
+                path.equals("/error") ||
+                path.equals("/favicon.ico");
 
         if (skip) {
             log.info("JwtAuthenticationFilter: Skipping filter for path={}", path);

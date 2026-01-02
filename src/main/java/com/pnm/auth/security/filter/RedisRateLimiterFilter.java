@@ -30,7 +30,8 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
         // Only skip static resources or health checks if necessary.
         String path = request.getRequestURI();
 
-        return path.startsWith("/actuator") || path.startsWith("/favicon.ico") ||
+        return path.startsWith("/actuator") ||
+                path.startsWith("/favicon.ico") ||
                 path.startsWith("/v3/api-docs") || path.startsWith("/swagger-ui");
     }
 

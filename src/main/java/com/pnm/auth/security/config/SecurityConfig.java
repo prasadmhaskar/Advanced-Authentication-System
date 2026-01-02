@@ -83,16 +83,19 @@ public class SecurityConfig {
                                 "/api/auth/refresh",
                                 "/api/auth/otp/verify",
                                 "/api/auth/otp/resend",
-                                "/api/auth/forgot-password",
-                                "/api/auth/reset-password",
+                                "/api/auth/forgot-password/**",
+                                "/api/auth/reset-password/**",
                                 "/api/auth/setup-password",
                                 "/api/auth/link-oauth",
                                 "/oauth2/**",
                                 "/login/oauth2/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html"
+                                "/swagger-ui.html",
+                                "/actuator/**",
+                                "/favicon.ico"
                         ).permitAll()
+                        .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated()
                 )
 
@@ -117,20 +120,6 @@ public class SecurityConfig {
                 // UserDetails service for AuthenticationManager
                 // -----------------------------------------------------
                 .userDetailsService(userDetailsServiceImpl);
-
-// Register filters (correct order)
-//// 1. Request context (MDC, IP, UA)
-//        http.addFilterBefore(requestLoggingFilter, UsernamePasswordAuthenticationFilter.class);
-//// 2. Rate limiter (needs IP, path, MDC)
-//        http.addFilterAfter(redisRateLimiterFilter, RequestLoggingFilter.class);
-//// 3. Block invalid HTTP methods
-//        http.addFilterAfter(blockHttpMethodsFilter, RedisRateLimiterFilter.class);
-//// 4. OAuth redirect validation
-//        http.addFilterAfter(oauthRedirectValidationFilter, RedisRateLimiterFilter.class);
-//// 5. JWT authentication
-//        http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
-//// 6. Security headers (last)
-//        http.addFilterAfter(securityHeadersFilter, JwtAuthenticationFilter.class);
 
         // ---------------------------
 // Register filters (Robust Anchoring)
@@ -234,5 +223,6 @@ public class SecurityConfig {
         log.info("SecurityConfig: Creating BCryptPasswordEncoder bean");
         return new BCryptPasswordEncoder();
     }
+
 }
 

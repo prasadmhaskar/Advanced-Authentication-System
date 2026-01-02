@@ -7,6 +7,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -16,17 +17,24 @@ public class RedisRateLimiterServiceImpl implements RedisRateLimiterService {
     private final StringRedisTemplate redisTemplate;
 
     @Override
-    public boolean isAllowed(String key, int limit, int windowSeconds) {
+    public boolean isAllowed(String key, int maxRequests, int windowSeconds) {
+        try {
+            // 1. Increment counter
+            Long currentCount = redisTemplate.opsForValue().increment(key);
 
-        String redisKey = "rate_limit:" + key;
+            // 2. Set expiry if this is the first request
+            if (currentCount != null && currentCount == 1) {
+                redisTemplate.expire(key, windowSeconds, TimeUnit.SECONDS);
+            }
 
-        Long count = redisTemplate.opsForValue().increment(redisKey);
+            // 3. Check limit
+            return currentCount != null && currentCount <= maxRequests;
 
-        if (count != null && count == 1) {
-            // First request → set expiration window
-            redisTemplate.expire(redisKey, Duration.ofSeconds(windowSeconds));
+        } catch (Exception e) {
+            // 🚨 RESILIENCE FIX: Fail Open
+            // If Redis is down, we allow traffic rather than crashing the whole app.
+            log.error("Rate Limiter Failed (Redis Down?): {}", e.getMessage());
+            return true; // ✅ Allow request
         }
-
-        return count != null && count <= limit;
     }
 }
