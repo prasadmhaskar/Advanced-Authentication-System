@@ -266,16 +266,27 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         Optional<User> userOpt = userValidationService.findUserByEmail(email);
         User user = userOpt.orElse(null);
 
-        // ---------------------------------------------------------
-        // 2️⃣ Verify Password (CRITICAL SECURITY STEP)
-        // ---------------------------------------------------------
-        // If user is null, this performs a dummy hash check to prevent timing attacks.
-        // If password is wrong, it throws InvalidCredentialsException.
-        try {
-            passwordAuthService.verifyPassword(user, request.getPassword());
-        } catch (InvalidCredentialsException ex) {
-            loginActivityService.recordFailure(email, "Invalid email or password", ip, userAgent);
-            throw ex;
+        // 🚨 SPECIAL LOGIC: Handle Pure OAuth Users (Case 2)
+        // If the user exists but has NO password (e.g., registered via Google),
+        // checking the password is futile—it will always fail.
+        // Instead, we SKIP the check so the flow falls through to "Step 4: Provider Check",
+        // which correctly tells them: "Link your account" or "Use Google".
+        boolean isPasswordSet = (user != null && user.getPassword() != null);
+
+        // 2️⃣ Verify Password (Only if a password actually exists)
+        if (user == null || isPasswordSet) {
+            try {
+                // If user is null, this runs a dummy hash (Timing Attack Protection)
+                // If user has password, this verifies it.
+                passwordAuthService.verifyPassword(user, request.getPassword());
+            } catch (InvalidCredentialsException ex) {
+                loginActivityService.recordFailure(email, "Invalid email or password", ip, userAgent);
+                throw ex;
+            }
+        } else {
+            // User exists but has NO password. We skip verification to allow
+            // the "Link Account" logic (Step 4) to take over.
+            log.info("LoginOrchestrator: Pure OAuth user detected (no password). Skipping password check to prompt linking.");
         }
 
         // ⭐ Security Note: If we reach here, the User exists AND Password is correct.

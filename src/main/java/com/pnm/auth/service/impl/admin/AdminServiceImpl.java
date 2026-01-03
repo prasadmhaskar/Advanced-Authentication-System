@@ -38,6 +38,9 @@ public class AdminServiceImpl implements AdminService {
     private final UserRepository userRepository;
     private final LoginActivityRepository loginActivityRepository;
 
+    public record UnblockUserResult(String code, String message) {}
+    public record BlockUserResult(String code, String message) {}
+
     // ============================================================
     //  1. GET USERS WITH FILTERS + PAGINATION
     // ============================================================
@@ -107,7 +110,7 @@ public class AdminServiceImpl implements AdminService {
             @CacheEvict(value = "users.list", allEntries = true)
     })
     @Audit(action = AuditAction.ADMIN_BLOCK_USER, description = "Admin blocked a user", targetUserArgIndex = 0)
-    public void blockUser(Long id) {
+    public BlockUserResult blockUser(Long id) {
 
         log.info("AdminService.blockUser(): started id={}", id);
 
@@ -118,14 +121,15 @@ public class AdminServiceImpl implements AdminService {
                 });
 
         if (!user.isActive()) {
-            log.info("AdminService.blockUser(): user already blocked id={}", id);
-            return;
+            log.info("AdminService.blockUser(): user is already blocked id={}", id);
+            return new BlockUserResult("USER_ALREADY_BLOCKED", "User is already blocked");
         }
 
         user.setActive(false);
         userRepository.save(user);
 
-        log.info("AdminService.blockUser(): user blocked id={}", id);
+        log.info("AdminService.blockUser(): user blocked successfully id={}", id);
+        return new BlockUserResult("USER_BLOCKED", "User blocked successfully");
 
     }
 
@@ -140,7 +144,7 @@ public class AdminServiceImpl implements AdminService {
             @CacheEvict(value = "users.list", allEntries = true)
     })
     @Audit(action = AuditAction.ADMIN_UNBLOCK_USER, description = "Admin unblocked a user", targetUserArgIndex = 0)
-    public void unblockUser(Long id) {
+    public UnblockUserResult unblockUser(Long id) {
 
         log.info("AdminService.unblockUser(): started id={}", id);
 
@@ -151,14 +155,16 @@ public class AdminServiceImpl implements AdminService {
                 });
 
         if (user.isActive()) {
-            log.info("AdminService.unblockUser(): user already active id={}", id);
-            return;
+
+            log.info("AdminService.unblockUser(): user is already unblocked id={}", id);
+            return new UnblockUserResult("USER_ALREADY_UNBLOCKED", "User is already unblocked");
         }
 
         user.setActive(true);
         userRepository.save(user);
 
-        log.info("AdminService.unblockUser(): user unblocked id={}", id);
+        log.info("AdminService.unblockUser(): user unblocked successfully id={}", id);
+        return new UnblockUserResult("USER_UNBLOCKED", "User unblocked successfully");
 
     }
 

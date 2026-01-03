@@ -228,7 +228,8 @@ public class AuthController {
                                     "email", result.getEmail(),
                                     "existingProvider", result.getExistingProvider().name(),
                                     "attemptedProvider", result.getAttemptedProvider().name(),
-                                    "nextAction", result.getNextAction().name()
+                                    "nextAction", result.getNextAction().name(),
+                                    "linkToken", result.getLinkToken()
                             )
                     )
             );

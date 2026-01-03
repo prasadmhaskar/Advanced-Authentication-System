@@ -35,7 +35,7 @@ public class User {
             joinColumns = @JoinColumn(name = "user_id")
     )
     @Column(name = "role")
-    private List<String> roles = new ArrayList<>();;
+    private List<String> roles = new ArrayList<>();
 
     @Column(nullable = false)
     private boolean active = true;

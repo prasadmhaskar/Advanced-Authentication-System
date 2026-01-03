@@ -6,6 +6,7 @@ import com.pnm.auth.dto.response.*;
 import com.pnm.auth.service.admin.AdminAnalyticsService;
 import com.pnm.auth.service.admin.AdminService;
 import com.pnm.auth.service.audit.AuditService;
+import com.pnm.auth.service.impl.admin.AdminServiceImpl;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -68,34 +69,36 @@ public class AdminController {
     }
 
     @PatchMapping("/users/{id}/block")
-    public ResponseEntity<ApiResponse<Void>> blockUser(@PathVariable Long id, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<AdminServiceImpl.BlockUserResult>> blockUser(@PathVariable Long id, HttpServletRequest request) {
 
-        log.info("AdminController.blockUser(): Blocking id={}", id);
-        adminService.blockUser(id);
+        log.info("AdminController.blockUser(): started for id={}", id);
 
-        ApiResponse<Void> body = ApiResponse.success(
-                "USER_BLOCKED",
-                "User blocked successfully",
+        AdminServiceImpl.BlockUserResult result = adminService.blockUser(id);
+
+        log.info("AdminController.blockUser(): finished for id={}", id);
+        ApiResponse<AdminServiceImpl.BlockUserResult> body = ApiResponse.success(
+                result.code(),
+                result.message(),
                 null,
                 request.getRequestURI()
         );
-
         return ResponseEntity.ok(body);
     }
 
     @PatchMapping("/users/{id}/unblock")
-    public ResponseEntity<ApiResponse<Void>> unblockUser(@PathVariable Long id, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<AdminServiceImpl.UnblockUserResult>> unblockUser(@PathVariable Long id, HttpServletRequest request) {
 
-        log.info("AdminController.unblockUser(): Unblocking id={}", id);
-        adminService.unblockUser(id);
+        log.info("AdminController.unblockUser(): started for id={}", id);
 
-        ApiResponse<Void> body = ApiResponse.success(
-                "USER_UNBLOCKED",
-                "User unblocked successfully",
+        AdminServiceImpl.UnblockUserResult result = adminService.unblockUser(id);
+
+        log.info("AdminController.unblockUser(): finished for id={}", id);
+        ApiResponse<AdminServiceImpl.UnblockUserResult> body = ApiResponse.success(
+                result.code(),
+                result.message(),
                 null,
                 request.getRequestURI()
         );
-
         return ResponseEntity.ok(body);
     }
 
