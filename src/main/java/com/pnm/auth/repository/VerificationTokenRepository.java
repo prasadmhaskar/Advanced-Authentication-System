@@ -51,4 +51,6 @@ AND t.usedAt IS NULL
     @Query("UPDATE VerificationToken t SET t.usedAt = CURRENT_TIMESTAMP WHERE t.id = :id AND t.usedAt IS NULL")
     int markAsUsed(@Param("id") Long id);
 
+    void deleteByUserId(Long userId);
+
 }

@@ -6,10 +6,11 @@ import com.pnm.auth.dto.response.LoginActivityResponse;
 import com.pnm.auth.dto.response.PagedResponse;
 import com.pnm.auth.dto.response.UserAdminResponse;
 import com.pnm.auth.service.impl.admin.AdminServiceImpl;
+import org.springframework.data.domain.Pageable;
 
 public interface AdminService {
 
-    PagedResponse<UserAdminResponse> getUsers(int page, int size, UserFilterRequest filter);
+    PagedResponse<UserAdminResponse> getAllUsers(UserFilterRequest filter, Pageable pageable);
     void deleteUser(Long id);
     AdminServiceImpl.BlockUserResult blockUser(Long id);
     AdminServiceImpl.UnblockUserResult unblockUser(Long id);

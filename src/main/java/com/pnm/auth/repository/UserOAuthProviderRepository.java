@@ -15,5 +15,7 @@ public interface UserOAuthProviderRepository
     );
 
     boolean existsByUserIdAndProviderType(Long userId, AuthProviderType providerType);
+
+    void deleteByUserId(Long userId);
 }
 

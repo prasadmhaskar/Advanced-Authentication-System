@@ -6,11 +6,16 @@ import com.pnm.auth.dto.response.*;
 import com.pnm.auth.service.admin.AdminAnalyticsService;
 import com.pnm.auth.service.admin.AdminService;
 import com.pnm.auth.service.audit.AuditService;
+import com.pnm.auth.service.auth.UserPersistenceService;
 import com.pnm.auth.service.impl.admin.AdminServiceImpl;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +24,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
+@Tag(name = "Admin Management", description = "Endpoints for user management and analytics")
 @PreAuthorize("hasRole('ADMIN')")
 @Slf4j
 public class AdminController {
@@ -27,26 +33,23 @@ public class AdminController {
     private final IpMonitoringService ipMonitoringService;
     private final AuditService auditService;
     private final AdminAnalyticsService adminAnalyticsService;
+    private final UserPersistenceService userPersistenceService;
 
     @GetMapping("/users")
-    public ResponseEntity<ApiResponse<PagedResponse<UserAdminResponse>>> getUsers(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size,
-            UserFilterRequest filter,
-            HttpServletRequest request
+    @Operation(summary = "Get Users List", description = "Fetch users with pagination, sorting, and filtering.")
+    public ResponseEntity<ApiResponse<PagedResponse<UserAdminResponse>>> getAllUsers(
+            // @ParameterObject flattens the UserFilterRequest into query params (search, role, etc.)
+            @ParameterObject UserFilterRequest filter,
+            @ParameterObject Pageable pageable
     ) {
-        log.info("AdminController.getUsers(): Started with page={} size={}", page, size);
+        PagedResponse<UserAdminResponse> users = adminService.getAllUsers(filter, pageable);
 
-        PagedResponse<UserAdminResponse> response = adminService.getUsers(page, size, filter);
-
-        ApiResponse<PagedResponse<UserAdminResponse>> body = ApiResponse.success(
+        return ResponseEntity.ok(ApiResponse.success(
                 "USERS_FETCHED",
                 "Users fetched successfully",
-                response,
-                request.getRequestURI()
-        );
-
-        return ResponseEntity.ok(body);
+                users,
+                "/api/admin/users"
+        ));
     }
 
 
@@ -103,40 +106,37 @@ public class AdminController {
     }
 
     @GetMapping("/users/login-activity")
+    @Operation(summary = "Get Login Activities", description = "Fetch login logs with filtering and pagination")
     public ResponseEntity<ApiResponse<PagedResponse<LoginActivityResponse>>> getLoginActivities(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            LoginActivityFilterRequest filter,
+            @ParameterObject LoginActivityFilterRequest filter,
             HttpServletRequest request
     ) {
-        log.info("AdminController.getLoginActivities(): page={} size={}", page, size);
+        PagedResponse<LoginActivityResponse> response = adminService.getLoginActivities(page, size, filter);
 
-        PagedResponse<LoginActivityResponse> response =
-                adminService.getLoginActivities(page, size, filter);
-
-        ApiResponse<PagedResponse<LoginActivityResponse>> body = ApiResponse.success(
+        return ResponseEntity.ok(ApiResponse.success(
                 "LOGIN_ACTIVITIES_FETCHED",
                 "Login activities fetched successfully",
                 response,
                 request.getRequestURI()
-        );
-
-        return ResponseEntity.ok(body);
+        ));
     }
 
-
     @GetMapping("/users/login-activity/{id}")
-    public ResponseEntity<ApiResponse<LoginActivityResponse>> getActivityById(HttpServletRequest request, @PathVariable Long id) {
-
+    @Operation(summary = "Get Login Activity By ID", description = "Fetch a single login activity detail")
+    public ResponseEntity<ApiResponse<LoginActivityResponse>> getActivityById(
+            @PathVariable Long id,
+            HttpServletRequest request
+    ) {
         LoginActivityResponse activityById = adminService.getActivityById(id);
 
-        ApiResponse<LoginActivityResponse> body = ApiResponse.success(
-                "LOGIN_ACTIVITY_BY_ID_FETCHED",
-                "Login activity for id=" + id,
+        return ResponseEntity.ok(ApiResponse.success(
+                "LOGIN_ACTIVITY_FETCHED",
+                "Login activity fetched for id=" + id,
                 activityById,
-                request.getRequestURI());
-
-        return ResponseEntity.ok(body);
+                request.getRequestURI()
+        ));
     }
 
 

@@ -8,9 +8,12 @@ import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.orchestrator.auth.*;
 import com.pnm.auth.service.device.DeviceTrustService;
+import com.pnm.auth.service.impl.user.UserDetailsImpl;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.UserAgentParser;
+import com.sun.security.auth.UserPrincipal;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -45,6 +49,7 @@ public class AuthController {
     private final LogoutOrchestrator logoutOrchestrator;
     private final LinkOAuthOrchestrator linkOAuthOrchestrator;
     private final ChangePasswordOrchestrator changePasswordOrchestrator;
+    private final AccountDeleteOrchestrator accountDeleteOrchestrator;
 
 
     @PostMapping("/register")
@@ -559,7 +564,25 @@ public class AuthController {
                 null,
                 request.getRequestURI()
         );
-
         return ResponseEntity.ok(body);
+    }
+
+
+    @DeleteMapping("/me/delete-account")
+    @Operation(summary = "Delete My Account", description = "Permanently delete account. Requires password for email users.")
+    public ResponseEntity<ApiResponse<Void>> deleteMyAccount(
+            @AuthenticationPrincipal UserDetailsImpl currentUser,
+            @RequestBody(required = false) @Valid DeleteAccountRequest request,
+            HttpServletRequest servletRequest
+    ) {
+
+        accountDeleteOrchestrator.deleteMyAccount(currentUser.getId(), request != null ? request.getPassword() : null);
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "ACCOUNT_DELETED",
+                "Your account has been permanently deleted.",
+                null,
+                servletRequest.getRequestURI()
+        ));
     }
 }

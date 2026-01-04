@@ -15,6 +15,7 @@ public enum AuditAction {
     OAUTH_LOGIN,
     OAUTH_LINK,
     PROFILE_UPDATE,
+    SELF_DELETE,
 
     // -----------------------
     // TRUSTED DEVICE ACTIONS

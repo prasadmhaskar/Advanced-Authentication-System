@@ -31,9 +31,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Query("SELECT t.id FROM RefreshToken t WHERE t.user.id = :userId ORDER BY t.createdAt ASC LIMIT 1")
     Optional<Long> findOldestTokenId(@Param("userId") Long userId);
 
-    @Modifying
-    @Query("DELETE FROM RefreshToken t WHERE t.user.id = :userId")
-    void deleteByUserId(@Param("userId") Long userId); // Optional: for "Logout All"
+//    @Modifying
+//    @Query("DELETE FROM RefreshToken t WHERE t.user.id = :userId")
+    void deleteByUserId(@Param("userId") Long userId);
 
     @Modifying
     @Query("UPDATE RefreshToken t SET t.used = true WHERE t.token = :token AND t.used = false")

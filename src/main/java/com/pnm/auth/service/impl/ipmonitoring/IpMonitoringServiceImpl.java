@@ -1,5 +1,6 @@
 package com.pnm.auth.service.impl.ipmonitoring;
 
+import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.dto.result.DeviceInfoResult;
 import com.pnm.auth.dto.response.GeoLocationResponse;
 import com.pnm.auth.dto.response.IpUsageResponse;
@@ -9,6 +10,7 @@ import com.pnm.auth.exception.custom.RegistrationFailedException;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
 import com.pnm.auth.repository.TrustedDeviceRepository;
 import com.pnm.auth.repository.UserIpLogRepository;
+import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.geolocation.GeoIpService;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.util.UserAgentParser;
@@ -17,6 +19,7 @@ import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +38,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
     private final UserIpLogRepository repo;
     private final GeoIpService geoIpService;
     private final TrustedDeviceRepository trustedDeviceRepository;
+    private final UserRepository userRepository;
 
     @Value("${auth.risk.threshold.high}")
     private int highRiskScore;
@@ -58,6 +62,10 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
             log.warn("IpMonitoringService.recordLogin(): invalid parameters userId={} ip={}", userId, ip);
             return null;
         }
+
+        String userEmail = userRepository.findById(userId)
+                .map(User::getEmail)
+                .orElse("UNKNOWN_OR_DELETED");
 
         // ---------------------------
         // 1) Known IP / Device checks
@@ -171,7 +179,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
 
         log.info("IpMonitoringService.recordLogin(): completed userId={} ip={}", userId, ip);
 
-        return UserIpLogResponse.fromEntity(saved);
+        return UserIpLogResponse.fromEntity(saved, userEmail);
     }
 
 @Transactional(readOnly = true)
@@ -258,9 +266,13 @@ public void checkRegistrationEligibility(String ip, String userAgent) {
 
         log.info("IpMonitoringService.getRecentIpsForUser(): started userId={}", userId);
 
+        String userEmail = userRepository.findById(userId)
+                .map(User::getEmail)
+                .orElse("UNKNOWN_OR_DELETED");
+
         List<UserIpLogResponse> result = repo.findTop10ByUserIdOrderByLoginTimeDesc(userId)
                 .stream()
-                .map(UserIpLogResponse::fromEntity)
+                .map(logEntry -> UserIpLogResponse.fromEntity(logEntry, userEmail))
                 .collect(Collectors.toList());
 
         log.info("IpMonitoringService.getRecentIpsForUser(): returning {} entries for userId={}",
@@ -284,9 +296,16 @@ public void checkRegistrationEligibility(String ip, String userAgent) {
                     return new ResourceNotFoundException("IP log entry not found with id=" + id);
                 });
 
+        String userEmail = null;
+        if (entity.getUserId() != null) {
+            userEmail = userRepository.findById(entity.getUserId())
+                    .map(User::getEmail)
+                    .orElse("UNKNOWN_OR_DELETED");
+        }
+
         log.info("IpMonitoringService.getById(): completed id={}", id);
 
-        return UserIpLogResponse.fromEntity(entity);
+        return UserIpLogResponse.fromEntity(entity, userEmail);
     }
 
     // -------------------------------------------------------
@@ -298,13 +317,19 @@ public void checkRegistrationEligibility(String ip, String userAgent) {
 
         log.info("IpMonitoringService.countIpUsage(): started ip={}", ip);
 
-        int count = repo.countByIpAddress(ip);
+        int count = repo.countDistinctUsersByIp(ip);
+
+        List<String> emails = repo.findDistinctEmailsByIp(
+                ip,
+                PageRequest.of(0, 20)
+        );
 
         log.info("IpMonitoringService.countIpUsage(): ip={} used by {} accounts", ip, count);
 
         return IpUsageResponse.builder()
                 .ipAddress(ip)
                 .accountCount(count)
+                .associatedEmails(emails)
                 .build();
     }
 }

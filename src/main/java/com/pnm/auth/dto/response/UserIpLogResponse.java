@@ -13,6 +13,7 @@ public class UserIpLogResponse {
 
     private Long id;
     private Long userId;
+    private String email;
     private String ipAddress;
     private String userAgent;
     private LocalDateTime loginTime;
@@ -28,10 +29,11 @@ public class UserIpLogResponse {
     private String deviceName;
 
 
-    public static UserIpLogResponse fromEntity(UserIpLog entity) {
+    public static UserIpLogResponse fromEntity(UserIpLog entity, String email) {
         return UserIpLogResponse.builder()
                 .id(entity.getId())
                 .userId(entity.getUserId())
+                .email(email)
                 .ipAddress(entity.getIpAddress())
                 .userAgent(entity.getUserAgent())
                 .loginTime(entity.getLoginTime())
