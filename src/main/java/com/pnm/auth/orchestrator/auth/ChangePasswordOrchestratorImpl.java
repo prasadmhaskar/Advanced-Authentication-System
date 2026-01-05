@@ -14,6 +14,7 @@ import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.BlacklistedTokenStore;
+import com.pnm.auth.web.context.RequestContext;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,9 +42,13 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
     @Caching(evict = {@CacheEvict(value = "users", key = "#accessToken"),
             @CacheEvict(value = "users.list", allEntries = true)})
     @Audit(action = AuditAction.CHANGE_PASSWORD, description = "User password change")
-    public AuthenticationResult changePassword(String accessToken, ChangePasswordRequest request, String ip, String userAgent)
+    public AuthenticationResult changePassword(String accessToken, ChangePasswordRequest request, RequestContext ctx)
     {
-        log.info("ChangePasswordOrchestrator: started");
+
+        String ip = ctx.ip();
+        String userAgent = ctx.userAgent();
+
+        log.info("ChangePasswordOrchestrator.: started for ip={}", ip);
 
         // --------------------------------------------------
         // 1️⃣ Validate access token
@@ -136,7 +141,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
             log.warn("ChangePasswordOrchestrator: failed to record success email={}", email);
         }
 
-        log.info("ChangePasswordOrchestrator: completed successfully email={}", email);
+        log.info("ChangePasswordOrchestrator: completed successfully for ip={} and email={}", ctx.ip(), email);
 
         return AuthenticationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)

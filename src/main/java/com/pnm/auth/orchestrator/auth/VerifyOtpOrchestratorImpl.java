@@ -15,6 +15,7 @@ import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.util.UserAgentParser;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,9 +36,12 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
 
     @Override
     @Transactional
-    public AuthenticationResult verify(OtpVerifyRequest request, String ip, String userAgent) {
+    public AuthenticationResult verify(OtpVerifyRequest request, RequestContext ctx) {
 
-        log.info("VerifyOtpOrchestrator.verify(): started tokenId={}", request.getTokenId());
+        String ip = ctx.ip();
+        String userAgent = ctx.userAgent();
+
+        log.info("VerifyOtpOrchestrator.verify(): started for ip={}", ip);
 
         // 1️⃣ Load OTP token
         MfaToken token = mfaTokenRepository.findByIdAndUsedFalse(request.getTokenId())
@@ -99,7 +103,7 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
         // 8️⃣ Generate tokens
         AuthenticationResult tokens = tokenService.generateTokens(user);
 
-        log.info("VerifyOtpOrchestrator.verify(): completed email={}", user.getEmail());
+        log.info("VerifyOtpOrchestrator.verify(): finished for ip={} and email={}", ip, user.getEmail());
 
         String message = token.isRiskBased()
                 ? "Risk-based OTP verified successfully"

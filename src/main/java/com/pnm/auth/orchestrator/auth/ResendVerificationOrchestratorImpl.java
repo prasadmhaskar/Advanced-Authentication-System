@@ -11,6 +11,7 @@ import com.pnm.auth.service.auth.VerificationService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.redis.RedisRateLimiterService;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -131,9 +132,12 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
 
 
     @Override
-    public ResendVerificationResult resend(String email, String ip, String userAgent) {
+    public ResendVerificationResult resend(String email, RequestContext ctx) {
 
         log.info("ResendVerificationOrchestrator: started for email={}", email);
+
+        String ip = ctx.ip();
+        String userAgent = ctx.userAgent();
 
         // 1️⃣ Find User (Read-only)
         User user = userRepository.findByEmail(email)

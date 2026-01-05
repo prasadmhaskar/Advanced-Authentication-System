@@ -9,6 +9,7 @@ import com.pnm.auth.exception.custom.PasswordResetException;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.login.LoginActivityService;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,7 +30,10 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
 
     @Override
     @Transactional
-    public void reset(ResetPasswordRequest request , String ip, String userAgent) {
+    public void reset(ResetPasswordRequest request , RequestContext ctx) {
+
+        String ip = ctx.ip();
+        String userAgent = ctx.userAgent();
 
         log.info("ResetPasswordOrchestrator.reset(): started for ip={}",ip);
 

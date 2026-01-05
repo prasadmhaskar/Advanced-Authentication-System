@@ -12,6 +12,7 @@ import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.service.audit.AuditService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -36,7 +37,10 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
     @Override
     @Transactional
-    public AuthenticationResult refresh(String rawToken, String ip, String userAgent) {
+    public AuthenticationResult refresh(String rawToken, RequestContext ctx) {
+
+        String ip = ctx.ip();
+        String userAgent = ctx.userAgent();
 
         log.info("RefreshTokenOrchestrator: started for ip={}",ip);
 
