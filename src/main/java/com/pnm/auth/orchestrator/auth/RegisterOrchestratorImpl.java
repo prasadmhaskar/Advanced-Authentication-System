@@ -13,6 +13,7 @@ import com.pnm.auth.service.auth.UserPersistenceService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.impl.auth.UserPersistenceServiceImpl;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -124,10 +125,13 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
     private final IpMonitoringService ipMonitoringService;
 
     @Override
-    public RegistrationResult register(RegisterRequest request, String ip, String ua) {
+    public RegistrationResult register(RegisterRequest request, RequestContext ctx) {
 
         String email = request.getEmail().trim().toLowerCase();
         log.info("RegisterOrchestrator: started for email={}", email);
+
+        String ip = ctx.ip();
+        String ua = ctx.userAgent();
 
         // 1️⃣ PREVENTATIVE CHECK (For restricting multiple accounts registration per device)
         //This is just a basic check code for restricting multiple users per device. We have kept limit to 20 because,

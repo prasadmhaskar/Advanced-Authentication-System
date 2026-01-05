@@ -6,10 +6,12 @@ import com.pnm.auth.security.filter.*;
 import com.pnm.auth.security.oauth.CookieOAuth2AuthorizationRequestRepository;
 import com.pnm.auth.security.oauth.OAuth2SuccessHandler;
 import com.pnm.auth.service.impl.user.UserDetailsServiceImpl;
+import com.pnm.auth.web.filter.RequestContextFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -46,6 +48,8 @@ public class SecurityConfig {
     private final BlockHttpMethodsFilter blockHttpMethodsFilter;
     private final OAuthRedirectValidationFilter oauthRedirectValidationFilter;
     private final CookieOAuth2AuthorizationRequestRepository cookieOAuth2AuthorizationRequestRepository;
+
+    RequestContextFilter requestContextFilter = new RequestContextFilter();
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -125,6 +129,7 @@ public class SecurityConfig {
 // Register filters (Robust Anchoring)
 // ---------------------------
 
+        http.addFilterBefore(requestContextFilter, org.springframework.security.web.access.channel.ChannelProcessingFilter.class);
 // 1. Logging - Run this as early as possible (e.g., before the Security Context is even loaded)
 // Anchor: ChannelProcessingFilter is typically the very first filter.
         http.addFilterBefore(requestLoggingFilter, org.springframework.security.web.access.channel.ChannelProcessingFilter.class);
@@ -132,6 +137,7 @@ public class SecurityConfig {
 // 2. Block Bad Methods - Run early to reject requests before wasting resources on Rate Limiting
 // Anchor: HeaderWriterFilter usually runs after context setup but before Auth.
         http.addFilterBefore(blockHttpMethodsFilter, org.springframework.security.web.header.HeaderWriterFilter.class);
+
 
 // 3. Rate Limiter - Run before we attempt any expensive authentication logic
 // Anchor: UsernamePasswordAuthenticationFilter is the standard "Auth" phase.
@@ -223,6 +229,17 @@ public class SecurityConfig {
         log.info("SecurityConfig: Creating BCryptPasswordEncoder bean");
         return new BCryptPasswordEncoder();
     }
+
+
+    @Bean
+    public FilterRegistrationBean<RequestContextFilter> requestContextFilterRegistration() {
+        RequestContextFilter filter = new RequestContextFilter();
+        FilterRegistrationBean<RequestContextFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false); // prevent Spring Boot from auto-registering this filter as a servlet filter
+        return registration;
+    }
+
+
 
 }
 

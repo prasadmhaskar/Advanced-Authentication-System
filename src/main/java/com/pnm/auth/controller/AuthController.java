@@ -12,6 +12,8 @@ import com.pnm.auth.service.impl.user.UserDetailsImpl;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.UserAgentParser;
+import com.pnm.auth.web.context.RequestContext;
+import com.pnm.auth.web.filter.RequestContextFilter;
 import com.sun.security.auth.UserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -59,11 +61,14 @@ public class AuthController {
         log.info("AuthController.register(): started for email={}", request.getEmail());
 
         // Extract IP + User-Agent
-        String ip = httpRequest.getHeader("X-Forwarded-For");
-        if (ip == null) ip = httpRequest.getRemoteAddr();
-        String ua = httpRequest.getHeader("User-Agent");
+//        String ip = httpRequest.getHeader("X-Forwarded-For");
+//        if (ip == null) ip = httpRequest.getRemoteAddr();
+//        String ua = httpRequest.getHeader("User-Agent");
 
-        RegistrationResult result = registerOrchestrator.register(request, ip, ua);
+        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+
+//        RegistrationResult result = registerOrchestrator.register(request, ip, ua);
+        RegistrationResult result = registerOrchestrator.register(request, ctx);
 
         String path = httpRequest.getRequestURI();
 
@@ -107,17 +112,19 @@ public class AuthController {
 
 
     @GetMapping("/verify")
-    public ResponseEntity<ApiResponse<?>> verifyEmail(@RequestParam("token") String token, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<?>> verifyEmail(@RequestParam("token") String token, HttpServletRequest httpRequest) {
 
         log.info("AuthController.verifyEmail(): started");
 
         // Extract IP + User-Agent
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null) ip = request.getRemoteAddr();
-        String ua = request.getHeader("User-Agent");
+//        String ip = request.getHeader("X-Forwarded-For");
+//        if (ip == null) ip = request.getRemoteAddr();
+//        String ua = request.getHeader("User-Agent");
+
+        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
 
-        EmailVerificationResult result = verifyEmailOrchestrator.verify(token, ip, ua);
+        EmailVerificationResult result = verifyEmailOrchestrator.verify(token, ctx);
 
         log.info("AuthController.verifyEmail(): finished for email={}", result.getEmail());
 
@@ -126,7 +133,7 @@ public class AuthController {
                         "EMAIL_VERIFIED",
                         "Email verified successfully",
                         result,
-                        request.getRequestURI()
+                        httpRequest.getRequestURI()
                 )
         );
     }

@@ -16,6 +16,7 @@ import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.util.UserAgentParser;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -37,9 +38,11 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
 
     @Override
     @Transactional
-    public EmailVerificationResult verify(String rawToken, String ip, String ua) {
+    public EmailVerificationResult verify(String rawToken, RequestContext ctx) {
 
         String token = rawToken.trim();
+        String ip = ctx.ip();
+        String ua = ctx.userAgent();
 
         log.info("VerifyEmailOrchestrator: started for ip={}",ip);
 
