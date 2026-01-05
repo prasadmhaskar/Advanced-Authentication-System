@@ -31,26 +31,25 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
     @Transactional
     public void reset(ResetPasswordRequest request , String ip, String userAgent) {
 
-        String tokenPrefix = safeTokenPrefix(request.getToken());
-        log.info("ResetPasswordOrchestrator.reset(): started tokenPrefix={}", tokenPrefix);
+        log.info("ResetPasswordOrchestrator.reset(): started for ip={}",ip);
 
         // 1️⃣ Load verification token
         VerificationToken token = verificationTokenRepository
                 .findByToken(request.getToken())
                 .orElseThrow(() -> {
-                    log.warn("ResetPasswordOrchestrator: invalid token tokenPrefix={}", tokenPrefix);
+                    log.warn("ResetPasswordOrchestrator: invalid token for ip={}",ip);
                     return new InvalidTokenException("Invalid or expired reset token");
                 });
 
         // 2️⃣ Validate token type
         if (!"PASSWORD_RESET".equals(token.getType())) {
-            log.warn("ResetPasswordOrchestrator: token type mismatch tokenPrefix={}", tokenPrefix);
+            log.warn("ResetPasswordOrchestrator: token type mismatch for ip={}",ip);
             throw new InvalidTokenException("Invalid reset token");
         }
 
         // 3️⃣ Validate expiry
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            log.warn("ResetPasswordOrchestrator: token expired tokenPrefix={}", tokenPrefix);
+            log.warn("ResetPasswordOrchestrator: token expired for ip={}",ip);
             throw new InvalidTokenException("Reset token has expired");
         }
 
@@ -88,11 +87,6 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
                     "Unable to reset password right now. Please try again later."
             );
         }
-    }
-
-    private String safeTokenPrefix(String token) {
-        if (token == null) return "null";
-        return token.length() <= 10 ? token : token.substring(0, 10);
     }
 }
 

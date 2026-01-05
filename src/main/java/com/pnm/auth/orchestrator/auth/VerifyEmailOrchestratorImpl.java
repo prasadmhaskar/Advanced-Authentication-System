@@ -41,7 +41,7 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
 
         String token = rawToken.trim();
 
-        log.info("VerifyEmailOrchestrator: started for tokenPrefix={}", token.length() > 8 ? token.substring(0,8) : "short");
+        log.info("VerifyEmailOrchestrator: started for ip={}",ip);
 
         // 1️⃣ Load token
         VerificationToken verificationToken =

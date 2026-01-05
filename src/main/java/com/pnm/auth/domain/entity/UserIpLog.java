@@ -5,7 +5,12 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "user_ip_log")
+@Table(name = "user_ip_log", indexes = {
+        @Index(name = "idx_ip_log_user_id", columnList = "user_id"),
+        @Index(name = "idx_ip_log_suspicious_time", columnList = "is_suspicious, login_time"),
+        @Index(name = "idx_ip_log_risk_time", columnList = "risk_score, login_time"),
+        @Index(name = "idx_ip_log_ip", columnList = "ip_address")
+})
 @Getter
 @Setter
 @NoArgsConstructor

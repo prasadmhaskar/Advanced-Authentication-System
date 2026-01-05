@@ -9,6 +9,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
@@ -16,6 +17,7 @@ import org.springframework.security.oauth2.client.authentication.OAuth2Authentic
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,6 +29,9 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
     private final ObjectMapper objectMapper;
     private final OAuth2ServiceImpl oAuth2Service;
+
+//    @Value("${app.oauth2.authorized-redirect-uris}")
+//    private String frontendRedirectUrl;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
@@ -95,5 +100,15 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         response.getWriter().write(objectMapper.writeValueAsString(body));
 
         log.info("OAuth2SuccessHandler: Response sent for OAuth provider={}", registrationId);
+
+//        AuthenticationResult authResult = oAuth2Service.handleOAuth2LoginRequest(oAuth2User, registrationId, request);
+//
+//        // 🚨 FIX: Redirect to Frontend with Token in URL Query Param
+//        String targetUrl = UriComponentsBuilder.fromUriString(frontendRedirectUrl)
+//                .queryParam("token", authResult.getToken()) // Or refreshToken
+//                .queryParam("error", authResult.getOutcome() == AuthOutcome.SUCCESS ? "" : "link_required")
+//                .build().toUriString();
+//
+//        getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
 }

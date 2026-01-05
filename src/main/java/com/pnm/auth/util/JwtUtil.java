@@ -29,6 +29,7 @@ public class JwtUtil {
 
     private SecretKey getSigningKey() {
         byte[] keyBytes = Decoders.BASE64.decode(jwtSecretKey);
+        if (keyBytes.length < 32) throw new IllegalStateException("JWT secret too short");
         return Keys.hmacShaKeyFor(keyBytes);
     }
 
@@ -46,7 +47,7 @@ public class JwtUtil {
                 .signWith(getSigningKey())
                 .compact();
 
-        log.info("JwtUtil.generateAccessToken: Token created tokenPrefix={}", token.substring(0, 10));
+        log.debug("JwtUtil.generateAccessToken: Created access token for email={}", user.getEmail());
         return token;
     }
 
@@ -59,19 +60,19 @@ public class JwtUtil {
                 .signWith(getSigningKey())
                 .compact();
 
-        log.info("JwtUtil.generateRefreshToken: Token created tokenPrefix={}", token.substring(0, 10));
+        log.info("JwtUtil.generateRefreshToken: created refresh token for email={}", user.getEmail());
         return token;
     }
 
     // ------------------------- TOKEN EXTRACTION -------------------------
 
     public String extractUsername(String token) {
-        log.debug("JwtUtil.extractUsername: Extracting username tokenPrefix={}", safePrefix(token));
+        log.debug("JwtUtil.extractUsername: Extracting username");
         return extractAllClaims(token).getSubject();
     }
 
     public List<String> extractRoles(String token) {
-        log.debug("JwtUtil.extractRoles: Extracting roles tokenPrefix={}", safePrefix(token));
+        log.debug("JwtUtil.extractRoles: Extracting roles");
         Claims claims = extractAllClaims(token);
         return claims.get("roles", List.class);
     }
@@ -80,29 +81,22 @@ public class JwtUtil {
 
     public boolean isTokenExpired(String token) {
         boolean expired = extractAllClaims(token).getExpiration().before(new Date());
-        log.info("JwtUtil.isTokenExpired: tokenPrefix={} expired={}", safePrefix(token), expired);
+        log.info("JwtUtil.isTokenExpired: Checking token expired or not");
         return expired;
-    }
-
-    public boolean isTokenValid(String token) {
-        boolean valid = !isTokenExpired(token);
-        log.info("JwtUtil.isTokenValid: tokenPrefix={} valid={}", safePrefix(token), valid);
-        return valid;
     }
 
     // ------------------------- CLAIMS -------------------------
 
     public Claims extractAllClaims(String token) {
         try {
-            log.debug("JwtUtil.extractAllClaims: Parsing claims tokenPrefix={}", safePrefix(token));
+            log.debug("JwtUtil.extractAllClaims: Parsing claims");
             return Jwts.parser()
                     .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
         } catch (Exception ex) {
-            log.error("JwtUtil.extractAllClaims: Failed to parse token tokenPrefix={} error={}",
-                    safePrefix(token), ex.getMessage());
+            log.error("JwtUtil.extractAllClaims: Failed to parse token ");
             throw ex;
         }
     }
@@ -113,19 +107,12 @@ public class JwtUtil {
 
         if (bearer != null && bearer.startsWith("Bearer ")) {
             String token = bearer.substring(7);
-            log.info("JwtUtil.resolveToken: JWT extracted tokenPrefix={}", safePrefix(token));
+            log.info("JwtUtil.resolveToken: JWT extracted");
             return token;
         }
 
         log.warn("JwtUtil.resolveToken: No Bearer token found in request");
         return null;
-    }
-
-    // ------------------------- SAFE TOKEN PREFIX -------------------------
-
-    private String safePrefix(String token) {
-        if (token == null) return "null";
-        return token.length() > 10 ? token.substring(0, 10) : token;
     }
 
     public long getExpirationTimestamp(String token) {

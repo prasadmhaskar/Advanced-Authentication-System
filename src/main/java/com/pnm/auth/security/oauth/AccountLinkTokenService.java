@@ -44,12 +44,10 @@ public class AccountLinkTokenService {
         repository.save(linkToken);
 
         log.info(
-                "AccountLinkToken created userId={} provider={} tokenPrefix={}",
+                "AccountLinkToken created userId={} provider={}",
                 user.getId(),
-                providerToLink,
-                token.substring(0, 8)
+                providerToLink
         );
-
         return token;
     }
 
@@ -62,12 +60,7 @@ public class AccountLinkTokenService {
             repository.delete(linkToken);
             throw new InvalidTokenException("Link token expired");
         }
-
         return linkToken;
-    }
-
-    public void consume(AccountLinkToken token) {
-        repository.delete(token);
     }
 }
 

@@ -88,7 +88,7 @@ public class AuditAspect {
         int index = audit.targetUserArgIndex();
 
         if (index == -1) {
-            return actorUserId; // self-action
+            return actorUserId;
         }
 
         Object[] args = pjp.getArgs();

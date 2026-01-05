@@ -45,8 +45,7 @@ public class VerificationServiceImpl implements VerificationService {
         //Saving to repository
         verificationTokenRepository.save(verificationToken);
 
-        log.info("VerificationService.createVerificationToken: Token created and saved for email={} tokenPrefix={}",
-                user.getEmail(), token.substring(0, 8));
+        log.info("VerificationService.createVerificationToken: Token created and saved for email={}", user.getEmail());
 
         return token;
     }

@@ -109,7 +109,7 @@ public class AuthController {
     @GetMapping("/verify")
     public ResponseEntity<ApiResponse<?>> verifyEmail(@RequestParam("token") String token, HttpServletRequest request) {
 
-        log.info("AuthController.verifyEmail(): started for tokenPrefix={}", token.length() > 8 ? token.substring(0, 8) : "short");
+        log.info("AuthController.verifyEmail(): started");
 
         // Extract IP + User-Agent
         String ip = request.getHeader("X-Forwarded-For");

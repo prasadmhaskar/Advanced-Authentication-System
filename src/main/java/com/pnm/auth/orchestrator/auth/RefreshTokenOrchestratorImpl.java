@@ -38,8 +38,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
     @Transactional
     public AuthenticationResult refresh(String rawToken, String ip, String userAgent) {
 
-        String tokenPrefix = safeTokenPrefix(rawToken);
-        log.info("RefreshTokenOrchestrator: started tokenPrefix={}", tokenPrefix);
+        log.info("RefreshTokenOrchestrator: started for ip={}",ip);
 
         // 1️⃣ Load token metadata
         RefreshToken stored = refreshTokenRepository.findByToken(rawToken)
@@ -115,7 +114,4 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
         }
     }
 
-    private String safeTokenPrefix(String token) {
-        return token != null && token.length() > 8 ? token.substring(0, 8) : token;
-    }
 }

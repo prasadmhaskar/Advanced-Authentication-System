@@ -68,7 +68,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             jwt = authHeader.substring(7);
-            log.debug("JwtAuthenticationFilter: Bearer token detected tokenPrefix={}", jwt.length() > 10 ? jwt.substring(0, 10) : jwt);
+            log.debug("JwtAuthenticationFilter: Bearer token extracted");
 
             try {
                 username = jwtUtil.extractUsername(jwt);
@@ -96,8 +96,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // ⭐ NEW: Check blacklisted token
             if (blacklistedTokenStore.isBlacklisted(jwt)) {
-                log.warn("JwtAuthenticationFilter: Blocked JWT (blacklisted) tokenPrefix={}",
-                        jwt.length() > 10 ? jwt.substring(0,10) : jwt);
+                log.warn("JwtAuthenticationFilter: Blocked JWT (blacklisted) for email={}", user != null ? user.getEmail() : null);
                 filterChain.doFilter(request, response);
                 return;
             }
