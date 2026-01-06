@@ -36,4 +36,17 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Query("UPDATE RefreshToken t SET t.used = true WHERE t.token = :token AND t.used = false")
     int markAsUsed(@Param("token") String token);
 
+    @Modifying
+    @Query("""
+UPDATE RefreshToken r
+SET r.invalidated = true
+WHERE r.userId = :userId
+AND r.deviceSignature <> :deviceSignature
+""")
+    void invalidateAllExceptCurrentDevice(
+            @Param("userId") Long userId,
+            @Param("deviceSignature") String deviceSignature
+    );
+
+
 }

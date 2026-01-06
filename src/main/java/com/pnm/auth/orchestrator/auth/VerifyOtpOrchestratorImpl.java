@@ -101,7 +101,7 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
         }
 
         // 8️⃣ Generate tokens
-        AuthenticationResult tokens = tokenService.generateTokens(user);
+        AuthenticationResult tokens = tokenService.generateTokens(user, ctx);
 
         log.info("VerifyOtpOrchestrator.verify(): finished for ip={} and email={}", ip, user.getEmail());
 

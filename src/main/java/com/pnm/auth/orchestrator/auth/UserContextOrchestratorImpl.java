@@ -6,6 +6,7 @@ import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.repository.UserRepository;
+import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,34 +21,15 @@ public class UserContextOrchestratorImpl implements UserContextOrchestrator {
 
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
+    private final AuthUtil authUtil;
 
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "users", key = "#accessToken")
-    public UserDetailsResponse getCurrentUser(String accessToken) {
+    public UserDetailsResponse getCurrentUser() {
 
         log.info("UserContextOrchestrator: fetching user context");
 
-        // 1️⃣ Token present?
-        if (accessToken == null || accessToken.isBlank()) {
-            log.warn("UserContextOrchestrator: missing access token");
-            throw new InvalidTokenException("Missing or invalid Authorization header");
-        }
-
-        // 2️⃣ Token expired?
-        if (jwtUtil.isTokenExpired(accessToken)) {
-            log.warn("UserContextOrchestrator: token expired");
-            throw new InvalidTokenException("Access token expired");
-        }
-
-        // 3️⃣ Extract email
-        String email;
-        try {
-            email = jwtUtil.extractUsername(accessToken);
-        } catch (Exception ex) {
-            log.warn("UserContextOrchestrator: token parsing failed msg={}", ex.getMessage());
-            throw new InvalidTokenException("Invalid access token");
-        }
+        String email = authUtil.getCurrentEmail();
 
         log.debug("UserContextOrchestrator: extracted email={}", email);
 

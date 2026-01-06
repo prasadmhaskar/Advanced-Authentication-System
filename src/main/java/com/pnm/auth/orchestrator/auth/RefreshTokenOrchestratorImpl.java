@@ -1,6 +1,7 @@
 package com.pnm.auth.orchestrator.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pnm.auth.dto.response.UserAdminResponse;
 import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.domain.entity.RefreshToken;
 import com.pnm.auth.domain.entity.User;
@@ -9,9 +10,11 @@ import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.TokenGenerationException;
 import com.pnm.auth.repository.RefreshTokenRepository;
+import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.audit.AuditService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +34,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
     private final TokenService tokenService;
     private final LoginActivityService loginActivityService;
     private final AuditService auditService;
+    private final UserRepository userRepository;
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -41,6 +45,10 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
         String ip = ctx.ip();
         String userAgent = ctx.userAgent();
+
+        String currentDeviceSignature = UserAgentParser
+                .parse(ctx.userAgent())
+                .getSignature();
 
         log.info("RefreshTokenOrchestrator: started for ip={}",ip);
 
@@ -55,6 +63,11 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
             log.warn("RefreshTokenOrchestrator: expired/invalidated token userId={}", user.getId());
             throw new InvalidTokenException("Refresh token expired");
         }
+
+        if (!stored.getDeviceSignature().equals(currentDeviceSignature)) {
+            throw new InvalidTokenException("Refresh token used from different device");
+        }
+
 
         // 3️⃣ Reuse Detection with Atomic Lock
         // We attempt to mark the token as 'used'.
@@ -84,6 +97,8 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
             // Security: Invalidate ALL sessions for this user immediately
             refreshTokenRepository.invalidateAllForUser(user.getId());
+            user.incrementTokenVersion();
+            userRepository.save(user);
 
             auditService.record(AuditAction.REFRESH_TOKEN_REUSE, user.getId(), user.getId(),
                     "Token reuse detected", null, null);
@@ -94,7 +109,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
         // 4️⃣ Rotate Token (We won the lock)
         try {
             // Generate new tokens (Session Capping logic handles the limit inside this service)
-            AuthenticationResult result = tokenService.generateTokens(user);
+            AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
             // ✅ SAVE TO REDIS (Grace Period: 60 Seconds)
             // If the client retries the old token within 60s, we return this result.

@@ -42,6 +42,13 @@ public class User {
 
     private boolean mfaEnabled = false;
 
+    @Column(nullable = false)
+    private Integer tokenVersion = 0;
+
+    public void incrementTokenVersion() {
+        this.tokenVersion++;
+    }
+
     @OneToMany(
             mappedBy = "user",
             cascade = CascadeType.ALL,

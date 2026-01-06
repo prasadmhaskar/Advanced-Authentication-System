@@ -9,6 +9,8 @@ import com.pnm.auth.exception.custom.TokenGenerationException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.util.UserAgentParser;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,12 +28,13 @@ public class TokenServiceImpl implements TokenService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
 
+
     @Value("${jwt.refresh.expiration}")
     private Long jwtRefreshExpiration;
 
     @Override
     @Transactional
-    public AuthenticationResult generateTokens(User user) {
+    public AuthenticationResult generateTokens(User user, RequestContext ctx) {
 
         log.info("TokenService: generating tokens for email={}", user.getEmail());
 
@@ -48,6 +51,11 @@ public class TokenServiceImpl implements TokenService {
                         });
             }
 
+            String deviceSignature = UserAgentParser
+                    .parse(ctx.userAgent())
+                    .getSignature();
+
+
             // 2) Create new access + refresh tokens
             String accessToken = jwtUtil.generateAccessToken(user);
             String refreshToken = jwtUtil.generateRefreshToken(user);
@@ -58,6 +66,7 @@ public class TokenServiceImpl implements TokenService {
             token.setUser(user);
             token.setCreatedAt(LocalDateTime.now());
             token.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpiration, ChronoUnit.MILLIS));
+            token.setDeviceSignature(deviceSignature);
             token.setUsed(false);
             token.setInvalidated(false);
 

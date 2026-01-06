@@ -116,6 +116,7 @@ public class AdminServiceImpl implements AdminService {
             return new BlockUserResult("USER_ALREADY_BLOCKED", "User is already blocked");
         }
 
+        user.incrementTokenVersion();
         user.setActive(false);
         userRepository.save(user);
 

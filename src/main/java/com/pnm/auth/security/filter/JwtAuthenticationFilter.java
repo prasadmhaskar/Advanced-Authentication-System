@@ -4,7 +4,7 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.service.impl.user.UserDetailsImpl;
-import com.pnm.auth.util.BlacklistedTokenStore;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,7 +28,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
-    private final BlacklistedTokenStore blacklistedTokenStore;
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -94,12 +93,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // ⭐ NEW: Check blacklisted token
-            if (blacklistedTokenStore.isBlacklisted(jwt)) {
-                log.warn("JwtAuthenticationFilter: Blocked JWT (blacklisted) for email={}", user != null ? user.getEmail() : null);
+            Claims claims = jwtUtil.extractAllClaims(jwt);
+            Integer tokenVersionInJwt = claims.get("tv", Integer.class);
+
+            if (tokenVersionInJwt == null || !tokenVersionInJwt.equals(user.getTokenVersion())) {
+                log.warn("JwtAuthenticationFilter: Token version mismatch for user={}", user.getEmail());
                 filterChain.doFilter(request, response);
                 return;
             }
+
+            // ⭐ NEW: Check blacklisted token
+//            if (blacklistedTokenStore.isBlacklisted(jwt)) {
+//                log.warn("JwtAuthenticationFilter: Blocked JWT (blacklisted) for email={}", user != null ? user.getEmail() : null);
+//                filterChain.doFilter(request, response);
+//                return;
+//            }
 
             if (!jwtUtil.isTokenExpired(jwt)) {
                 log.info("JwtAuthenticationFilter: Token is valid. Authenticating user={}", username);

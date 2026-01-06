@@ -9,13 +9,12 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
+import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.util.Audit;
-import com.pnm.auth.util.BlacklistedTokenStore;
 import com.pnm.auth.web.context.RequestContext;
-import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -33,46 +32,23 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final BlacklistedTokenStore blacklistedTokenStore;
     private final TokenService tokenService;
     private final LoginActivityService loginActivityService;
+    private final AuthUtil authUtil;
 
     @Override
     @Transactional
     @Caching(evict = {@CacheEvict(value = "users", key = "#accessToken"),
             @CacheEvict(value = "users.list", allEntries = true)})
     @Audit(action = AuditAction.CHANGE_PASSWORD, description = "User password change")
-    public AuthenticationResult changePassword(String accessToken, ChangePasswordRequest request, RequestContext ctx)
+    public AuthenticationResult changePassword(ChangePasswordRequest request, RequestContext ctx)
     {
-
         String ip = ctx.ip();
         String userAgent = ctx.userAgent();
 
-        log.info("ChangePasswordOrchestrator.: started for ip={}", ip);
+        log.info("ChangePasswordOrchestrator: started for ip={}", ip);
 
-        // --------------------------------------------------
-        // 1️⃣ Validate access token
-        // --------------------------------------------------
-        if (accessToken == null || accessToken.isBlank()) {
-            log.warn("ChangePasswordOrchestrator: missing token");
-            throw new InvalidTokenException("Missing access token");
-        }
-
-        if (jwtUtil.isTokenExpired(accessToken)) {
-            log.warn("ChangePasswordOrchestrator: token expired");
-            throw new InvalidTokenException("Access token expired");
-        }
-
-        // --------------------------------------------------
-        // 2️⃣ Extract user identity
-        // --------------------------------------------------
-        String email;
-        try {
-            email = jwtUtil.extractUsername(accessToken);
-        } catch (Exception ex) {
-            log.warn("ChangePasswordOrchestrator: failed to parse token msg={}", ex.getMessage());
-            throw new InvalidTokenException("Invalid access token");
-        }
+        String email = authUtil.getCurrentEmail();
 
         // --------------------------------------------------
         // 3️⃣ Load and validate user
@@ -107,17 +83,12 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
         // --------------------------------------------------
         try {
             user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+            user.incrementTokenVersion();
             userRepository.save(user);
 
             // Invalidate all refresh tokens
             refreshTokenRepository.invalidateAllForUser(user.getId());
 
-            // Blacklist current access token
-            Claims claims = jwtUtil.extractAllClaims(accessToken);
-            blacklistedTokenStore.blacklistToken(
-                    accessToken,
-                    claims.getExpiration().getTime()
-            );
 
         } catch (Exception ex) {
             log.error("ChangePasswordOrchestrator: failed to update password email={} msg={}",
@@ -130,7 +101,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
         // --------------------------------------------------
         // 6️⃣ Generate fresh tokens
         // --------------------------------------------------
-        AuthenticationResult tokens = tokenService.generateTokens(user);
+        AuthenticationResult tokens = tokenService.generateTokens(user, ctx);
 
         // --------------------------------------------------
         // 7️⃣ Audit success (best-effort)

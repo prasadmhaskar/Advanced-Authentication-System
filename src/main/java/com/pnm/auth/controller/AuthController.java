@@ -8,13 +8,8 @@ import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.orchestrator.auth.*;
 import com.pnm.auth.service.device.DeviceTrustService;
-import com.pnm.auth.service.impl.user.UserDetailsImpl;
-import com.pnm.auth.util.JwtUtil;
-import com.pnm.auth.util.AuthUtil;
-import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import com.pnm.auth.web.filter.RequestContextFilter;
-import com.sun.security.auth.UserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -23,7 +18,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,9 +29,7 @@ import java.util.Map;
 @Slf4j
 public class AuthController {
 
-    private final JwtUtil jwtUtil;
     private final DeviceTrustService deviceTrustService;
-    private final AuthUtil authUtil;
     private final LoginOrchestrator loginOrchestrator;
     private final VerifyOtpOrchestrator verifyOtpOrchestrator;
     private final ResendOtpOrchestrator resendOtpOrchestrator;
@@ -148,13 +140,13 @@ public class AuthController {
             case EMAIL_SENT -> {
                 if (result.getEmailSent()) {
                     yield ResponseEntity.ok(
-                            ApiResponse.success("VERIFICATION_EMAIL_SENT",
+                            ApiResponse.success("VERIFICATION_EMAIL_DISPATCHED",
                                     "A verification email has been dispatched to your email address.",
                                     result,
                                     ctx.path()));
                 } else {
                     yield ResponseEntity.ok(
-                            ApiResponse.success("VERIFICATION_EMAIL_PENDING",
+                            ApiResponse.success("VERIFICATION_EMAIL_QUEUED",
                                     "Your verification email is being processed and will arrive shortly.", result, ctx.path()));
                 }
             }
@@ -296,13 +288,13 @@ public class AuthController {
         return switch (result.getOutcome()) {
             case PASSWORD_RESET -> {
                 if (result.getEmailSent()) {
-                    yield ResponseEntity.ok(ApiResponse.success("PASSWORD_RESET_LINK_SENT",
+                    yield ResponseEntity.ok(ApiResponse.success("PASSWORD_RESET_LINK_DISPATCHED",
                             "If your email is registered, password reset link has been dispatched to your email address.",
                             result, ctx.path()));
                 } else {
                     // Return 202 Accepted: Business logic (token) created, but delivery (email) is pending
                     yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                            ApiResponse.success("PASSWORD_RESET_PENDING",
+                            ApiResponse.success("PASSWORD_RESET_LINK_QUEUED",
                                     "If your email is registered, password reset link is being processed and will arrive shortly.",
                                     result, ctx.path()));
                 }
@@ -355,9 +347,7 @@ public class AuthController {
 
         log.info("AuthController.changePassword(): started for ip={}", ctx.ip());
 
-        String token = jwtUtil.resolveToken(httpRequest);
-
-        AuthenticationResult result = changePasswordOrchestrator.changePassword(token, request, ctx);
+        AuthenticationResult result = changePasswordOrchestrator.changePassword(request, ctx);
 
         log.info("AuthController.changePassword(): finished for ip={}", ctx.ip());
 
@@ -379,9 +369,7 @@ public class AuthController {
 
         log.info("AuthController.fetchUserDetails(): started for ip={}", ctx.ip());
 
-        String token = jwtUtil.resolveToken(httpRequest);
-
-        UserDetailsResponse response = userContextOrchestrator.getCurrentUser(token);
+        UserDetailsResponse response = userContextOrchestrator.getCurrentUser();
 
         log.info("AuthController.fetchUserDetails(): finished for ip={}", ctx.ip());
 
@@ -403,7 +391,7 @@ public class AuthController {
 
         log.info("AuthController.logout(): started for ip={}", ctx.ip());
 
-        logoutOrchestrator.logout(requestBody.getAccessToken(), requestBody.getRefreshToken());
+        logoutOrchestrator.logout(requestBody);
 
         log.info("AuthController.logout(): finished for ip={}", ctx.ip());
 
@@ -427,7 +415,7 @@ public class AuthController {
 
         log.info("AuthController.linkOAuth(): started for ip={}", ctx.ip());
 
-        AccountLinkResult result = linkOAuthOrchestrator.link(request);
+        AccountLinkResult result = linkOAuthOrchestrator.link(request, ctx);
 
         log.info("AuthController.linkOAuth(): finished for ip={}", ctx.ip());
 
@@ -519,40 +507,41 @@ public class AuthController {
 
 
     @GetMapping("/me/devices")
-    public ResponseEntity<ApiResponse<List<DeviceTrustResponse>>> getMyTrustedDevices() {
+    public ResponseEntity<ApiResponse<List<DeviceTrustResponse>>> getMyTrustedDevices(HttpServletRequest httpRequest) {
 
-        log.info("AuthController.getMyTrustedDevices(): started");
+        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        Long userId = authUtil.getCurrentUserId();
-        List<DeviceTrustResponse> devices = deviceTrustService.getTrustedDevices(userId);
+        log.info("AuthController.getMyTrustedDevices(): started for ip={}", ctx.ip());
 
-        log.info("AuthController.getMyTrustedDevices(): finished");
+        List<DeviceTrustResponse> devices = deviceTrustService.getTrustedDevices();
+
+        log.info("AuthController.getMyTrustedDevices(): finished for ip={}",ctx.ip());
 
         return ResponseEntity.ok(ApiResponse.success(
                 "DEVICES_FETCHED",
                 "Trusted devices fetched successfully",
                 devices,
-                "/api/auth/me/devices"
+                ctx.path()
         ));
     }
 
 
     @DeleteMapping("/me/devices/{id}")
-    public ResponseEntity<ApiResponse<Void>> removeDevice(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<Void>> removeDevice(@PathVariable Long id, HttpServletRequest httpRequest) {
 
-        log.info("AuthController.removeDevice(): started");
+        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        Long userId = authUtil.getCurrentUserId();
+        log.info("AuthController.removeDevice(): started for ip={}", ctx.ip());
 
-        deviceTrustService.removeDevice(userId, id);
+        deviceTrustService.removeDevice(id);
 
-        log.info("AuthController.removeDevice(): started");
+        log.info("AuthController.removeDevice(): finished for ip={}", ctx.ip());
 
         return ResponseEntity.ok(ApiResponse.success(
                 "DEVICE_REMOVED",
                 "Device removed successfully",
                 null,
-                "/api/auth/me/devices/" + id
+                ctx.path()
         ));
     }
 
@@ -562,44 +551,21 @@ public class AuthController {
 
         RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.removeOtherDevices(): started");
+        log.info("AuthController.removeOtherDevices(): started for ip={}",ctx.ip());
 
-        Long userId = authUtil.getCurrentUserId();
-        String userAgent = httpRequest.getHeader("User-Agent");
+        deviceTrustService.removeAllExceptCurrent(ctx);
 
-        DeviceInfoResult deviceInfoResult = UserAgentParser.parse(userAgent);
-        String signature = deviceInfoResult.getSignature();
-
-        deviceTrustService.removeAllExceptCurrent(userId, signature);
+        log.info("AuthController.removeOtherDevices(): finished for ip={}",ctx.ip());
 
         ApiResponse<Void> body = ApiResponse.success(
                 "TRUSTED_DEVICES_UPDATED",
                 "All other trusted devices have been removed. Only the current device remains trusted.",
                 null,
-                httpRequest.getRequestURI()
+                ctx.path()
         );
         return ResponseEntity.ok(body);
     }
 
-
-//    @DeleteMapping("/me/delete-account")
-//    @Operation(summary = "Delete My Account", description = "Permanently delete account. Requires password for email users.")
-//    public ResponseEntity<ApiResponse<Void>> deleteMyAccount(
-//            @AuthenticationPrincipal UserDetailsImpl currentUser,
-//            @RequestBody(required = false) @Valid DeleteAccountRequest request,
-//            HttpServletRequest servletRequest
-//    ) {
-//
-//        accountDeleteOrchestrator.deleteMyAccount(currentUser.getId(), request != null ? request.getPassword() : null);
-//
-//        return ResponseEntity.ok(ApiResponse.success(
-//                "ACCOUNT_DELETED",
-//                "Your account has been permanently deleted.",
-//                null,
-//                servletRequest.getRequestURI()
-//        ));
-//    }
-//}
 
     @DeleteMapping("/me/delete-account")
     @Operation(summary = "Delete My Account", description = "Permanently delete account. Requires password for email users.")
@@ -611,7 +577,7 @@ public class AuthController {
 
         log.info("AuthController.deleteMyAccount(): started for ip={}", ctx.ip());
 
-        accountDeleteOrchestrator.deleteMyAccount(authUtil.getCurrentUserId(), request.getPassword());
+        accountDeleteOrchestrator.deleteMyAccount(request);
 
         log.info("AuthController.deleteMyAccount(): finished for ip={}", ctx.ip());
 

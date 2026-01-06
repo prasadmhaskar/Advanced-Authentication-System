@@ -2,12 +2,15 @@ package com.pnm.auth.service.impl.device;
 
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.domain.entity.TrustedDevice;
-import com.pnm.auth.domain.enums.AuditAction;
+import com.pnm.auth.dto.result.DeviceInfoResult;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
+import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.TrustedDeviceRepository;
 import com.pnm.auth.service.device.DeviceTrustService;
-import com.pnm.auth.util.Audit;
+import com.pnm.auth.util.AuthUtil;
+import com.pnm.auth.util.UserAgentParser;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,17 +24,21 @@ import java.util.List;
 @Slf4j
 public class DeviceTrustServiceImpl implements DeviceTrustService {
     private final TrustedDeviceRepository trustedDeviceRepository;
+    private final AuthUtil authUtil;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Override
-    public List<DeviceTrustResponse> getTrustedDevices(Long userId) {
-        return trustedDeviceRepository.findByUserIdAndActiveTrue(userId)
+    public List<DeviceTrustResponse> getTrustedDevices() {
+        Long id = authUtil.getCurrentUserId();
+        return trustedDeviceRepository.findByUserIdAndActiveTrue(id)
                 .stream()
                 .map(DeviceTrustResponse::fromEntity)
                 .toList();
     }
 
     @Override
-    public void removeDevice(Long userId, Long deviceId) {
+    public void removeDevice(Long deviceId) {
+        Long userId = authUtil.getCurrentUserId();
         TrustedDevice device = trustedDeviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
 
@@ -78,19 +85,24 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
 
     @Transactional
     @Override
-    public void removeAllExceptCurrent(Long userId, String currentDeviceSignature) {
+    public void removeAllExceptCurrent(RequestContext ctx) {
+
+        String currentDeviceSignature = UserAgentParser
+                .parse(ctx.userAgent())
+                .getSignature();
+
+        Long userId = authUtil.getCurrentUserId();
 
         if (userId == null || currentDeviceSignature == null) {
             log.warn("TrustedDeviceService.removeAllExceptCurrent(): invalid params");
             return;
         }
-
-        log.info("TrustedDeviceService.removeAllExceptCurrent(): removing old devices for userId={} except={}",
-                userId, currentDeviceSignature);
-
         trustedDeviceRepository.deleteAllExceptCurrent(userId, currentDeviceSignature);
 
-        log.info("TrustedDeviceService.removeAllExceptCurrent(): completed userId={}", userId);
+        refreshTokenRepository.invalidateAllExceptCurrentDevice(userId, currentDeviceSignature);
+
+        log.info("TrustedDeviceService.removeAllExceptCurrent(): completed removed old devices for userId={} except={}",
+                userId, currentDeviceSignature);
     }
 
     @Override

@@ -11,6 +11,7 @@ import com.pnm.auth.dto.result.LinkingResult;
 import com.pnm.auth.service.auth.AccountLinkingService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.util.Audit;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,12 +32,12 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
 
     @Override
     @Audit(action = AuditAction.OAUTH_LINK, description = "Link OAuth account")
-    public AccountLinkResult link(LinkOAuthRequest request) {
+    public AccountLinkResult link(LinkOAuthRequest request, RequestContext ctx) {
 
         log.info("LinkOAuthOrchestrator: started provider={}", request.getProvider());
 
         // 1. Execute DB Logic (Transaction opens and closes inside this call)
-        LinkingResult internalResult = accountLinkingService.linkAccount(request);
+        LinkingResult internalResult = accountLinkingService.linkAccount(request, ctx);
 
         User user = internalResult.getUser();
         AuthenticationResult auth = internalResult.getAuthTokens();

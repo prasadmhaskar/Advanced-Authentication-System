@@ -14,6 +14,7 @@ import com.pnm.auth.repository.UserOAuthProviderRepository;
 import com.pnm.auth.service.auth.AccountLinkingService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.service.auth.VerificationService;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,7 @@ public class AccountLinkingServiceImpl implements AccountLinkingService {
 
     @Override
     @Transactional
-    public LinkingResult linkAccount(LinkOAuthRequest request) {
+    public LinkingResult linkAccount(LinkOAuthRequest request, RequestContext ctx) {
         // 1️⃣ Load & validate link token
         AccountLinkToken linkToken = accountLinkTokenRepository
                 .findByToken(request.getLinkToken())
@@ -70,7 +71,7 @@ public class AccountLinkingServiceImpl implements AccountLinkingService {
         accountLinkTokenRepository.delete(linkToken);
 
         // 4️⃣ Generate Auto-Login Tokens
-        AuthenticationResult auth = tokenService.generateTokens(user);
+        AuthenticationResult auth = tokenService.generateTokens(user, ctx);
 
         // 5️⃣ Check if Password Setup is needed (Create token here within transaction)
         String passwordResetToken = null;

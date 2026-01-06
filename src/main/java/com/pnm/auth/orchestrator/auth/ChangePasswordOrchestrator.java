@@ -5,6 +5,6 @@ import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.web.context.RequestContext;
 
 public interface ChangePasswordOrchestrator {
-    AuthenticationResult changePassword(String accessToken, ChangePasswordRequest request, RequestContext ctx);
+    AuthenticationResult changePassword(ChangePasswordRequest request, RequestContext ctx);
 }
 

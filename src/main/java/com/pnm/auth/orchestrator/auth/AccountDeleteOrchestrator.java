@@ -1,5 +1,7 @@
 package com.pnm.auth.orchestrator.auth;
 
+import com.pnm.auth.dto.request.DeleteAccountRequest;
+
 public interface AccountDeleteOrchestrator {
-    void deleteMyAccount(Long userId, String password);
+    void deleteMyAccount(DeleteAccountRequest request);
 }

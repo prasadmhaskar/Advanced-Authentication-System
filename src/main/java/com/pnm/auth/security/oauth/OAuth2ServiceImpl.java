@@ -16,6 +16,8 @@ import com.pnm.auth.service.risk.RiskEngineService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.util.OAuth2Util;
 import com.pnm.auth.util.UserAgentParser;
+import com.pnm.auth.web.context.RequestContext;
+import com.pnm.auth.web.filter.RequestContextFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -419,13 +421,13 @@ import org.springframework.stereotype.Service;
         public AuthenticationResult handleOAuth2LoginRequest(
                 OAuth2User oAuth2User,
                 String registrationId,
-                HttpServletRequest request
+                RequestContext ctx
         ) {
             log.info("OAuth2Service: started provider={}", registrationId);
 
-            String ip = request.getHeader("X-Forwarded-For");
-            if (ip == null) ip = request.getRemoteAddr();
-            String userAgent = request.getHeader("User-Agent");
+
+            String ip = ctx.ip();
+            String userAgent = ctx.userAgent();
 
             AuthProviderType providerType = oAuth2Util.getProviderTypeFromRegistrationId(registrationId);
             String providerId = oAuth2Util.determineProviderIdFromOAuth2User(oAuth2User, registrationId);
@@ -493,7 +495,7 @@ import org.springframework.stereotype.Service;
             }
 
             // 5️⃣ Success → Generate Tokens
-            AuthenticationResult tokenResult = tokenService.generateTokens(user);
+            AuthenticationResult tokenResult = tokenService.generateTokens(user, ctx);
 
             // 6️⃣ Post-Login Logging (Best Effort)
             try {

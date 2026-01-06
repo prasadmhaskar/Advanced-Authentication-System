@@ -42,6 +42,7 @@ public class JwtUtil {
                 .subject(user.getEmail())
                 .claim("userId", user.getId())
                 .claim("roles", user.getRoles())
+                .claim("tv", user.getTokenVersion())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtAccessExpiration))
                 .signWith(getSigningKey())

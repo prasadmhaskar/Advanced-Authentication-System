@@ -103,7 +103,7 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
         user.setEmailVerified(true);
         userRepository.save(user); // Standard JPA save
 
-        AuthenticationResult result = tokenService.generateTokens(user);
+        AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
         eventPublisher.publishEvent(
                 new LoginSuccessEvent(

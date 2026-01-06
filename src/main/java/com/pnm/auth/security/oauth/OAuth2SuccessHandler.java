@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pnm.auth.dto.response.ApiResponse;
 
 import com.pnm.auth.dto.result.AuthenticationResult;
+import com.pnm.auth.web.context.RequestContext;
+import com.pnm.auth.web.filter.RequestContextFilter;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -34,7 +36,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 //    private String frontendRedirectUrl;
 
     @Override
-    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+    public void onAuthenticationSuccess(HttpServletRequest httpRequest, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
 
         log.info("OAuth2SuccessHandler: Authentication success event triggered");
@@ -48,10 +50,12 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
         String registrationId = token.getAuthorizedClientRegistrationId();
         log.info("OAuth2SuccessHandler: Provider={}", registrationId);
 
-        AuthenticationResult authResult =
-                oAuth2Service.handleOAuth2LoginRequest(oAuth2User, registrationId, request);
+        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        String path = request.getRequestURI();
+        AuthenticationResult authResult =
+                oAuth2Service.handleOAuth2LoginRequest(oAuth2User, registrationId, ctx);
+
+        String path = ctx.path();
 
         ApiResponse<?> body;
         HttpStatus status;

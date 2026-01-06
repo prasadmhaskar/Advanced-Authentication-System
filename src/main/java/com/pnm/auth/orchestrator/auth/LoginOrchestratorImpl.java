@@ -183,7 +183,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         // ---------------------------------------------------------
         // 8️⃣ Success: Generate Tokens
         // ---------------------------------------------------------
-        AuthenticationResult result = tokenService.generateTokens(user);
+        AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
         eventPublisher.publishEvent(new LoginSuccessEvent(user.getId(), user.getEmail(), ip, userAgent));
 

@@ -1,15 +1,17 @@
 package com.pnm.auth.orchestrator.auth;
 
 import com.pnm.auth.domain.entity.RefreshToken;
+import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
+import com.pnm.auth.dto.request.LogoutRequest;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.LogoutFailedException;
+import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.util.Audit;
-import com.pnm.auth.util.BlacklistedTokenStore;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +20,8 @@ import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -25,13 +29,17 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
 
     private final JwtUtil jwtUtil;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final BlacklistedTokenStore blacklistedTokenStore;
+//    private final BlacklistedTokenStore blacklistedTokenStore;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional // Rolls back DB (delete) if Redis fails, but not vice-versa
-    public void logout(String accessToken, String refreshToken) {
+    public void logout(LogoutRequest requestBody) {
 
         log.info("LogoutOrchestrator: logout started");
+
+        String accessToken = requestBody.getAccessToken();
+        String refreshToken = requestBody.getRefreshToken();
 
         // =========================================================
         // PHASE 1: VALIDATION (Read-Only)
@@ -85,14 +93,22 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
 
         // 4️⃣ Blacklist Access Token (Redis - Non-Transactional)
         // We do this LAST. If this fails, the DB transaction (Step 3) will rollback.
-        try {
-            blacklistedTokenStore.blacklistToken(accessToken, accessTokenExpiry);
-            log.info("LogoutOrchestrator: access token blacklisted");
-        } catch (Exception ex) {
-            log.error("LogoutOrchestrator: Failed to write to Redis", ex);
-            // Throwing exception here triggers @Transactional rollback for Step 3
-            throw new LogoutFailedException("Logout failed due to system error");
-        }
+//        try {
+//            blacklistedTokenStore.blacklistToken(accessToken, accessTokenExpiry);
+//            log.info("LogoutOrchestrator: access token blacklisted");
+//        } catch (Exception ex) {
+//            log.error("LogoutOrchestrator: Failed to write to Redis", ex);
+//            // Throwing exception here triggers @Transactional rollback for Step 3
+//            throw new LogoutFailedException("Logout failed due to system error");
+//        }
+
+        User user = userRepository.findByEmail(userEmail).orElseThrow(() -> {
+            log.error("LogoutOrchestrator: user not found with email={}", userEmail);
+            return new UserNotFoundException("User not found with email=" + userEmail);
+        });
+
+        user.incrementTokenVersion();
+        userRepository.save(user);
 
         log.info("LogoutOrchestrator: logout completed for email={}", userEmail);
     }

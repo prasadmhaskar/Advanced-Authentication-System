@@ -27,6 +27,8 @@ public class RefreshToken {
 
     private LocalDateTime createdAt;
 
+    private String deviceSignature;
+
     private LocalDateTime expiresAt;   // NEW
 
     private boolean used = false;      // NEW

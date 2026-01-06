@@ -1,6 +1,8 @@
 package com.pnm.auth.orchestrator.auth;
 
+import com.pnm.auth.dto.request.LogoutRequest;
+
 public interface LogoutOrchestrator {
-    void logout(String accessToken, String refreshToken);
+    void logout(LogoutRequest requestBody);
 }
 
