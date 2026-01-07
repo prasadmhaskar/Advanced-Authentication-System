@@ -48,28 +48,30 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<?>> register(@Valid @RequestBody RegisterRequest request,
-                                                   HttpServletRequest httpRequest)
+                                                   HttpServletRequest httpServletRequest)
     {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.register(): started for ip={} and email={}",ctx.ip(), request.getEmail());
+        log.info("AuthController.register(): started ip={} and email={}",ctx.ip(), request.getEmail());
 
         RegistrationResult result = registerOrchestrator.register(request, ctx);
 
-        log.info("AuthController.register(): finished for ip={} and email={}",ctx.ip(), request.getEmail());
+        log.info("AuthController.register(): finished ip={} and email={}",ctx.ip(), request.getEmail());
 
         return switch (result.getOutcome()) {
 
             case REGISTERED -> {
                 if (result.getEmailSent()) {
                     yield ResponseEntity.status(HttpStatus.CREATED).body(
-                            ApiResponse.success("USER_REGISTERED",
+                            ApiResponse.success(
+                                    "USER_REGISTERED",
                                     "Registration successful. A verification email has been dispatched to your email address.",
                                     result,
                                     ctx.path()));
                 } else {
                     yield ResponseEntity.status(HttpStatus.CREATED).body(
-                            ApiResponse.success("USER_REGISTERED",
+                            ApiResponse.success(
+                                    "USER_REGISTERED",
                                     "Registration successful. Your verification email is being processed and will arrive shortly.",
                                     result,
                                     ctx.path()));
@@ -102,15 +104,15 @@ public class AuthController {
 
 
     @GetMapping("/verify")
-    public ResponseEntity<ApiResponse<?>> verifyEmail(@RequestParam("token") String token, HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<?>> verifyEmail(@RequestParam("token") String token, HttpServletRequest httpServletRequest) {
 
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.verifyEmail(): started for ip={}", ctx.ip());
+        log.info("AuthController.verifyEmail(): started ip={}", ctx.ip());
 
         EmailVerificationResult result = verifyEmailOrchestrator.verify(token, ctx);
 
-        log.info("AuthController.verifyEmail(): finished for ip={} and email={}", ctx.ip(), result.getEmail());
+        log.info("AuthController.verifyEmail(): finished ip={} and email={}", ctx.ip(), result.getEmail());
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -126,15 +128,15 @@ public class AuthController {
     @PostMapping("/verify/resend")
     public ResponseEntity<ApiResponse<?>> resendVerificationEmail(
             @Valid @RequestBody ResendVerificationRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.resendVerificationEmail(): started for ip={} and email={}", ctx.ip(), request.getEmail());
+        log.info("AuthController.resendVerificationEmail(): started ip={} and email={}", ctx.ip(), request.getEmail());
 
         ResendVerificationResult result = resendVerificationOrchestrator.resend(request.getEmail(), ctx);
 
-        log.info("AuthController.resendVerificationEmail(): finished for ip={} and email={}", ctx.ip(), request.getEmail());
+        log.info("AuthController.resendVerificationEmail(): finished ip={} and email={}", ctx.ip(), request.getEmail());
 
         return switch (result.getOutcome()) {
             case EMAIL_SENT -> {
@@ -167,15 +169,15 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<?>> login(
             @Valid @RequestBody LoginRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.login(): started for ip={} and email={}", ctx.ip(), request.getEmail());
+        log.info("AuthController.login(): started ip={} and email={}", ctx.ip(), request.getEmail());
 
         AuthenticationResult result = loginOrchestrator.login(request, ctx);
 
-        log.info("AuthController.login(): finished for ip={} and email={}", ctx.ip(), request.getEmail());
+        log.info("AuthController.login(): finished ip={} and email={}", ctx.ip(), request.getEmail());
 
         return switch (result.getOutcome()) {
 
@@ -248,15 +250,15 @@ public class AuthController {
     @PostMapping("/refresh")
     public ResponseEntity<ApiResponse<?>> refreshToken(
             @Valid @RequestBody RefreshTokenRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.refreshToken(): started for ip={}", ctx.ip());
+        log.info("AuthController.refreshToken(): started ip={}", ctx.ip());
 
         AuthenticationResult result = refreshTokenOrchestrator.refresh(request.getRefreshToken(), ctx);
 
-        log.info("AuthController.refreshToken(): finished for ip={}", ctx.ip());
+        log.info("AuthController.refreshToken(): finished ip={}", ctx.ip());
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -274,16 +276,16 @@ public class AuthController {
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<?>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
 
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.forgotPassword(): started for ip={} and email={}", ctx.ip(), request.getEmail());
+        log.info("AuthController.forgotPassword(): started ip={} and email={}", ctx.ip(), request.getEmail());
 
         ForgotPasswordResult result = forgotPasswordOrchestrator.requestReset(request.getEmail());
 
-        log.info("AuthController.forgotPassword(): finished for ip={} and email={}", ctx.ip(), request.getEmail());
+        log.info("AuthController.forgotPassword(): finished ip={} and email={}", ctx.ip(), request.getEmail());
 
         return switch (result.getOutcome()) {
             case PASSWORD_RESET -> {
@@ -315,15 +317,15 @@ public class AuthController {
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.resetPassword(): started for ip={}", ctx.ip());
+        log.info("AuthController.resetPassword(): started ip={}", ctx.ip());
 
         resetPasswordOrchestrator.reset(request, ctx);
 
-        log.info("AuthController.resetPassword(): finished for ip={}", ctx.ip());
+        log.info("AuthController.resetPassword(): finished ip={}", ctx.ip());
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -341,15 +343,15 @@ public class AuthController {
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public ResponseEntity<ApiResponse<?>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.changePassword(): started for ip={}", ctx.ip());
+        log.info("AuthController.changePassword(): started ip={}", ctx.ip());
 
         AuthenticationResult result = changePasswordOrchestrator.changePassword(request, ctx);
 
-        log.info("AuthController.changePassword(): finished for ip={}", ctx.ip());
+        log.info("AuthController.changePassword(): finished ip={}", ctx.ip());
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -363,15 +365,15 @@ public class AuthController {
 
 
     @GetMapping("/me")
-    public ResponseEntity<ApiResponse<UserDetailsResponse>> fetchUserDetails(HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<UserDetailsResponse>> fetchUserDetails(HttpServletRequest httpServletRequest) {
 
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.fetchUserDetails(): started for ip={}", ctx.ip());
+        log.info("AuthController.fetchUserDetails(): started ip={}", ctx.ip());
 
         UserDetailsResponse response = userContextOrchestrator.getCurrentUser();
 
-        log.info("AuthController.fetchUserDetails(): finished for ip={}", ctx.ip());
+        log.info("AuthController.fetchUserDetails(): finished ip={}", ctx.ip());
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -385,15 +387,15 @@ public class AuthController {
 
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@RequestBody LogoutRequest requestBody, HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestBody LogoutRequest requestBody, HttpServletRequest httpServletRequest) {
 
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.logout(): started for ip={}", ctx.ip());
+        log.info("AuthController.logout(): started ip={}", ctx.ip());
 
         logoutOrchestrator.logout(requestBody);
 
-        log.info("AuthController.logout(): finished for ip={}", ctx.ip());
+        log.info("AuthController.logout(): finished ip={}", ctx.ip());
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -409,23 +411,28 @@ public class AuthController {
     @PostMapping("/link-oauth")
     public ResponseEntity<ApiResponse<?>> linkOAuth(
             @RequestBody @Valid LinkOAuthRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.linkOAuth(): started for ip={}", ctx.ip());
+        log.info("AuthController.linkOAuth(): started ip={}", ctx.ip());
 
         AccountLinkResult result = linkOAuthOrchestrator.link(request, ctx);
 
-        log.info("AuthController.linkOAuth(): finished for ip={}", ctx.ip());
+        log.info("AuthController.linkOAuth(): finished ip={}", ctx.ip());
 
         if (result.getEmailSent()) {
             return ResponseEntity.ok(
-                    ApiResponse.success("ACCOUNT_LINKED", result.getMessage(), result, httpRequest.getRequestURI()));
+                    ApiResponse.success(
+                            "ACCOUNT_LINKED",
+                            result.getMessage(),
+                            result,
+                            ctx.path()));
         } else {
             // Return 202 Accepted to signal partial success
             return ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                    ApiResponse.success("ACCOUNT_LINKED",
+                    ApiResponse.success(
+                            "ACCOUNT_LINKED",
                             result.getMessage(),
                             result,
                             ctx.path()));
@@ -436,7 +443,7 @@ public class AuthController {
     @PutMapping("/update-profile")
     public ResponseEntity<ApiResponse<UserDetailsResponse>> updateProfile(
             @RequestBody @Valid UpdateProfileRequest updateProfileRequest,
-            HttpServletRequest request) {
+            HttpServletRequest httpServletRequest) {
 
         //Keeping empty for the future implementations -currently there is only one field(fullName) that can be updated
 
@@ -447,15 +454,15 @@ public class AuthController {
     @PostMapping("/otp/verify")
     public ResponseEntity<ApiResponse<?>> verifyOtp(
             @Valid @RequestBody OtpVerifyRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.verifyOtp(): started for ip={}", ctx.ip());
+        log.info("AuthController.verifyOtp(): started ip={}", ctx.ip());
 
         AuthenticationResult result = verifyOtpOrchestrator.verify(request, ctx);
 
-        log.info("AuthController.verifyOtp(): finished for ip={}", ctx.ip());
+        log.info("AuthController.verifyOtp(): finished ip={}", ctx.ip());
 
         return switch (result.getOutcome()) {
 
@@ -482,15 +489,15 @@ public class AuthController {
     @PostMapping("/otp/resend")
     public ResponseEntity<ApiResponse<ResendOtpResponse>> resendOtp(
             @Valid @RequestBody OtpResendRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.resendOtp(): started for ip={}", ctx.ip());
+        log.info("AuthController.resendOtp(): started ip={}", ctx.ip());
 
         ResendOtpResponse result = resendOtpOrchestrator.resend(request);
 
-        log.info("AuthController.resendOtp(): finished for ip={}", ctx.ip());
+        log.info("AuthController.resendOtp(): finished ip={}", ctx.ip());
 
         String msg = result.getEmailSent() ? "OTP has been dispatched to your email address." : "Your OTP email is being processed and will arrive shortly.";
 
@@ -507,15 +514,15 @@ public class AuthController {
 
 
     @GetMapping("/me/devices")
-    public ResponseEntity<ApiResponse<List<DeviceTrustResponse>>> getMyTrustedDevices(HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<List<DeviceTrustResponse>>> getMyTrustedDevices(HttpServletRequest httpServletRequest) {
 
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.getMyTrustedDevices(): started for ip={}", ctx.ip());
+        log.info("AuthController.getMyTrustedDevices(): started ip={}", ctx.ip());
 
         List<DeviceTrustResponse> devices = deviceTrustService.getTrustedDevices();
 
-        log.info("AuthController.getMyTrustedDevices(): finished for ip={}",ctx.ip());
+        log.info("AuthController.getMyTrustedDevices(): finished ip={}",ctx.ip());
 
         return ResponseEntity.ok(ApiResponse.success(
                 "DEVICES_FETCHED",
@@ -527,15 +534,15 @@ public class AuthController {
 
 
     @DeleteMapping("/me/devices/{id}")
-    public ResponseEntity<ApiResponse<Void>> removeDevice(@PathVariable Long id, HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<Void>> removeDevice(@PathVariable Long id, HttpServletRequest httpServletRequest) {
 
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.removeDevice(): started for ip={}", ctx.ip());
+        log.info("AuthController.removeDevice(): started ip={}", ctx.ip());
 
         deviceTrustService.removeDevice(id);
 
-        log.info("AuthController.removeDevice(): finished for ip={}", ctx.ip());
+        log.info("AuthController.removeDevice(): finished ip={}", ctx.ip());
 
         return ResponseEntity.ok(ApiResponse.success(
                 "DEVICE_REMOVED",
@@ -547,19 +554,19 @@ public class AuthController {
 
 
     @PostMapping("/me/devices/keep-current")
-    public ResponseEntity<ApiResponse<Void>> removeOtherDevices(HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<Void>> removeOtherDevices(HttpServletRequest httpServletRequest) {
 
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.removeOtherDevices(): started for ip={}",ctx.ip());
+        log.info("AuthController.removeOtherDevices(): started ip={}",ctx.ip());
 
         deviceTrustService.removeAllExceptCurrent(ctx);
 
-        log.info("AuthController.removeOtherDevices(): finished for ip={}",ctx.ip());
+        log.info("AuthController.removeOtherDevices(): finished ip={}",ctx.ip());
 
         ApiResponse<Void> body = ApiResponse.success(
                 "TRUSTED_DEVICES_UPDATED",
-                "All other trusted devices have been removed. Only the current device remains trusted.",
+                "All other devices have been logged out. Only the current device remains active.",
                 null,
                 ctx.path()
         );
@@ -571,15 +578,15 @@ public class AuthController {
     @Operation(summary = "Delete My Account", description = "Permanently delete account. Requires password for email users.")
     public ResponseEntity<ApiResponse<Void>> deleteMyAccount(
             @RequestBody @Valid DeleteAccountRequest request,
-            HttpServletRequest httpRequest
+            HttpServletRequest httpServletRequest
     ) {
-        RequestContext ctx = (RequestContext) httpRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
+        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuthController.deleteMyAccount(): started for ip={}", ctx.ip());
+        log.info("AuthController.deleteMyAccount(): started ip={}", ctx.ip());
 
         accountDeleteOrchestrator.deleteMyAccount(request);
 
-        log.info("AuthController.deleteMyAccount(): finished for ip={}", ctx.ip());
+        log.info("AuthController.deleteMyAccount(): finished ip={}", ctx.ip());
 
         return ResponseEntity.ok(ApiResponse.success(
                 "ACCOUNT_DELETED",

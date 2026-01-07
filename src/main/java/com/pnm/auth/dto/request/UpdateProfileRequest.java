@@ -9,8 +9,4 @@ public class UpdateProfileRequest {
     @NotBlank
     private String fullName;
 
-//     In future
-//     private String phone;
-//     private String profilePictureUrl;
-//     private String address;
 }

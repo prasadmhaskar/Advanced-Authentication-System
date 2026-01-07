@@ -40,7 +40,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Query("""
 UPDATE RefreshToken r
 SET r.invalidated = true
-WHERE r.userId = :userId
+WHERE r.user.id = :userId
 AND r.deviceSignature <> :deviceSignature
 """)
     void invalidateAllExceptCurrentDevice(

@@ -125,6 +125,8 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
                 // Do not fail the request if logging fails
             }
 
+            log.info("RefreshTokenOrchestrator: finished for ip={}",ip);
+
             return result;
 
         } catch (Exception ex) {
