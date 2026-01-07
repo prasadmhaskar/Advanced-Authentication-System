@@ -133,24 +133,24 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         String ip = ctx.ip();
         String ua = ctx.userAgent();
 
-        // 1️⃣ PREVENTATIVE CHECK (For restricting multiple accounts registration per device)
+        // Check for restricting multiple accounts registration per device
         //This is just a basic check code for restricting multiple users per device. We have kept limit to 20 because,
         // we have added basic UserAgentParser logic. Hence, different clients can have same device signature.
         // In future we can replace this with frontEnd fingerprint library which generates unique hash for different users.
         ipMonitoringService.checkRegistrationEligibility(ip, ua);
 
-        // 1️⃣ Check if user exists (Privacy-First Handling)
+        // Check if user exists
         Optional<User> optionalUser = userRepository.findByEmail(email);
 
         if (optionalUser.isPresent()) {
 
             User existingUser = optionalUser.get();
 
-            // A) EMAIL provider exists -> FAKE SUCCESS (Prevent Enumeration)
+            // 1.User already exists with providerType Email -> returning fake success so that attacker will not know that this email id already exists
             if (existingUser.hasProvider(AuthProviderType.EMAIL)) {
                 log.warn("RegisterOrchestrator: Duplicate registration attempt for email={}. Returning fake success.", email);
 
-                // Return "Fake" Success to baffle attackers
+                // Return fake success
                 return RegistrationResult.builder()
                         .outcome(AuthOutcome.REGISTERED)
                         .email(email)
@@ -159,9 +159,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
                         .build();
             }
 
-            // B) OAuth exists but EMAIL not linked -> LINK REQUIRED
-            // Note: This technically leaks that an OAuth account exists,
-            // but is required for the "Link Account" flow.
+            // 2.User already exists with providerType -> any OAuthProvider.
             AuthProviderType existingProvider =
                     existingUser.getAuthProviders().stream()
                             .map(UserOAuthProvider::getProviderType)
@@ -170,7 +168,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
                             .orElseThrow(() -> new IllegalStateException("OAuth provider expected"));
 
             // Create Link Token (Transactional inside service)
-            String linkToken = accountLinkTokenService.createLinkToken(existingUser, AuthProviderType.EMAIL, email);
+            String linkToken = accountLinkTokenService.createLinkToken(existingUser, AuthProviderType.EMAIL, email, false);
 
             log.info("RegisterOrchestrator: Account link required for email={}", email);
 

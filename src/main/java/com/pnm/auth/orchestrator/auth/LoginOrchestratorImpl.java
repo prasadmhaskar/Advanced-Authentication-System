@@ -110,7 +110,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
             AuthProviderType existingProvider = user.getAuthProviders().iterator().next().getProviderType();
             log.warn("LoginOrchestrator: EMAIL provider not linked email={} existing={}", email, existingProvider);
 
-            String linkToken = accountLinkTokenService.createLinkToken(user, AuthProviderType.EMAIL, email);
+            String linkToken = accountLinkTokenService.createLinkToken(user, AuthProviderType.EMAIL, email, false);
 
             return AuthenticationResult.builder()
                     .outcome(AuthOutcome.LINK_REQUIRED)

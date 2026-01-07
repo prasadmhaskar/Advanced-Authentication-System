@@ -1,5 +1,6 @@
 package com.pnm.auth.orchestrator.auth;
 
+import com.pnm.auth.domain.entity.AccountLinkToken;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.request.LinkOAuthRequest;
@@ -8,6 +9,9 @@ import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.dto.result.AccountLinkResult;
 import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.dto.result.LinkingResult;
+import com.pnm.auth.exception.custom.InvalidTokenException;
+import com.pnm.auth.repository.AccountLinkTokenRepository;
+import com.pnm.auth.security.oauth.AccountLinkTokenService;
 import com.pnm.auth.service.auth.AccountLinkingService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.util.Audit;
@@ -29,6 +33,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
 
     private final AccountLinkingService accountLinkingService; // 👈 Inject new service
     private final EmailService emailService;
+    private final AccountLinkTokenService accountLinkTokenService;
 
     @Override
     @Audit(action = AuditAction.OAUTH_LINK, description = "Link OAuth account")
@@ -36,21 +41,29 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
 
         log.info("LinkOAuthOrchestrator: started provider={}", request.getProvider());
 
+        AccountLinkToken accountLinkToken = accountLinkTokenService.validate(request.getLinkToken());
+
         // 1. Execute DB Logic (Transaction opens and closes inside this call)
         LinkingResult internalResult = accountLinkingService.linkAccount(request, ctx);
 
+        // 3. DECIDE: Return Tokens or Null?
+        String accessToken = null;
+        String refreshToken = null;
+        boolean passwordSetupRequired = internalResult.getPasswordResetToken() != null;
+
+        if (accountLinkToken.isTrustedSource()){
+            accessToken = internalResult.getAuthTokens().getAccessToken();
+            refreshToken = internalResult.getAuthTokens().getRefreshToken();
+        }
+
         User user = internalResult.getUser();
-        AuthenticationResult auth = internalResult.getAuthTokens();
         String resetToken = internalResult.getPasswordResetToken();
 
-        boolean passwordSetupRequired = false;
         NextAction nextAction = NextAction.LOGIN;
-        String message = "Account linked and logged in successfully.";
         boolean emailSent = true;
 
         // 2. Handle Email (Outside Transaction)
         if (resetToken != null) {
-            passwordSetupRequired = true;
             nextAction = NextAction.RESET_PASSWORD;
 
             // Send Email immediately
@@ -79,8 +92,8 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
         String msg;
         if (passwordSetupRequired){
             msg = emailSent ?
-                    "Account linked, please set a password to enable email login. Link email for setting password is sent successfully"
-                    :"Account linked, please set a password to enable email login. Link email for setting password is on its way";
+                    "Account linked, please set a password to enable email login. Email for setting password has been dispatched to your email address."
+                    :"Account linked, please set a password to enable email login. Email for setting password is being processed and will arrive shortly to you email address.";
         }
         else {
             msg = "Account linked successfully";
@@ -89,8 +102,8 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
         return AccountLinkResult.builder()
                 .outcome(AuthOutcome.SUCCESS)
                 .email(user.getEmail())
-                .accessToken(auth.getAccessToken())
-                .refreshToken(auth.getRefreshToken())
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
                 .passwordSetupRequired(passwordSetupRequired)
                 .nextAction(nextAction)
                 .emailSent(emailSent)

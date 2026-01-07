@@ -24,7 +24,8 @@ public class AccountLinkTokenService {
     public String createLinkToken(
             User user,
             AuthProviderType providerToLink,
-            String providerUserId
+            String providerUserId,
+            boolean isTrustedSource
     ) {
 
         // Invalidate old tokens
@@ -38,6 +39,7 @@ public class AccountLinkTokenService {
                 .providerToLink(providerToLink)
                 .providerUserId(providerUserId)
                 .expiresAt(LocalDateTime.now().plusMinutes(10))
+                .isTrustedSource(isTrustedSource)
                 .createdAt(LocalDateTime.now())
                 .build();
 
