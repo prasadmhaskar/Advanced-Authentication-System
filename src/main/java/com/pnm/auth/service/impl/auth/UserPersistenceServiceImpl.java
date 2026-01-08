@@ -35,7 +35,7 @@ public class UserPersistenceServiceImpl implements UserPersistenceService {
     public record UserCreationResult(User user, String token) {}
 
     @Override
-    @Transactional // Only the DB work is transactional
+    @Transactional
     public UserCreationResult saveUserAndCreateToken(RegisterRequest request) {
         String email = request.getEmail().trim().toLowerCase();
         User user = new User();

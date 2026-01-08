@@ -58,44 +58,37 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
 
         String email = request.getEmail().trim().toLowerCase();
 
-        log.info("LoginOrchestrator: started for email={}", email);
+        log.info("LoginOrchestrator: started ip={} and email={}", ip, email);
 
-        // ---------------------------------------------------------
-        // 1️⃣ Load User (Silent)
-        // ---------------------------------------------------------
-        // We do NOT throw exceptions here if missing.
+        // load user we do not throw exceptions here if user is null.
         Optional<User> userOpt = userValidationService.findUserByEmail(email);
         User user = userOpt.orElse(null);
 
-        // 🚨 SPECIAL LOGIC: Handle Pure OAuth Users (Case 2)
-        // If the user exists but has NO password (e.g., registered via Google),
-        // checking the password is futile—it will always fail.
-        // Instead, we SKIP the check so the flow falls through to "Step 4: Provider Check",
-        // which correctly tells them: "Link your account" or "Use Google".
+
+        // Case: user is not null and password is also not null. Means user has an account with email login.
         boolean isPasswordSet = (user != null && user.getPassword() != null);
 
-        // 2️⃣ Verify Password (Only if a password actually exists)
+        // Here we are handling both cases
+        // 1. If user is null (attacker might check if user has an account or not), we will verify the password with fake hash for saving db call and returning fake response.
+        // 2. User has an account we will check password with real password.
         if (user == null || isPasswordSet) {
             try {
-                // If user is null, this runs a dummy hash (Timing Attack Protection)
+                // If a user is null, this runs a fake hash (Timing Attack Protection)
                 // If user has password, this verifies it.
                 passwordAuthService.verifyPassword(user, request.getPassword());
             } catch (InvalidCredentialsException ex) {
                 loginActivityService.recordFailure(email, "Invalid email or password", ip, userAgent);
                 throw ex;
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
             }
         } else {
-            // User exists but has NO password. We skip verification to allow
-            // the "Link Account" logic (Step 4) to take over.
+            // User exists but has no password. We skip verification to allow
             log.info("LoginOrchestrator: Pure OAuth user detected (no password). Skipping password check to prompt linking.");
         }
 
-        // ⭐ Security Note: If we reach here, the User exists AND Password is correct.
-        // It is now safe to reveal specific account status errors.
-
-        // ---------------------------------------------------------
-        // 3️⃣ Validate Status (Blocked / Verified)
-        // ---------------------------------------------------------
+        // If we reach here, the User exists and the password is correct if set.
+        // Validate check (Blocked / Verified)
         try {
             userValidationService.validateUserStatus(user);
         } catch (Exception ex) {
@@ -103,9 +96,12 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
             throw ex;
         }
 
-        // ---------------------------------------------------------
-        // 4️⃣ Provider Check (Account Linking)
-        // ---------------------------------------------------------
+        if (user == null) {
+            log.warn("User unexpectedly null after validation");
+            throw new IllegalStateException("User unexpectedly null after validation");
+        }
+
+        // Provider Check (Account Linking) user has already an account with OAuth provider now trying to log in using email
         if (!user.hasProvider(AuthProviderType.EMAIL)) {
             AuthProviderType existingProvider = user.getAuthProviders().iterator().next().getProviderType();
             log.warn("LoginOrchestrator: EMAIL provider not linked email={} existing={}", email, existingProvider);
@@ -123,9 +119,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
                     .build();
         }
 
-        // ---------------------------------------------------------
-        // 5️⃣ Password Set Check (Edge case)
-        // ---------------------------------------------------------
+        // Password Set Check
         if (user.getPassword() == null) {
             return AuthenticationResult.builder()
                     .outcome(AuthOutcome.PASSWORD_NOT_SET)
@@ -135,13 +129,9 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
                     .build();
         }
 
-        // ---------------------------------------------------------
-        // 6️⃣ MFA Handling
-        // ---------------------------------------------------------
+        // mfa Handling
         if (user.isMfaEnabled()) {
             log.info("LoginOrchestrator: MFA enabled for email={}", user.getEmail());
-            // Since we removed @Transactional, the DB transaction inside mfaService closes immediately,
-            // allowing the email future to complete without deadlock.
             MfaResult mfaResult = mfaService.handleMfaLogin(user);
 
             String msg = mfaResult.getEmailSent()
@@ -155,9 +145,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
                     .build();
         }
 
-        // ---------------------------------------------------------
-        // 7️⃣ Risk Engine (Only for non-MFA users)
-        // ---------------------------------------------------------
+        // Risk Engine (Only for non-mfa users)
         RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
 
         if (risk.getScore() >= highRiskScore) {
@@ -180,9 +168,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
                     .build();
         }
 
-        // ---------------------------------------------------------
-        // 8️⃣ Success: Generate Tokens
-        // ---------------------------------------------------------
+        // Successful login: Generate Tokens
         AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
         eventPublisher.publishEvent(new LoginSuccessEvent(user.getId(), user.getEmail(), ip, userAgent));
@@ -194,7 +180,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
             log.warn("LoginOrchestrator: failed to trust device", ex);
         }
 
-        log.info("LoginOrchestrator: finished for email={}", email);
+        log.info("LoginOrchestrator: finished ip={} and email={}", ip, email);
 
         return AuthenticationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)

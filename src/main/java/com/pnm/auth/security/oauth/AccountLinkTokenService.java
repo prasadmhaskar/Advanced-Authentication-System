@@ -18,7 +18,7 @@ import java.util.UUID;
 @Slf4j
 public class AccountLinkTokenService {
 
-    private final AccountLinkTokenRepository repository;
+    private final AccountLinkTokenRepository accountLinkTokenRepository;
 
     @Transactional
     public String createLinkToken(
@@ -27,10 +27,12 @@ public class AccountLinkTokenService {
             String providerUserId,
             boolean isTrustedSource
     ) {
+        log.info("AccountLinkToken.createLinkToken(): started userId={} provider={}", user.getId(), providerToLink);
 
         // Invalidate old tokens
-        repository.deleteByUserId(user.getId());
+        accountLinkTokenRepository.deleteByUserId(user.getId());
 
+        // Create new token
         String token = UUID.randomUUID().toString();
 
         AccountLinkToken linkToken = AccountLinkToken.builder()
@@ -43,25 +45,27 @@ public class AccountLinkTokenService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        repository.save(linkToken);
+        accountLinkTokenRepository.save(linkToken);
 
-        log.info(
-                "AccountLinkToken created userId={} provider={}",
-                user.getId(),
-                providerToLink
-        );
+        log.info("AccountLinkToken.createLinkToken(): created userId={} provider={}", user.getId(), providerToLink);
+
         return token;
     }
 
     public AccountLinkToken validate(String token) {
 
-        AccountLinkToken linkToken = repository.findByToken(token)
+        log.info("AccountLinkToken.validate(): started");
+
+        AccountLinkToken linkToken = accountLinkTokenRepository.findByToken(token)
                 .orElseThrow(() -> new InvalidTokenException("Invalid link token"));
 
         if (linkToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            repository.delete(linkToken);
+            accountLinkTokenRepository.delete(linkToken);
             throw new InvalidTokenException("Link token expired");
         }
+
+        log.info("AccountLinkToken.validate(): finished");
+
         return linkToken;
     }
 }

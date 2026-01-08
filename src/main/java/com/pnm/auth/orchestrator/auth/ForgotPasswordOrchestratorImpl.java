@@ -6,10 +6,11 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.auth.VerificationService;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import java.security.SecureRandom;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -28,39 +29,44 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
 
     private final SecureRandom secureRandom = new SecureRandom();
 
-    @Override
-    public ForgotPasswordResult requestReset(String rawEmail) {
-        String email = rawEmail.trim().toLowerCase();
-        log.info("ForgotPasswordOrchestrator: request for email={}", email);
+    @Value("${email.send.timeout.ms}")
+    private long emailTimeout;
 
-        // 1️⃣ Validate user existence (Privacy-First)
+    @Override
+    public ForgotPasswordResult requestReset(String rawEmail, RequestContext ctx) {
+
+        String ip = ctx.ip();
+        String email = rawEmail.trim().toLowerCase();
+
+        log.info("ForgotPasswordOrchestrator: started ip={} and email={}",ip, email);
+
+        // Load user
         Optional<User> userOpt = userRepository.findByEmail(email);
 
         if (userOpt.isEmpty()) {
-            // Log it internally for security monitoring
             log.warn("ForgotPasswordOrchestrator: account not found with email={}", email);
 
             try { Thread.sleep(secureRandom.nextInt(200) + 300); } catch (InterruptedException ignored) {}
 
-            // Return a successful response to the API consumer
+            // Return a fake successful response - in case if attacker is trying to find out email is registered or not.
             return ForgotPasswordResult.builder()
                     .outcome(AuthOutcome.PASSWORD_RESET)
-                    .emailSent(true) // Lie to the client to prevent enumeration
-                    .message("If an account exists, a reset link has been sent.")
+                    .emailSent(true)
+                    .message("If your email is registered, password reset link has been dispatched to your email address.")
                     .build();
         }
 
         User user = userOpt.get();
 
-        // 2️⃣ Create reset token (Standard flow)
+        // Create reset token
         String token = verificationService.createVerificationToken(user, "PASSWORD_RESET");
 
-        // 3️⃣ Send Email Directly
+        // Send email
         CompletableFuture<Boolean> emailResultFuture = emailService.sendSetPasswordEmail(user.getEmail(), token);
 
         boolean emailSent;
         try {
-            emailSent = emailResultFuture.get(1000, TimeUnit.MILLISECONDS);
+            emailSent = emailResultFuture.get(emailTimeout, TimeUnit.MILLISECONDS);
 
         } catch (TimeoutException e) {
             log.warn("ForgotPasswordOrchestrator: Email timed out. User will receive it eventually.");
@@ -75,7 +81,7 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
             emailSent = false;
         }
 
-        log.info("ForgotPasswordOrchestrator: reset link sent email={}. Email sent={}", email, emailSent);
+        log.info("ForgotPasswordOrchestrator: finished ip={} and email={} , emailSentInTime={}",ip, email, emailSent);
 
         return ForgotPasswordResult.builder()
                 .outcome(AuthOutcome.PASSWORD_RESET)

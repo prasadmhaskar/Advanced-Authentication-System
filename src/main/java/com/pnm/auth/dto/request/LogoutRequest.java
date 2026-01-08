@@ -4,7 +4,7 @@ import lombok.Data;
 
 @Data
 public class LogoutRequest {
-    private String accessToken;
+    private Boolean logoutFromAllDevices = false;
     private String refreshToken;
 }
 

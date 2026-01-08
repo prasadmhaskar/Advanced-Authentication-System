@@ -7,10 +7,7 @@ import com.pnm.auth.dto.request.LinkOAuthRequest;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.dto.result.AccountLinkResult;
-import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.dto.result.LinkingResult;
-import com.pnm.auth.exception.custom.InvalidTokenException;
-import com.pnm.auth.repository.AccountLinkTokenRepository;
 import com.pnm.auth.security.oauth.AccountLinkTokenService;
 import com.pnm.auth.service.auth.AccountLinkingService;
 import com.pnm.auth.service.email.EmailService;
@@ -18,6 +15,7 @@ import com.pnm.auth.util.Audit;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.CompletableFuture;
@@ -31,26 +29,31 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
 
-    private final AccountLinkingService accountLinkingService; // 👈 Inject new service
+    private final AccountLinkingService accountLinkingService;
     private final EmailService emailService;
     private final AccountLinkTokenService accountLinkTokenService;
+
+    @Value("${email.send.timeout.ms}")
+    private long emailTimeout;
 
     @Override
     @Audit(action = AuditAction.OAUTH_LINK, description = "Link OAuth account")
     public AccountLinkResult link(LinkOAuthRequest request, RequestContext ctx) {
 
-        log.info("LinkOAuthOrchestrator: started provider={}", request.getProvider());
+        String ip = ctx.ip();
+
+        log.info("LinkOAuthOrchestrator: started ip={} and provider={}",ip, request.getProvider());
 
         AccountLinkToken accountLinkToken = accountLinkTokenService.validate(request.getLinkToken());
 
-        // 1. Execute DB Logic (Transaction opens and closes inside this call)
+        // Link account
         LinkingResult internalResult = accountLinkingService.linkAccount(request, ctx);
 
-        // 3. DECIDE: Return Tokens or Null?
         String accessToken = null;
         String refreshToken = null;
         boolean passwordSetupRequired = internalResult.getPasswordResetToken() != null;
 
+        // Decide: return tokens or return null? (If passwordSetup is required, we will not return tokens)
         if (accountLinkToken.isTrustedSource()){
             accessToken = internalResult.getAuthTokens().getAccessToken();
             refreshToken = internalResult.getAuthTokens().getRefreshToken();
@@ -62,7 +65,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
         NextAction nextAction = NextAction.LOGIN;
         boolean emailSent = true;
 
-        // 2. Handle Email (Outside Transaction)
+        // Password setup required, send email for setting password
         if (resetToken != null) {
             nextAction = NextAction.RESET_PASSWORD;
 
@@ -70,7 +73,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
             CompletableFuture<Boolean> emailResultFuture = emailService.sendSetPasswordEmail(user.getEmail(), resetToken);
 
             try {
-                emailSent = emailResultFuture.get(1000, TimeUnit.MILLISECONDS);
+                emailSent = emailResultFuture.get(emailTimeout, TimeUnit.MILLISECONDS);
 
             } catch (TimeoutException e) {
                 log.warn("LinkOAuthOrchestrator: Email timed out. User will receive it eventually.");
@@ -86,8 +89,8 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
             }
         }
 
-        log.info("LinkOAuthOrchestrator: completed email={} provider={} emailSent={}",
-                user.getEmail(), request.getProvider(), emailSent);
+        log.info("LinkOAuthOrchestrator: finished ip={} email={} provider={} emailSentInTime={}",
+                ip, user.getEmail(), request.getProvider(), emailSent);
 
         String msg;
         if (passwordSetupRequired){

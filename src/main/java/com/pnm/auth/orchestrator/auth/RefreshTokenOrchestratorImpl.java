@@ -1,7 +1,6 @@
 package com.pnm.auth.orchestrator.auth;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.pnm.auth.dto.response.UserAdminResponse;
 import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.domain.entity.RefreshToken;
 import com.pnm.auth.domain.entity.User;
@@ -50,35 +49,38 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
                 .parse(ctx.userAgent())
                 .getSignature();
 
-        log.info("RefreshTokenOrchestrator: started for ip={}",ip);
+        log.info("RefreshTokenOrchestrator: started ip={}",ip);
 
-        // 1️⃣ Load token metadata
+        // Load token
         RefreshToken stored = refreshTokenRepository.findByToken(rawToken)
                 .orElseThrow(() -> new InvalidTokenException("Invalid refresh token"));
 
+        // Load user
         User user = stored.getUser();
 
-        // 2️⃣ Expired / Invalidated check
+        // Expired / Invalidated check
         if (stored.isInvalidated() || stored.getExpiresAt().isBefore(LocalDateTime.now())) {
             log.warn("RefreshTokenOrchestrator: expired/invalidated token userId={}", user.getId());
             throw new InvalidTokenException("Refresh token expired");
         }
 
+        // Check current device signature is equal to the signature of the device for which this refresh token was provided.
         if (!stored.getDeviceSignature().equals(currentDeviceSignature)) {
             throw new InvalidTokenException("Refresh token used from different device");
         }
 
 
-        // 3️⃣ Reuse Detection with Atomic Lock
-        // We attempt to mark the token as 'used'.
-        // If 'rowsUpdated' is 0, it means the token was ALREADY used (either historically or by a racing thread).
+        // Reuse detection - we attempt to mark the token as used.
+        // If rows updated is 0, it means the token was already used either historically or by a racing thread.
         int rowsUpdated = refreshTokenRepository.markAsUsed(rawToken);
 
         if (rowsUpdated == 0) {
-            // 🚨 ALREADY USED: Handle Race Condition or Theft
+            // already used: handle race condition or theft
             log.warn("RefreshTokenOrchestrator: Token already used (Race/Reuse) userId={}", user.getId());
 
-            // A) Check Redis Grace Period (Handling Network Retries)
+            // Check Redis Grace Period (Handling Network Retries) if user was not able to get response(tokens)
+            // generated in previous request, we will check that token is stored in redis or not
+            // If token is stored in redis we will return that cached tokens, else we will detect it is token theft and reuse act.
             String graceKey = "refresh_grace:" + rawToken;
             String cachedTokens = redisTemplate.opsForValue().get(graceKey);
 
@@ -88,14 +90,13 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
                     return objectMapper.readValue(cachedTokens, AuthenticationResult.class);
                 } catch (Exception e) {
                     log.error("Failed to parse cached tokens", e);
-                    // Proceed to treat as theft if parsing fails
                 }
             }
 
-            // B) No Grace Period -> Real Token Theft
-            log.error("RefreshTokenOrchestrator: SECURITY ALERT - Token Reuse Detected! Nuking sessions for userId={}", user.getId());
+            // No Grace Period -> Real Token Theft
+            log.error("RefreshTokenOrchestrator: SECURITY ALERT - Token Reuse Detected! invalidating all sessions for userId={}", user.getId());
 
-            // Security: Invalidate ALL sessions for this user immediately
+            // for security, Invalidate ALL sessions for this user immediately
             refreshTokenRepository.invalidateAllForUser(user.getId());
             user.incrementTokenVersion();
             userRepository.save(user);
@@ -106,26 +107,24 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
             throw new InvalidCredentialsException("Session compromised. Please login again.");
         }
 
-        // 4️⃣ Rotate Token (We won the lock)
+        // Rotate Token
         try {
-            // Generate new tokens (Session Capping logic handles the limit inside this service)
+            // Generate new tokens
             AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
-            // ✅ SAVE TO REDIS (Grace Period: 60 Seconds)
-            // If the client retries the old token within 60s, we return this result.
+            // Save new tokens to redis, if the client retries the old token within the 60s, we return this result.
             String graceKey = "refresh_grace:" + rawToken;
             String jsonResult = objectMapper.writeValueAsString(result);
 
             redisTemplate.opsForValue().set(graceKey, jsonResult, 60, TimeUnit.SECONDS);
 
-            // Log success (Best effort)
+            // Record success
             try {
                 loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
             } catch (Exception ignored) {
-                // Do not fail the request if logging fails
             }
 
-            log.info("RefreshTokenOrchestrator: finished for ip={}",ip);
+            log.info("RefreshTokenOrchestrator: finished ip={} and email={}",ip, user.getEmail());
 
             return result;
 

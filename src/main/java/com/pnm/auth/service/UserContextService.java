@@ -1,53 +1,52 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.service;
 
-import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.domain.entity.User;
+import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.exception.custom.AccountBlockedException;
-import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.util.AuthUtil;
-import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class UserContextOrchestratorImpl implements UserContextOrchestrator {
+public class UserContextService {
 
-    private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final AuthUtil authUtil;
 
-    @Override
     @Transactional(readOnly = true)
-    public UserDetailsResponse getCurrentUser() {
+    public UserDetailsResponse getCurrentUser(RequestContext ctx) {
 
-        log.info("UserContextOrchestrator: fetching user context");
+        String ip = ctx.ip();
+
+        log.info("UserContextService: started ip={}", ip);
 
         String email = authUtil.getCurrentEmail();
 
-        log.debug("UserContextOrchestrator: extracted email={}", email);
+        log.debug("UserContextService: extracted email={}", email);
 
-        // 4️⃣ Load user
+        // Load user
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("UserContextOrchestrator: user not found email={}", email);
+                    log.warn("UserContextService: user not found email={}", email);
                     return new UserNotFoundException("User not found");
                 });
 
-        // 5️⃣ Active check
+        // Active check
         if (!user.isActive()) {
-            log.warn("UserContextOrchestrator: blocked user requested /me email={}", email);
+            log.warn("UserContextService: blocked user requested /me email={}", email);
             throw new AccountBlockedException("Your account has been blocked");
         }
 
-        // 6️⃣ Build response DTO
+        log.info("UserContextService: finished ip={} and email={}", ip, email);
+
         return UserDetailsResponse.fromEntity(user);
     }
-}
 
+}

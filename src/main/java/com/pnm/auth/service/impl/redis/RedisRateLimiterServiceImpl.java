@@ -37,4 +37,10 @@ public class RedisRateLimiterServiceImpl implements RedisRateLimiterService {
             return true; // ✅ Allow request
         }
     }
+
+    @Override
+    public void refund(String key) {
+        redisTemplate.delete("rate_limit:" + key);
+    }
+
 }

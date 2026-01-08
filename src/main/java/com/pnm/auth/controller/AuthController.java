@@ -7,6 +7,10 @@ import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.orchestrator.auth.*;
+import com.pnm.auth.service.LogoutService;
+import com.pnm.auth.service.UserContextService;
+import com.pnm.auth.service.auth.PasswordChangeService;
+import com.pnm.auth.service.auth.PasswordResetService;
 import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.web.context.RequestContext;
 import com.pnm.auth.web.filter.RequestContextFilter;
@@ -37,13 +41,13 @@ public class AuthController {
     private final RegisterOrchestrator registerOrchestrator;
     private final VerifyEmailOrchestrator verifyEmailOrchestrator;
     private final ForgotPasswordOrchestrator forgotPasswordOrchestrator;
-    private final ResetPasswordOrchestrator resetPasswordOrchestrator;
     private final RefreshTokenOrchestrator refreshTokenOrchestrator;
-    private final UserContextOrchestrator userContextOrchestrator;
-    private final LogoutOrchestrator logoutOrchestrator;
     private final LinkOAuthOrchestrator linkOAuthOrchestrator;
-    private final ChangePasswordOrchestrator changePasswordOrchestrator;
     private final AccountDeleteOrchestrator accountDeleteOrchestrator;
+    private final PasswordResetService passwordResetService;
+    private final PasswordChangeService passwordChangeService;
+    private final UserContextService userContextService;
+    private final LogoutService logoutService;
 
 
     @PostMapping("/register")
@@ -283,7 +287,7 @@ public class AuthController {
 
         log.info("AuthController.forgotPassword(): started ip={} and email={}", ctx.ip(), request.getEmail());
 
-        ForgotPasswordResult result = forgotPasswordOrchestrator.requestReset(request.getEmail());
+        ForgotPasswordResult result = forgotPasswordOrchestrator.requestReset(request.getEmail(), ctx);
 
         log.info("AuthController.forgotPassword(): finished ip={} and email={}", ctx.ip(), request.getEmail());
 
@@ -313,7 +317,7 @@ public class AuthController {
     }
 
 
-    //forgotPassword sends this controllers link with token and in this controller actual password change is done.
+    //forgotPassword sends this controller link with token, and in this controller actual password change is done.
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request,
@@ -323,7 +327,7 @@ public class AuthController {
 
         log.info("AuthController.resetPassword(): started ip={}", ctx.ip());
 
-        resetPasswordOrchestrator.reset(request, ctx);
+        passwordResetService.resetPassword(request, ctx);
 
         log.info("AuthController.resetPassword(): finished ip={}", ctx.ip());
 
@@ -349,7 +353,7 @@ public class AuthController {
 
         log.info("AuthController.changePassword(): started ip={}", ctx.ip());
 
-        AuthenticationResult result = changePasswordOrchestrator.changePassword(request, ctx);
+        AuthenticationResult result = passwordChangeService.changePassword(request, ctx);
 
         log.info("AuthController.changePassword(): finished ip={}", ctx.ip());
 
@@ -371,7 +375,7 @@ public class AuthController {
 
         log.info("AuthController.fetchUserDetails(): started ip={}", ctx.ip());
 
-        UserDetailsResponse response = userContextOrchestrator.getCurrentUser();
+        UserDetailsResponse result = userContextService.getCurrentUser(ctx);
 
         log.info("AuthController.fetchUserDetails(): finished ip={}", ctx.ip());
 
@@ -379,7 +383,7 @@ public class AuthController {
                 ApiResponse.success(
                         "USER_DETAILS_FETCHED",
                         "User details fetched successfully",
-                        response,
+                        result,
                         ctx.path()
                 )
         );
@@ -387,13 +391,13 @@ public class AuthController {
 
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse<Void>> logout(@RequestBody LogoutRequest requestBody, HttpServletRequest httpServletRequest) {
+    public ResponseEntity<ApiResponse<Void>> logout( @RequestBody(required = false) LogoutRequest request, HttpServletRequest httpServletRequest) {
 
         RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
         log.info("AuthController.logout(): started ip={}", ctx.ip());
 
-        logoutOrchestrator.logout(requestBody);
+        logoutService.logout(request, httpServletRequest, ctx);
 
         log.info("AuthController.logout(): finished ip={}", ctx.ip());
 

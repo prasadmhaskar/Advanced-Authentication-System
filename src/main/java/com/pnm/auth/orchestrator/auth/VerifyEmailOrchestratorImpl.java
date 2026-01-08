@@ -44,9 +44,9 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
         String ip = ctx.ip();
         String ua = ctx.userAgent();
 
-        log.info("VerifyEmailOrchestrator: started for ip={}",ip);
+        log.info("VerifyEmailOrchestrator: started ip={}",ip);
 
-        // 1️⃣ Load token
+        // Load token
         VerificationToken verificationToken =
                 verificationTokenRepository.findByTokenAndUsedAtIsNull(token)
                         .orElseThrow(() -> {
@@ -54,26 +54,29 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                             return new InvalidTokenException("Invalid or expired verification link, please resend verification link and try again");
                         });
 
-        // 2️⃣ Validate type
+        // Validate token type
         if (!"EMAIL_VERIFICATION".equals(verificationToken.getType())) {
             log.warn("VerifyEmailOrchestrator: token type mismatch expected=EMAIL_VERIFICATION actual={}",
                     verificationToken.getType());
             throw new InvalidTokenException("Invalid verification link, please resend verification link and try again");
         }
 
-        // 3️⃣ Validate expiry
+        // Validate token expiry
         if (verificationToken.getExpiresAt().isBefore(LocalDateTime.now())) {
             log.warn("VerifyEmailOrchestrator: token expired");
             throw new InvalidTokenException("Verification link expired, please resend verification link and try again");
         }
 
-        // 4️⃣ Verify user
+        // Load user
         User user = verificationToken.getUser();
 
+        // Check account is blocked or not
         if (!user.isActive()) {
+            log.warn("VerifyEmailOrchestrator: Blocked user tried to verify account");
             throw new AccountBlockedException("Account is blocked.");
         }
 
+        // Check email is verified or not
         if (user.getEmailVerified()) {
             log.info("VerifyEmailOrchestrator: email already verified email={}", user.getEmail());
             return EmailVerificationResult.builder()
@@ -83,14 +86,13 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                     .build();
         }
 
-
-        // 4️⃣ ATOMIC LOCK (The Fix)
-        // We only mark the token. We DO NOT update the user here.
+        // We only mark the token. We do not update the user here.
         int rowsUpdated = verificationTokenRepository.markAsUsed(verificationToken.getId());
 
+        // if a user clicks 2 times on a verification link within milliseconds. To avoid 2 times verification.
+        // If there is any signup bonus user will get it two times hence to avoid it, this is necessary.
         if (rowsUpdated == 0) {
-            // RACE CONDITION HIT: Another thread used this token 1ms ago.
-            // We return SUCCESS (Idempotent) but do NOT issue new tokens.
+            // RACE CONDITION: Another thread used this token millisecond ago.
             log.info("VerifyEmailOrchestrator: Race condition caught. Token already used.");
             return EmailVerificationResult.builder()
                     .outcome(AuthOutcome.SUCCESS)
@@ -99,12 +101,14 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                     .build();
         }
 
-        // 5️⃣ Update User (Since we won the lock)
+        // Update User
         user.setEmailVerified(true);
-        userRepository.save(user); // Standard JPA save
+        user.incrementTokenVersion();
+        userRepository.save(user);
 
         AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
+        // Record login success- Asynchronous
         eventPublisher.publishEvent(
                 new LoginSuccessEvent(
                         user.getId(),
@@ -112,7 +116,7 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                         ip,
                         ua));
 
-        //Add to trustedDevice
+        // Save this device as trustedDevice
         try {
             var agent = UserAgentParser.parse(ua);
             deviceTrustService.trustDevice(user.getId(), agent.getSignature(), agent.getDeviceName());
@@ -121,7 +125,7 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                     user.getEmail(), ex.getMessage());
         }
 
-        log.info("VerifyEmailOrchestrator: finished, verified email={}", user.getEmail());
+        log.info("VerifyEmailOrchestrator: finished ip={} and email={}",ip ,user.getEmail());
 
         return EmailVerificationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)
