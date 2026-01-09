@@ -43,33 +43,27 @@ public class MfaPersistenceServiceImpl implements MfaPersistenceService {
 
     @Override
     @Transactional
-    public MfaToken rotateMfaToken(Long oldTokenId) {
-        // 1️⃣ Load existing OTP token
-        MfaToken oldToken = mfaTokenRepository.findByIdAndUsedFalse(oldTokenId)
-                .orElseThrow(() -> {
-                    log.warn("MfaPersistence: token not found or used id={}", oldTokenId);
-                    return new InvalidTokenException("OTP session expired. Please login again.");
-                });
+    public MfaToken rotateMfaToken(MfaToken existingToken) {
 
-        User user = oldToken.getUser();
+        User user = existingToken.getUser();
 
-        // 2️⃣ Validate user state
+        // Validate user state
         if (!user.isActive()) {
             log.warn("MfaPersistence: blocked user attempted resend email={}", user.getEmail());
             throw new AccountBlockedException("Your account has been blocked.");
         }
 
-        // 3️⃣ Invalidate old OTP
-        oldToken.setUsed(true);
-        mfaTokenRepository.save(oldToken);
+        // Invalidate old OTP
+        existingToken.setUsed(true);
+        mfaTokenRepository.save(existingToken);
 
-        // 4️⃣ Generate new OTP
+        // Generate new OTP
         String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
 
         MfaToken newToken = new MfaToken();
         newToken.setUser(user);
         newToken.setOtp(otp);
-        newToken.setRiskBased(oldToken.isRiskBased()); // Inherit risk status
+        newToken.setRiskBased(existingToken.isRiskBased());
         newToken.setExpiresAt(LocalDateTime.now().plusMinutes(5));
         newToken.setUsed(false);
 

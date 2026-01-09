@@ -41,47 +41,49 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
         String ip = ctx.ip();
         String userAgent = ctx.userAgent();
 
-        log.info("VerifyOtpOrchestrator.verify(): started for ip={}", ip);
+        log.info("VerifyOtpOrchestrator: started ip={}", ip);
 
-        // 1️⃣ Load OTP token
+        // Load otp token
         MfaToken token = mfaTokenRepository.findByIdAndUsedFalse(request.getTokenId())
                 .orElseThrow(() -> {
-                    log.warn("VerifyOtpOrchestrator.verify(): token not found id={}", request.getTokenId());
+                    log.warn("VerifyOtpOrchestrator: token not found id={}", request.getTokenId());
                     return new InvalidTokenException("OTP token not found or already used");
                 });
 
+        // Load user
         User user = token.getUser();
 
-        // 2️⃣ Validate user state
+        // Validate user status
         if (!user.isActive()) {
-            log.warn("VerifyOtpOrchestrator.verify(): blocked user tried to verify OTP email={}", user.getEmail());
+            log.warn("VerifyOtpOrchestrator: blocked user tried to verify OTP email={}", user.getEmail());
             throw new AccountBlockedException("Your account has been blocked.");
         }
 
-        // 3️⃣ Validate expiry
+        // Validate otp expiry
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
             loginActivityService.recordFailure(user.getEmail(), "OTP expired", ip, userAgent);
-            log.warn("VerifyOtpOrchestrator.verify(): token expired id={}", request.getTokenId());
+            log.warn("VerifyOtpOrchestrator: token expired id={}", request.getTokenId());
             throw new InvalidTokenException("OTP expired");
         }
 
-        // 4️⃣ Validate OTP
+        // Validate otp
         if (!token.getOtp().equals(request.getOtp().trim())) {
             loginActivityService.recordFailure(user.getEmail(), "Wrong OTP", ip, userAgent);
-            log.warn("VerifyOtpOrchestrator.verify(): wrong OTP for id={}", request.getTokenId());
+            log.warn("VerifyOtpOrchestrator: wrong OTP for id={}", request.getTokenId());
             throw new InvalidCredentialsException("Invalid OTP");
         }
 
-        // 5️⃣ Mark OTP as used
+        // Mark otp as used
         int rowsUpdated = mfaTokenRepository.markAsUsed(token.getId());
         if (rowsUpdated == 0){
+            log.warn("VerifyOtpOrchestrator: OTP already user for id={}", request.getTokenId());
             throw new InvalidTokenException("OTP already used");
         }
 
-        // 6️⃣ Record success
+        // Record success
         loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
 
-        // 7️⃣ Trust device (best-effort)
+        // Trust device
         try {
             var agent = UserAgentParser.parse(userAgent);
             deviceTrustService.trustDevice(
@@ -90,20 +92,20 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
                     agent.getDeviceName()
             );
         } catch (Exception ex) {
-            log.warn("VerifyOtpOrchestrator.verify(): device trust failed userId={} msg={}", user.getId(), ex.getMessage());
+            log.warn("VerifyOtpOrchestrator: device trust failed userId={} msg={}", user.getId(), ex.getMessage());
         }
 
-        // 9️⃣ Record IP risk (best-effort)
+        // Record ip risk
         try {
             ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
         } catch (Exception ex) {
-            log.warn("VerifyOtpOrchestrator.verify(): ipMonitoring failed userId={} msg={}", user.getId(), ex.getMessage());
+            log.warn("VerifyOtpOrchestrator: ipMonitoring failed userId={} msg={}", user.getId(), ex.getMessage());
         }
 
-        // 8️⃣ Generate tokens
+        // Generate tokens
         AuthenticationResult tokens = tokenService.generateTokens(user, ctx);
 
-        log.info("VerifyOtpOrchestrator.verify(): finished for ip={} and email={}", ip, user.getEmail());
+        log.info("VerifyOtpOrchestrator: finished ip={} and email={}", ip, user.getEmail());
 
         String message = token.isRiskBased()
                 ? "Risk-based OTP verified successfully"

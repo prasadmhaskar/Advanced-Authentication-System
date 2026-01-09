@@ -7,10 +7,8 @@ import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.orchestrator.auth.*;
-import com.pnm.auth.service.LogoutService;
+import com.pnm.auth.service.DeleteAccountService;
 import com.pnm.auth.service.UserContextService;
-import com.pnm.auth.service.auth.PasswordChangeService;
-import com.pnm.auth.service.auth.PasswordResetService;
 import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.web.context.RequestContext;
 import com.pnm.auth.web.filter.RequestContextFilter;
@@ -33,7 +31,6 @@ import java.util.Map;
 @Slf4j
 public class AuthController {
 
-    private final DeviceTrustService deviceTrustService;
     private final LoginOrchestrator loginOrchestrator;
     private final VerifyOtpOrchestrator verifyOtpOrchestrator;
     private final ResendOtpOrchestrator resendOtpOrchestrator;
@@ -43,11 +40,12 @@ public class AuthController {
     private final ForgotPasswordOrchestrator forgotPasswordOrchestrator;
     private final RefreshTokenOrchestrator refreshTokenOrchestrator;
     private final LinkOAuthOrchestrator linkOAuthOrchestrator;
-    private final AccountDeleteOrchestrator accountDeleteOrchestrator;
-    private final PasswordResetService passwordResetService;
-    private final PasswordChangeService passwordChangeService;
+    private final DeviceTrustService deviceTrustService;
     private final UserContextService userContextService;
-    private final LogoutService logoutService;
+    private final ResetPasswordOrchestrator resetPasswordOrchestrator;
+    private final ChangePasswordOrchestrator changePasswordOrchestrator;
+    private final LogoutOrchestrator logoutOrchestrator;
+    private final DeleteAccountOrchestrator deleteAccountOrchestrator;
 
 
     @PostMapping("/register")
@@ -327,7 +325,7 @@ public class AuthController {
 
         log.info("AuthController.resetPassword(): started ip={}", ctx.ip());
 
-        passwordResetService.resetPassword(request, ctx);
+        resetPasswordOrchestrator.resetPassword(request, ctx);
 
         log.info("AuthController.resetPassword(): finished ip={}", ctx.ip());
 
@@ -353,7 +351,7 @@ public class AuthController {
 
         log.info("AuthController.changePassword(): started ip={}", ctx.ip());
 
-        AuthenticationResult result = passwordChangeService.changePassword(request, ctx);
+        AuthenticationResult result = changePasswordOrchestrator.changePassword(request, ctx);
 
         log.info("AuthController.changePassword(): finished ip={}", ctx.ip());
 
@@ -397,7 +395,7 @@ public class AuthController {
 
         log.info("AuthController.logout(): started ip={}", ctx.ip());
 
-        logoutService.logout(request, httpServletRequest, ctx);
+        logoutOrchestrator.logout(request, httpServletRequest, ctx);
 
         log.info("AuthController.logout(): finished ip={}", ctx.ip());
 
@@ -499,7 +497,7 @@ public class AuthController {
 
         log.info("AuthController.resendOtp(): started ip={}", ctx.ip());
 
-        ResendOtpResponse result = resendOtpOrchestrator.resend(request);
+        ResendOtpResponse result = resendOtpOrchestrator.resend(request, ctx);
 
         log.info("AuthController.resendOtp(): finished ip={}", ctx.ip());
 
@@ -524,7 +522,7 @@ public class AuthController {
 
         log.info("AuthController.getMyTrustedDevices(): started ip={}", ctx.ip());
 
-        List<DeviceTrustResponse> devices = deviceTrustService.getTrustedDevices();
+        List<DeviceTrustResponse> devices = deviceTrustService.getTrustedDevices(ctx);
 
         log.info("AuthController.getMyTrustedDevices(): finished ip={}",ctx.ip());
 
@@ -544,7 +542,7 @@ public class AuthController {
 
         log.info("AuthController.removeDevice(): started ip={}", ctx.ip());
 
-        deviceTrustService.removeDevice(id);
+        deviceTrustService.removeDevice(id, ctx);
 
         log.info("AuthController.removeDevice(): finished ip={}", ctx.ip());
 
@@ -588,7 +586,7 @@ public class AuthController {
 
         log.info("AuthController.deleteMyAccount(): started ip={}", ctx.ip());
 
-        accountDeleteOrchestrator.deleteMyAccount(request);
+        deleteAccountOrchestrator.deleteMyAccount(request, ctx);
 
         log.info("AuthController.deleteMyAccount(): finished ip={}", ctx.ip());
 

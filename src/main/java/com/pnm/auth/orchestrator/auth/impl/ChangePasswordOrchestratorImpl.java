@@ -1,4 +1,4 @@
-package com.pnm.auth.service.impl.auth;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
@@ -10,9 +10,9 @@ import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.PasswordChangeException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
+import com.pnm.auth.orchestrator.auth.ChangePasswordOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.auth.PasswordChangeService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.util.Audit;
@@ -26,11 +26,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Service
-@RequiredArgsConstructor
 @Slf4j
-public class PasswordChangeServiceImpl implements PasswordChangeService {
-
+@RequiredArgsConstructor
+@Service
+public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrator {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
@@ -48,31 +47,31 @@ public class PasswordChangeServiceImpl implements PasswordChangeService {
         String ip = ctx.ip();
         String userAgent = ctx.userAgent();
 
-        log.info("PasswordChangeService: started ip={}", ip);
+        log.info("ChangePasswordOrchestrator: started ip={}", ip);
 
         String email = authUtil.getCurrentEmail();
 
         // Load and validate user
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("PasswordChangeService: user not found email={}", email);
+                    log.warn("ChangePasswordOrchestrator: user not found email={}", email);
                     return new UserNotFoundException("User not found");
                 });
 
         if (!user.isActive()) {
-            log.warn("PasswordChangeService: blocked user attempted password change email={}", email);
+            log.warn("ChangePasswordOrchestrator: blocked user attempted password change email={}", email);
             throw new AccountBlockedException("Your account has been blocked.");
         }
 
         // Validate old password
         if (!passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
-            log.warn("PasswordChangeService: old password mismatch email={}", email);
+            log.warn("ChangePasswordOrchestrator: old password mismatch email={}", email);
             throw new InvalidCredentialsException("Old password is incorrect.");
         }
 
         // Prevent password reuse
         if (passwordEncoder.matches(request.getNewPassword(), user.getPassword())) {
-            log.warn("PasswordChangeService: new password same as old email={}", email);
+            log.warn("ChangePasswordOrchestrator: new password same as old email={}", email);
             throw new InvalidCredentialsException("New password cannot be same as old password.");
         }
 
@@ -87,7 +86,7 @@ public class PasswordChangeServiceImpl implements PasswordChangeService {
 
 
         } catch (Exception ex) {
-            log.error("PasswordChangeService: failed to update password email={} msg={}",
+            log.error("ChangePasswordOrchestrator: failed to update password email={} msg={}",
                     email, ex.getMessage(), ex);
 
             loginActivityService.recordFailure(email, "Password change failed", ip, userAgent);
@@ -101,10 +100,10 @@ public class PasswordChangeServiceImpl implements PasswordChangeService {
         try {
             loginActivityService.recordSuccess(user.getId(), email, ip, userAgent);
         } catch (Exception ex) {
-            log.warn("PasswordChangeService: failed to record success email={}", email);
+            log.warn("ChangePasswordOrchestrator: failed to record success email={}", email);
         }
 
-        log.info("PasswordChangeService: finished ip={} and email={}", ctx.ip(), email);
+        log.info("ChangePasswordOrchestrator: finished ip={} and email={}", ctx.ip(), email);
 
         return AuthenticationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)

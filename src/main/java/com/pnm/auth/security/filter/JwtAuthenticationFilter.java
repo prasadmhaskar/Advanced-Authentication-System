@@ -102,13 +102,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 return;
             }
 
-            // ⭐ NEW: Check blacklisted token
-//            if (blacklistedTokenStore.isBlacklisted(jwt)) {
-//                log.warn("JwtAuthenticationFilter: Blocked JWT (blacklisted) for email={}", user != null ? user.getEmail() : null);
-//                filterChain.doFilter(request, response);
-//                return;
-//            }
-
             if (!jwtUtil.isTokenExpired(jwt)) {
                 log.info("JwtAuthenticationFilter: Token is valid. Authenticating user={}", username);
 

@@ -28,8 +28,12 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     private final RefreshTokenRepository refreshTokenRepository;
 
     @Override
-    public List<DeviceTrustResponse> getTrustedDevices() {
+    public List<DeviceTrustResponse> getTrustedDevices(RequestContext ctx) {
+        log.info("DeviceTrustService.getTrustedDevices(): started ip={}", ctx.ip());
+
         Long id = authUtil.getCurrentUserId();
+
+        log.info("DeviceTrustService.getTrustedDevices() finished ip={}", ctx.ip());
         return trustedDeviceRepository.findByUserIdAndActiveTrue(id)
                 .stream()
                 .map(DeviceTrustResponse::fromEntity)
@@ -37,7 +41,10 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     }
 
     @Override
-    public void removeDevice(Long deviceId) {
+    public void removeDevice(Long deviceId, RequestContext ctx) {
+
+        log.info("DeviceTrustService.removeDevice(): started ip={}", ctx.ip());
+
         Long userId = authUtil.getCurrentUserId();
         TrustedDevice device = trustedDeviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
@@ -48,6 +55,8 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
 
         device.setActive(false);
         trustedDeviceRepository.save(device);
+
+        log.info("DeviceTrustService.removeDevice(): finished ip={}", ctx.ip());
     }
 
     @Override
@@ -87,6 +96,8 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     @Override
     public void removeAllExceptCurrent(RequestContext ctx) {
 
+        log.info("DeviceTrustService.removeAllExceptCurrent(): started ip={}", ctx.ip());
+
         String currentDeviceSignature = UserAgentParser
                 .parse(ctx.userAgent())
                 .getSignature();
@@ -101,8 +112,8 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
 
         refreshTokenRepository.invalidateAllExceptCurrentDevice(userId, currentDeviceSignature);
 
-        log.info("TrustedDeviceService.removeAllExceptCurrent(): completed removed old devices for userId={} except={}",
-                userId, currentDeviceSignature);
+        log.info("DeviceTrustService.removeAllExceptCurrent(): finished ip={} removed old devices for userId={} except={}",
+                ctx.ip(), userId, currentDeviceSignature);
     }
 
     @Override
@@ -111,7 +122,7 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
             return trustedDeviceRepository.existsByUserIdAndDeviceSignatureAndActiveTrue(userId, deviceSignature);
         } catch (Exception e) {
             log.error("DeviceTrustService: trust check failed userId={} reason={}", userId, e.getMessage(), e);
-            return false; // if unknown → treat as not trusted
+            return false;
         }
     }
 }

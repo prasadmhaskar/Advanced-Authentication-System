@@ -4,14 +4,17 @@ import com.pnm.auth.dto.request.OtpResendRequest;
 import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.dto.response.ResendOtpResponse;
 import com.pnm.auth.exception.custom.CooldownActiveException;
+import com.pnm.auth.exception.custom.InvalidTokenException;
+import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.auth.MfaPersistenceService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.impl.redis.RedisCooldownService;
+import com.pnm.auth.util.AuthUtil;
+import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -23,17 +26,28 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
 
-    private final MfaPersistenceService mfaPersistenceService; // 👈 Use the service
+    private final MfaPersistenceService mfaPersistenceService;
     private final EmailService emailService;
     private final RedisCooldownService cooldownService;
+    private final MfaTokenRepository mfaTokenRepository;
 
     @Value("${email.send.timeout.ms}")
     private long emailTimeout;
 
     @Override
-    public ResendOtpResponse resend(OtpResendRequest request) {
+    public ResendOtpResponse resend(OtpResendRequest request, RequestContext ctx) {
 
-        String cooldownKey = "MFA_RESEND_COOLDOWN:" + request.getTokenId();
+        log.info("ResendOtpOrchestrator: started ip={}", ctx.ip());
+
+        MfaToken existingToken = mfaTokenRepository.findByIdAndUsedFalse(request.getTokenId()).orElseThrow(() -> {
+            log.warn("MfaPersistence: token not found or already used ip={}", ctx.ip());
+            return new InvalidTokenException("OTP token not found or already used");
+        });
+
+        Long userId = existingToken.getUser().getId();
+
+        // User can send otp once per 60 seconds - Checking in redis that how much time is remaining for expiring previous otp token
+        String cooldownKey = "MFA_RESEND_COOLDOWN:USER:" + userId;
 
         if (cooldownService.isInCooldown(cooldownKey)) {
             long remaining = cooldownService.getRemainingSeconds(cooldownKey);
@@ -42,18 +56,16 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
             );
         }
 
-        log.info("ResendOtpOrchestrator: resend started tokenId={}", request.getTokenId());
-
-        // 1️⃣ Rotate Token (DB Transaction runs and commits inside this line)
-        MfaToken newToken = mfaPersistenceService.rotateMfaToken(request.getTokenId());
+        // Rotate Token
+        MfaToken newToken = mfaPersistenceService.rotateMfaToken(existingToken);
         String email = newToken.getUser().getEmail();
 
-        // 2️⃣ Send Email (Now runs outside any DB lock)
+        // Send Email
         CompletableFuture<Boolean> emailResultFuture = emailService.sendMfaOtpEmail(email, newToken.getOtp());
 
         boolean emailSent;
         try {
-            emailSent = emailResultFuture.get(emailTimeout, TimeUnit.MILLISECONDS);
+            emailSent = emailResultFuture.get(4000, TimeUnit.MILLISECONDS);
 
         } catch (TimeoutException e) {
             log.warn("ResendOtpOrchestrator: Email timed out. User will receive it eventually.");
@@ -68,22 +80,19 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
             emailSent = false;
         }
 
-        // 3️⃣ Set Cooldown (Use the NEW token ID for the next cooldown check?)
-        // Note: You might want to cool down logic on the USER ID or IP to prevent token hopping,
-        // but sticking to your current logic:
-        if (emailSent) {
+        // Set cooldown, add new otp token id in redis for 60 seconds
+         if (emailSent) {
             cooldownService.startCooldown(
-                    "MFA_RESEND_COOLDOWN:" + newToken.getId(),
+                    cooldownKey,
                     Duration.ofSeconds(60)
             );
         }
 
-
-        log.info("ResendOtpOrchestrator: resend finished email={} emailSent={}", email, emailSent);
+        log.info("ResendOtpOrchestrator: finished ip={} and email={} emailSentInTime={}",ctx.ip(), email, emailSent);
 
         return ResendOtpResponse.builder()
                 .emailSent(emailSent)
-                .newTokenId(newToken.getId()) // 👈 CRITICAL: Frontend needs the new ID to verify!
+                .newTokenId(newToken.getId())
                 .build();
     }
 }

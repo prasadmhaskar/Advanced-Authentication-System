@@ -1,4 +1,4 @@
-package com.pnm.auth.service;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.domain.entity.RefreshToken;
 import com.pnm.auth.domain.entity.User;
@@ -6,6 +6,7 @@ import com.pnm.auth.dto.request.LogoutRequest;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
+import com.pnm.auth.orchestrator.auth.LogoutOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.util.JwtUtil;
@@ -16,12 +17,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-@Service
-@RequiredArgsConstructor
-@Transactional
-@Slf4j
-public class LogoutService {
 
+@Slf4j
+@RequiredArgsConstructor
+@Service
+public class LogoutOrchestratorImpl implements LogoutOrchestrator {
     private final JwtUtil jwtUtil;
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
@@ -34,7 +34,7 @@ public class LogoutService {
     ) {
         String ip = ctx.ip();
 
-        log.info("LogoutService: started ip={}", ip);
+        log.info("LogoutOrchestrator: started ip={}", ip);
 
         // Extract access token from header
         String accessToken = extractAccessToken(httpServletRequest);
@@ -73,7 +73,7 @@ public class LogoutService {
 
         }
 
-        log.info("LogoutService: finished ip={} email={}", ip, email);
+        log.info("LogoutOrchestrator: finished ip={} email={}", ip, email);
     }
 
     private String extractAccessToken(HttpServletRequest request) {
@@ -85,4 +85,3 @@ public class LogoutService {
         return header.substring(7);
     }
 }
-

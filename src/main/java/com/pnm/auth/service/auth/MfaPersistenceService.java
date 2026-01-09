@@ -6,5 +6,5 @@ import com.pnm.auth.domain.entity.User;
 
 public interface MfaPersistenceService {
     MfaToken createMfaToken(User user, boolean riskBased);
-    MfaToken rotateMfaToken(Long oldTokenId);
+    MfaToken rotateMfaToken(MfaToken existingToken);
 }
