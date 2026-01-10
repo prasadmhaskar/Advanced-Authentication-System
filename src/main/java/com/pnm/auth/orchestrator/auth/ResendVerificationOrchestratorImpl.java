@@ -15,13 +15,9 @@ import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 
 @Service
@@ -34,9 +30,6 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
     private final EmailService emailService;
     private final LoginActivityService loginActivityService;
     private final RedisRateLimiterService redisRateLimiterService;
-
-    @Value("${email.send.timeout.ms}")
-    private long emailTimeout;
 
 
     @Override
@@ -79,40 +72,15 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
         String token = verificationService.createVerificationToken(user, "EMAIL_VERIFICATION");
 
         // Send Email
-        CompletableFuture<Boolean> emailResultFuture = emailService.sendVerificationEmail(email, token);
+        emailService.sendVerificationEmail(email, token);
 
-        boolean emailSent;
-        try {
-            emailSent = emailResultFuture.get(emailTimeout, TimeUnit.MILLISECONDS);
 
-        } catch (TimeoutException e) {
-            // Server is slow.
-            log.warn("ResendVerificationOrchestrator: Email timed out. User will receive it eventually.");
-            emailSent = false;
-
-        } catch (ExecutionException e) {
-            // The System is BROKEN.
-            log.error("ResendVerificationOrchestrator: CRITICAL EMAIL FAILURE. Cause: {}", e.getCause().getMessage());
-            emailSent = false;
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            emailSent = false;
-        }
-
-        // Refund Rate Limit if Email Fails
-        if (!emailSent) {
-            redisRateLimiterService.refund(key);
-            log.warn("Email failed to send. Rate limit reset for email={}", email);
-        }
-
-        log.info("ResendVerificationOrchestrator: finished ip={} and email={}, emailSentWithInTime={}",ip, email, emailSent);
+        log.info("ResendVerificationOrchestrator: finished ip={} and email={}",ip, email);
 
         return ResendVerificationResult.builder()
                 .outcome(ResendVerificationOutcome.EMAIL_SENT)
                 .email(email)
                 .nextAction(NextAction.VERIFY_EMAIL)
-                .emailSent(emailSent)
                 .build();
     }
 }

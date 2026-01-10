@@ -15,11 +15,8 @@ public class AccountLinkResult {
     private String accessToken;
     private String refreshToken;
 
-    private boolean passwordSetupRequired;
     private NextAction nextAction;         // RESET_PASSWORD | LOGIN
 
     private String message;
-    private Boolean emailSent;
-
 }
 

@@ -7,7 +7,6 @@ import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.orchestrator.auth.*;
-import com.pnm.auth.service.DeleteAccountService;
 import com.pnm.auth.service.UserContextService;
 import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.web.context.RequestContext;
@@ -60,48 +59,13 @@ public class AuthController {
 
         log.info("AuthController.register(): finished ip={} and email={}",ctx.ip(), request.getEmail());
 
-        return switch (result.getOutcome()) {
-
-            case REGISTERED -> {
-                if (result.getEmailSent()) {
-                    yield ResponseEntity.status(HttpStatus.CREATED).body(
+        return ResponseEntity.status(HttpStatus.CREATED).body(
                             ApiResponse.success(
                                     "USER_REGISTERED",
-                                    "Registration successful. A verification email has been dispatched to your email address.",
+                                    "Registration successful. A verification email has been sent to your email address.",
                                     result,
                                     ctx.path()));
-                } else {
-                    yield ResponseEntity.status(HttpStatus.CREATED).body(
-                            ApiResponse.success(
-                                    "USER_REGISTERED",
-                                    "Registration successful. Your verification email is being processed and will arrive shortly.",
-                                    result,
-                                    ctx.path()));
-                }
-            }
 
-            case LINK_REQUIRED -> ResponseEntity.status(HttpStatus.CONFLICT).body(
-                    ApiResponse.errorWithMeta(
-                            "ACCOUNT_LINK_REQUIRED",
-                            "This email is already registered. Do you want to link accounts?",
-                            ctx.path(),
-                            Map.of(
-                                    "email", result.getEmail(),
-                                    "existingProvider", result.getExistingProvider().name(),
-                                    "attemptedProvider", result.getAttemptedProvider().name(),
-                                    "nextAction", result.getNextAction().name(),
-                                        "linkToken", result.getLinkToken()
-                            )
-                    ));
-
-            default -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                    ApiResponse.error(
-                            "REGISTRATION_FAILED",
-                            "Registration failed",
-                            ctx.path()
-                    )
-            );
-        };
     }
 
 
@@ -141,19 +105,11 @@ public class AuthController {
         log.info("AuthController.resendVerificationEmail(): finished ip={} and email={}", ctx.ip(), request.getEmail());
 
         return switch (result.getOutcome()) {
-            case EMAIL_SENT -> {
-                if (result.getEmailSent()) {
-                    yield ResponseEntity.ok(
-                            ApiResponse.success("VERIFICATION_EMAIL_DISPATCHED",
-                                    "A verification email has been dispatched to your email address.",
+            case EMAIL_SENT -> ResponseEntity.ok(
+                            ApiResponse.success("VERIFICATION_EMAIL_SENT",
+                                    "A verification email has been sent to your email address.",
                                     result,
                                     ctx.path()));
-                } else {
-                    yield ResponseEntity.ok(
-                            ApiResponse.success("VERIFICATION_EMAIL_QUEUED",
-                                    "Your verification email is being processed and will arrive shortly.", result, ctx.path()));
-                }
-            }
 
             case ALREADY_VERIFIED -> ResponseEntity.ok(
                     ApiResponse.success(
@@ -161,11 +117,9 @@ public class AuthController {
                             "Email already verified. Please login.",
                             result,
                             ctx.path()
-                    )
-            );
+                    ));
         };
     }
-
 
 
     @PostMapping("/login")
@@ -207,21 +161,6 @@ public class AuthController {
                             result.getMessage(),
                             result,
                             ctx.path()
-                    )
-            );
-
-            case LINK_REQUIRED -> ResponseEntity.status(HttpStatus.CONFLICT).body(
-                    ApiResponse.errorWithMeta(
-                            "ACCOUNT_LINK_REQUIRED",
-                            result.getMessage(),
-                            ctx.path(),
-                            Map.of(
-                                    "email", result.getEmail(),
-                                    "existingProvider", result.getExistingProvider().name(),
-                                    "attemptedProvider", result.getAttemptedProvider().name(),
-                                    "nextAction", result.getNextAction().name(),
-                                    "linkToken", result.getLinkToken()
-                            )
                     )
             );
 
@@ -289,30 +228,15 @@ public class AuthController {
 
         log.info("AuthController.forgotPassword(): finished ip={} and email={}", ctx.ip(), request.getEmail());
 
-        return switch (result.getOutcome()) {
-            case PASSWORD_RESET -> {
-                if (result.getEmailSent()) {
-                    yield ResponseEntity.ok(ApiResponse.success("PASSWORD_RESET_LINK_DISPATCHED",
-                            "If your email is registered, password reset link has been dispatched to your email address.",
-                            result, ctx.path()));
-                } else {
-                    // Return 202 Accepted: Business logic (token) created, but delivery (email) is pending
-                    yield ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                            ApiResponse.success("PASSWORD_RESET_LINK_QUEUED",
-                                    "If your email is registered, password reset link is being processed and will arrive shortly.",
-                                    result, ctx.path()));
-                }
-            }
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "PASSWORD_RESET_EMAIL_SENT",
+                        "If your email is registered, password reset link has been dispatched to your email address.",
+                        result,
+                        ctx.path()));
 
-            default -> ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
-                    ApiResponse.error(
-                            "PASSWORD_RESET_FAILED",
-                            result.getMessage(),
-                            ctx.path()
-                    )
-            );
-        };
-    }
+        }
+
 
 
     //forgotPassword sends this controller link with token, and in this controller actual password change is done.
@@ -423,22 +347,12 @@ public class AuthController {
 
         log.info("AuthController.linkOAuth(): finished ip={}", ctx.ip());
 
-        if (result.getEmailSent()) {
             return ResponseEntity.ok(
                     ApiResponse.success(
                             "ACCOUNT_LINKED",
                             result.getMessage(),
                             result,
                             ctx.path()));
-        } else {
-            // Return 202 Accepted to signal partial success
-            return ResponseEntity.status(HttpStatus.ACCEPTED).body(
-                    ApiResponse.success(
-                            "ACCOUNT_LINKED",
-                            result.getMessage(),
-                            result,
-                            ctx.path()));
-        }
     }
 
 
@@ -501,12 +415,10 @@ public class AuthController {
 
         log.info("AuthController.resendOtp(): finished ip={}", ctx.ip());
 
-        String msg = result.getEmailSent() ? "OTP has been dispatched to your email address." : "Your OTP email is being processed and will arrive shortly.";
-
         return ResponseEntity.ok(
                     ApiResponse.success(
                             "OTP_RESENT",
-                            msg,
+                            "OTP has been sent to your email address.",
                             result,
                             ctx.path()
                     )
@@ -586,7 +498,7 @@ public class AuthController {
 
         log.info("AuthController.deleteMyAccount(): started ip={}", ctx.ip());
 
-        deleteAccountOrchestrator.deleteMyAccount(request, ctx);
+        deleteAccountOrchestrator.deleteMyAccount(request,httpServletRequest, ctx);
 
         log.info("AuthController.deleteMyAccount(): finished ip={}", ctx.ip());
 

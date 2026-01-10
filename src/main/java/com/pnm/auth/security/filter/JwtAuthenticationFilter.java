@@ -2,8 +2,9 @@ package com.pnm.auth.security.filter;
 
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.service.impl.user.UserDetailsImpl;
+import com.pnm.auth.util.BlacklistedTokenStore;
+import com.pnm.auth.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -13,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -25,33 +25,9 @@ import java.io.IOException;
 @Slf4j
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final UserDetailsService userDetailsService;
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
-
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        log.debug("JwtAuthenticationFilter.shouldNotFilter: Checking path={}", path);
-
-        boolean skip = path.startsWith("/api/auth/login") ||
-                path.startsWith("/api/auth/register") ||
-                path.startsWith("/api/auth/verify") ||
-                path.startsWith("/api/auth/verify/resend") ||
-                path.startsWith("/api/auth/refresh") ||
-                path.startsWith("/api/auth/forgot-password") ||
-                path.startsWith("/api/auth/reset-password") ||
-                path.startsWith("/api/auth/link-oauth") ||
-                path.startsWith("/api/auth/setup-password") ||
-                path.equals("/error") ||
-                path.equals("/favicon.ico");
-
-        if (skip) {
-            log.info("JwtAuthenticationFilter: Skipping filter for path={}", path);
-        }
-
-        return skip;
-    }
+    private final BlacklistedTokenStore blacklistedTokenStore;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -59,51 +35,59 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
-        log.debug("JwtAuthenticationFilter: doFilterInternal started for URI={}", request.getRequestURI());
-
         String authHeader = request.getHeader("Authorization");
         String jwt = null;
         String username = null;
+        Claims claims = null;
 
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            jwt = authHeader.substring(7);
-            log.debug("JwtAuthenticationFilter: Bearer token extracted");
-
-            try {
-                username = jwtUtil.extractUsername(jwt);
-                log.info("JwtAuthenticationFilter: Username extracted from token={}", username);
-            } catch (Exception e) {
-                log.warn("JwtAuthenticationFilter: Failed to extract username from token. Reason={}", e.getMessage());
-            }
-        } else {
-            log.debug("JwtAuthenticationFilter: No valid Authorization header found");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            filterChain.doFilter(request, response);
+            return;
         }
 
-        // Authentication block
-        if (username != null &&
-                SecurityContextHolder.getContext().getAuthentication() == null) {
+            jwt = authHeader.substring(7);
 
-            log.info("JwtAuthenticationFilter: Loading userDetails for username={}", username);
-            UserDetailsImpl userDetails = (UserDetailsImpl) userDetailsService.loadUserByUsername(username);
-
-            User user = userRepository.findByEmail(username).orElse(null);
-            if (user != null && !user.isActive()) {
-                log.warn("Blocked user attempted JWT access: {}", username);
+            // Check redis for blacklisted token
+            if (blacklistedTokenStore.isBlacklisted(jwt)) {
+                log.warn("Rejected blacklisted token");
                 filterChain.doFilter(request, response);
                 return;
             }
 
-            Claims claims = jwtUtil.extractAllClaims(jwt);
-            Integer tokenVersionInJwt = claims.get("tv", Integer.class);
+            try {
+                claims = jwtUtil.extractAllClaims(jwt);
+                username = claims.getSubject();
+            } catch (Exception e) {
+                log.warn("Invalid JWT: {}", e.getMessage());
+            }
 
+        // Authentication block
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+
+            User user = userRepository.findByEmail(username).orElse(null);
+
+            if (user == null) {
+                log.warn("JWT valid but user no longer exists: {}", username);
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            if (!user.isActive()) {
+                log.warn("Blocked user attempted access: {}", username);
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            Integer tokenVersionInJwt = claims.get("tv", Integer.class);
             if (tokenVersionInJwt == null || !tokenVersionInJwt.equals(user.getTokenVersion())) {
-                log.warn("JwtAuthenticationFilter: Token version mismatch for user={}", user.getEmail());
+                log.warn("Token version mismatch for user={}", user.getEmail());
                 filterChain.doFilter(request, response);
                 return;
             }
 
             if (!jwtUtil.isTokenExpired(jwt)) {
-                log.info("JwtAuthenticationFilter: Token is valid. Authenticating user={}", username);
+
+                UserDetailsImpl userDetails = new UserDetailsImpl(user);
 
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(
@@ -112,18 +96,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                 userDetails.getAuthorities()
                         );
 
-                authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-
+                authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
-            } else {
-                log.warn("JwtAuthenticationFilter: Token is expired for username={}", username);
             }
         }
-
-        log.debug("JwtAuthenticationFilter: Continuing filter chain for URI={}", request.getRequestURI());
         filterChain.doFilter(request, response);
     }
 }
-

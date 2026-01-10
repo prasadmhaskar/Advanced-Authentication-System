@@ -27,8 +27,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                 .filter(h -> !h.isBlank())
                 .orElse(UUID.randomUUID().toString());
 
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null) ip = request.getRemoteAddr();
+        String ip = getClientIp(request);
 
         String userAgent = request.getHeader("User-Agent");
 
@@ -52,10 +51,22 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
     }
 
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null) ip = request.getRemoteAddr();
-        return ip;
+    public String getClientIp(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
+
+        if (xff != null && !xff.isEmpty() && !"unknown".equalsIgnoreCase(xff)) {
+            String ip = xff.split(",")[0].trim();
+
+            if (isValidIp(ip)) {
+                return ip;
+            }
+        }
+
+        return request.getRemoteAddr();
+    }
+
+    private boolean isValidIp(String ip) {
+        return ip.length() <= 45; // IPv6 max length
     }
 }
 

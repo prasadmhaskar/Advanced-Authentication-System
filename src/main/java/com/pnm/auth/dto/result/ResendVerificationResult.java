@@ -13,7 +13,6 @@ public class ResendVerificationResult {
 
     private ResendVerificationOutcome outcome;
     private String email;
-    private NextAction nextAction; // VERIFY_EMAIL
-    private Boolean emailSent;
+    private NextAction nextAction;
 }
 

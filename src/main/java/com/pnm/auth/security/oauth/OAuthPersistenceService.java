@@ -60,7 +60,7 @@ public class OAuthPersistenceService {
 
             // Create Link Token (Atomic with this check)
             String linkToken = accountLinkTokenService.createLinkToken(
-                    existingUser, providerType, providerId, true
+                    existingUser, providerType, providerId
             );
 
             log.warn("OAuthPersistence: Linking required for email={}", email);

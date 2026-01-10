@@ -17,7 +17,5 @@ public class ForgotPasswordResult {
     private String email;
 
     private NextAction nextAction;
-
-    private Boolean emailSent;
 }
 

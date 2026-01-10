@@ -34,9 +34,6 @@ public class AccountLinkToken {
     private String providerUserId; // Google sub / GitHub id
 
     @Column(nullable = false)
-    private boolean isTrustedSource; // true = came from OAuth2 Success, false = came from Login Screen
-
-    @Column(nullable = false)
     private LocalDateTime expiresAt;
 
     private LocalDateTime createdAt;

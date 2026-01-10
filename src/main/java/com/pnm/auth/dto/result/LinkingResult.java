@@ -9,5 +9,4 @@ import lombok.Data;
 public class LinkingResult {
     private User user;
     private AuthenticationResult authTokens;
-    private String passwordResetToken; // Null if not needed
 }

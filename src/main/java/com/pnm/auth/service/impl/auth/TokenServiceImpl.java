@@ -39,17 +39,7 @@ public class TokenServiceImpl implements TokenService {
         log.info("TokenService: generating tokens for email={}", user.getEmail());
 
         try {
-            // ✅ ADDED: Session Capping Logic (Max 5)
-            long activeSessions = refreshTokenRepository.countByUserId(user.getId());
-
-            if (activeSessions >= 5) {
-                // Queue full: Remove the oldest session to make room
-                refreshTokenRepository.findOldestTokenId(user.getId())
-                        .ifPresent(id -> {
-                            refreshTokenRepository.deleteById(id);
-                            log.info("TokenService: limit reached (5), removed oldest session id={}", id);
-                        });
-            }
+            refreshTokenRepository.deleteOldestSessions(user.getId(), 4);
 
             String deviceSignature = UserAgentParser
                     .parse(ctx.userAgent())

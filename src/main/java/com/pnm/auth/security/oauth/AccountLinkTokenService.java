@@ -24,8 +24,7 @@ public class AccountLinkTokenService {
     public String createLinkToken(
             User user,
             AuthProviderType providerToLink,
-            String providerUserId,
-            boolean isTrustedSource
+            String providerUserId
     ) {
         log.info("AccountLinkToken.createLinkToken(): started userId={} provider={}", user.getId(), providerToLink);
 
@@ -41,7 +40,6 @@ public class AccountLinkTokenService {
                 .providerToLink(providerToLink)
                 .providerUserId(providerUserId)
                 .expiresAt(LocalDateTime.now().plusMinutes(10))
-                .isTrustedSource(isTrustedSource)
                 .createdAt(LocalDateTime.now())
                 .build();
 

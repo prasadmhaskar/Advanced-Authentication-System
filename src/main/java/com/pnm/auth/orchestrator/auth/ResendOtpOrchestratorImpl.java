@@ -9,7 +9,6 @@ import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.auth.MfaPersistenceService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.impl.redis.RedisCooldownService;
-import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,9 +29,6 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
     private final EmailService emailService;
     private final RedisCooldownService cooldownService;
     private final MfaTokenRepository mfaTokenRepository;
-
-    @Value("${email.send.timeout.ms}")
-    private long emailTimeout;
 
     @Override
     public ResendOtpResponse resend(OtpResendRequest request, RequestContext ctx) {
@@ -60,38 +56,15 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
         MfaToken newToken = mfaPersistenceService.rotateMfaToken(existingToken);
         String email = newToken.getUser().getEmail();
 
-        // Send Email
-        CompletableFuture<Boolean> emailResultFuture = emailService.sendMfaOtpEmail(email, newToken.getOtp());
+        // Start cooldown for 60 seconds
+        cooldownService.startCooldown(cooldownKey, Duration.ofSeconds(60));
 
-        boolean emailSent;
-        try {
-            emailSent = emailResultFuture.get(4000, TimeUnit.MILLISECONDS);
+        // Send email
+        emailService.sendMfaOtpEmail(email, newToken.getOtp());
 
-        } catch (TimeoutException e) {
-            log.warn("ResendOtpOrchestrator: Email timed out. User will receive it eventually.");
-            emailSent = false;
-
-        } catch (ExecutionException e) {
-            log.error("ResendOtpOrchestrator: CRITICAL EMAIL FAILURE. Cause: {}", e.getCause().getMessage());
-            emailSent = false;
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            emailSent = false;
-        }
-
-        // Set cooldown, add new otp token id in redis for 60 seconds
-         if (emailSent) {
-            cooldownService.startCooldown(
-                    cooldownKey,
-                    Duration.ofSeconds(60)
-            );
-        }
-
-        log.info("ResendOtpOrchestrator: finished ip={} and email={} emailSentInTime={}",ctx.ip(), email, emailSent);
+        log.info("ResendOtpOrchestrator: finished ip={} and email={}",ctx.ip(), email);
 
         return ResendOtpResponse.builder()
-                .emailSent(emailSent)
                 .newTokenId(newToken.getId())
                 .build();
     }

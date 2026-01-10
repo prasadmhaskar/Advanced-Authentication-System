@@ -24,12 +24,6 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Query("SELECT COUNT(t) FROM RefreshToken t WHERE t.user.id = :userId")
     long countByUserId(@Param("userId") Long userId);
 
-    // 2. Find the oldest session ID (to delete it)
-    @Query("SELECT t.id FROM RefreshToken t WHERE t.user.id = :userId ORDER BY t.createdAt ASC LIMIT 1")
-    Optional<Long> findOldestTokenId(@Param("userId") Long userId);
-
-//    @Modifying
-//    @Query("DELETE FROM RefreshToken t WHERE t.user.id = :userId")
     void deleteByUserId(@Param("userId") Long userId);
 
     @Modifying
@@ -47,6 +41,21 @@ AND r.deviceSignature <> :deviceSignature
             @Param("userId") Long userId,
             @Param("deviceSignature") String deviceSignature
     );
+
+    @Modifying
+    @Query(value = """
+        DELETE FROM refresh_token
+        WHERE user_id = :userId
+        AND id NOT IN (
+            SELECT id FROM (
+                SELECT id FROM refresh_token
+                WHERE user_id = :userId
+                ORDER BY created_at DESC
+                LIMIT :limit
+            ) tmp
+        )
+    """, nativeQuery = true)
+    void deleteOldestSessions(@Param("userId") Long userId, @Param("limit") int limit);
 
 
 }

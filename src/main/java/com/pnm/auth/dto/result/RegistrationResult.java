@@ -20,8 +20,6 @@ public class RegistrationResult {
 
     private AuthProviderType existingProvider;
     private AuthProviderType attemptedProvider;
-
-    private Boolean emailSent;
     private NextAction nextAction;
 }
 

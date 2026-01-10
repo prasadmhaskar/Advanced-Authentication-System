@@ -8,6 +8,5 @@ import lombok.*;
 @AllArgsConstructor
 @NoArgsConstructor
 public class ResendOtpResponse {
-    private Boolean emailSent;
     private Long newTokenId;
 }

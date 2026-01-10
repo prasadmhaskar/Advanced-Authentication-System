@@ -17,7 +17,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class AuditAspect {
+public class    AuditAspect {
 
     private final AuditService auditService;
     private final AuthUtil authUtil;

@@ -9,6 +9,5 @@ import lombok.*;
 public class MfaResult {
     private AuthOutcome outcome;
     private Long tokenId;
-    private Boolean emailSent;
 }
 

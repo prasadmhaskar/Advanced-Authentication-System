@@ -3,10 +3,8 @@ package com.pnm.auth.service.impl.risk;
 import com.pnm.auth.dto.response.UserIpLogResponse;
 import com.pnm.auth.dto.result.RiskResult;
 import com.pnm.auth.domain.entity.User;
-import com.pnm.auth.exception.custom.HighRiskLoginException;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.service.login.LoginActivityService;
-import com.pnm.auth.service.login.SuspiciousLoginAlertService;
 import com.pnm.auth.service.risk.RiskEngineService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +21,6 @@ public class RiskEngineServiceImpl implements RiskEngineService {
 
     private final IpMonitoringService ipMonitoringService;
     private final LoginActivityService loginActivityService;
-    private final SuspiciousLoginAlertService suspiciousLoginAlertService;
 
     @Value("${auth.risk.threshold.high}")
     private int highRiskScore;
@@ -75,19 +72,5 @@ public class RiskEngineServiceImpl implements RiskEngineService {
                 .build();
     }
 
-    @Override
-    public RuntimeException blockHighRiskLogin(User user, RiskResult risk, String ip, String userAgent) {
-
-        suspiciousLoginAlertService.sendHighRiskAlert(
-                user,
-                ip,
-                userAgent,
-                risk.getReasons()
-        );
-
-        loginActivityService.recordFailure(user.getEmail(), "High risk login blocked", ip, userAgent);
-
-        return new HighRiskLoginException("Login blocked due to high risk activity.");
-    }
 
 }

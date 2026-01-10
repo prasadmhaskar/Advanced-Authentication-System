@@ -32,21 +32,21 @@ public class UserValidationServiceImpl implements UserValidationService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("UserValidationService: user not found email={}", email);
+                    log.warn("UserValidationService.validateUserForLogin(): user not found email={}", email);
                     return new UserNotFoundException("Invalid email or password.");
                 });
 
         if (!user.isActive()) {
-            log.warn("UserValidationService: blocked account attempted login email={}", email);
+            log.warn("UserValidationService.validateUserForLogin(): blocked account attempted login email={}", email);
             throw new AccountBlockedException("Your account has been blocked. Contact support.");
         }
 
         if (!user.getEmailVerified()) {
-            log.warn("UserValidationService: email not verified email={}", email);
+            log.warn("UserValidationService.validateUserForLogin(): email not verified email={}", email);
             throw new EmailNotVerifiedException("Verify your email to continue.");
         }
 
-        log.info("UserValidationService: user={} validated successfully", email);
+        log.info("UserValidationService.validateUserForLogin(): user={} validated successfully", email);
         return user;
     }
 
@@ -54,7 +54,7 @@ public class UserValidationServiceImpl implements UserValidationService {
     @Override
     @Transactional(readOnly = true)
     public Optional<User> findUserByEmail(String email) {
-        log.info("UserValidationService: searching user email={}", email);
+        log.info("UserValidationService.findUserByEmail(): searching user email={}", email);
         Optional<User> userOpt = userRepository.findByEmail(email);
 
         // Initialize providers to prevent LazyInitializationException in the Orchestrator
@@ -70,16 +70,16 @@ public class UserValidationServiceImpl implements UserValidationService {
     @Override
     public void validateUserStatus(User user) {
         if (!user.isActive()) {
-            log.warn("UserValidationService: blocked account attempted login email={}", user.getEmail());
+            log.warn("UserValidationService.validateUserStatus(): blocked account attempted login email={}", user.getEmail());
             throw new AccountBlockedException("Your account has been blocked. Contact support.");
         }
 
         if (!user.getEmailVerified()) {
-            log.warn("UserValidationService: email not verified email={}", user.getEmail());
+            log.warn("UserValidationService.validateUserStatus(): email not verified email={}", user.getEmail());
             throw new EmailNotVerifiedException("Verify your email to continue.");
         }
 
-        log.info("UserValidationService: status check passed for email={}", user.getEmail());
+        log.info("UserValidationService.validateUserStatus(): status check passed for email={}", user.getEmail());
     }
 }
 

@@ -10,7 +10,10 @@ import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.auth.UserPersistenceService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.AuthUtil;
+import com.pnm.auth.util.BlacklistedTokenStore;
+import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.web.context.RequestContext;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,21 +24,23 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Service
 public class DeleteAccountOrchestratorImpl implements DeleteAccountOrchestrator {
+
     private final UserRepository userRepository;
     private final UserPersistenceService userPersistenceService;
     private final PasswordEncoder passwordEncoder;
     private final AuthUtil authUtil;
+    private final JwtUtil jwtUtil;
+    private final BlacklistedTokenStore blacklistedTokenStore;
 
     @Transactional
     @Audit(action = AuditAction.SELF_DELETE, description = "User deleted his account", targetUserArgIndex = 0)
-    public void deleteMyAccount(DeleteAccountRequest request, RequestContext ctx) {
+    @Override
+    public void deleteMyAccount(DeleteAccountRequest request, HttpServletRequest httpServletRequest, RequestContext ctx) {
 
         log.info("DeleteAccountOrchestrator: started ip={}", ctx.ip());
 
         Long userId = authUtil.getCurrentUserId();
         String password = request.getPassword();
-
-        log.info("DeleteAccountOrchestrator: User with userId={}",userId);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
@@ -48,9 +53,16 @@ public class DeleteAccountOrchestratorImpl implements DeleteAccountOrchestrator 
             }
         }
 
+        // Blacklist the token used for this request
+        String accessToken = jwtUtil.resolveToken(httpServletRequest);
+        if (accessToken != null) {
+            long expirationTimestamp = jwtUtil.getExpirationTimestamp(accessToken);
+            blacklistedTokenStore.blacklistToken(accessToken, expirationTimestamp);
+        }
+
         // Deletes all data from all repositories related to this user
         userPersistenceService.deleteUserPermanently(userId);
 
-        log.info("DeleteAccountOrchestrator: finished ip={} User with userId={} deleted their own account successfully",ctx.ip(), userId);
+        log.info("DeleteAccountOrchestrator: finished ip={} User with userId={} deleted their own account successfully", ctx.ip(), userId);
     }
 }

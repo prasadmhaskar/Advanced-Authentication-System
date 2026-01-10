@@ -1,5 +1,6 @@
 package com.pnm.auth.service.impl.email;
 
+import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.service.email.EmailService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -9,8 +10,7 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-import java.util.concurrent.CompletableFuture;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +23,7 @@ public class EmailServiceImpl implements EmailService {
     @Async("emailExecutor")
     @Retry(name = "emailRetry")
     @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackVerificationEmail")
-    public CompletableFuture<Boolean> sendVerificationEmail(String toEmail, String token) {
+    public void sendVerificationEmail(String toEmail, String token) {
 
         log.info("EmailService: sending verification email to={}", toEmail);
 
@@ -38,14 +38,13 @@ public class EmailServiceImpl implements EmailService {
                 """.formatted(verificationLink);
 
         sendEmail(toEmail, subject, body);
-        return CompletableFuture.completedFuture(true);
     }
 
     @Override
     @Async("emailExecutor")
     @Retry(name = "emailRetry")
     @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackPasswordEmail")
-    public CompletableFuture<Boolean> sendSetPasswordEmail(String email, String token) {
+    public void sendSetPasswordEmail(String email, String token) {
 
         log.info("EmailService: sending set-password email to={}", email);
 
@@ -62,14 +61,13 @@ public class EmailServiceImpl implements EmailService {
                 """.formatted(link);
 
         sendEmail(email, subject, body);
-        return CompletableFuture.completedFuture(true);
     }
 
     @Override
     @Async("emailExecutor")
     @Retry(name = "emailRetry")
     @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackOtpEmail")
-    public CompletableFuture<Boolean> sendMfaOtpEmail(String toEmail, String otp) {
+    public void sendMfaOtpEmail(String toEmail, String otp) {
 
         log.info("EmailService: sending MFA OTP email to={}", toEmail);
 
@@ -77,7 +75,40 @@ public class EmailServiceImpl implements EmailService {
         String body = "Your OTP is: " + otp + " (valid for 5 minutes)";
 
         sendEmail(toEmail, subject, body);
-        return CompletableFuture.completedFuture(true);
+    }
+
+    @Override
+    @Async("emailExecutor")
+    @Retry(name = "emailRetry")
+    @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackHighRiskAlert")
+    public void sendHighRiskAlert(User user, String ip, String userAgent, List<String> reasons) {
+
+        log.warn("Sending suspicious login alert to user={} from IP={}", user.getEmail(), ip);
+
+        String subject = "⚠ Suspicious Login Attempt Blocked";
+        String reasonText = String.join(", ", reasons);
+
+        String body = """
+                Hello %s,
+                
+                We detected a blocked login attempt to your account.
+                
+                Details:
+                - IP Address: %s
+                - Device: %s
+                - Reasons: %s
+                
+                If this was not you, please reset your password immediately.
+                
+                Regards,
+                Security Team
+                """.formatted(
+                user.getFullName(),
+                ip,
+                userAgent,
+                reasonText
+        );
+        sendEmail(user.getEmail(), subject, body);
     }
 
     // -----------------------------
@@ -97,21 +128,22 @@ public class EmailServiceImpl implements EmailService {
     // -----------------------------
     // FALLBACKS (NO THROWING!)
     // -----------------------------
-    public CompletableFuture<Boolean> fallbackVerificationEmail(String email, String token, Throwable ex) {
+    public void fallbackVerificationEmail(String email, String token, Throwable ex) {
         log.error("EmailService FALLBACK: verification email failed email={} reason={}", email, ex.getMessage(), ex);
-        return CompletableFuture.completedFuture(false);
     }
 
-    public CompletableFuture<Boolean> fallbackPasswordEmail(String email, String token, Throwable ex) {
+    public void fallbackPasswordEmail(String email, String token, Throwable ex) {
         log.error("EmailService FALLBACK: password email failed email={} reason={}",
                 email, ex.getMessage(), ex);
-        return CompletableFuture.completedFuture(false);
     }
 
-    public CompletableFuture<Boolean> fallbackOtpEmail(String email, String otp, Throwable ex) {
+    public void fallbackOtpEmail(String email, String otp, Throwable ex) {
         log.error("EmailService FALLBACK: OTP email failed email={} reason={}",
                 email, ex.getMessage(), ex);
-        return CompletableFuture.completedFuture(false);
+    }
+
+    public void fallbackHighRiskAlert(User user, String ip, String userAgent, List<String> reasons, Throwable ex) {
+        log.error("SuspiciousLoginAlertService: Failed to send alert email={} reason={}", user.getEmail(), ex.getMessage());
     }
 }
 

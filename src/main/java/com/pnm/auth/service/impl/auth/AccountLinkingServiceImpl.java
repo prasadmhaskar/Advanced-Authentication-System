@@ -3,7 +3,6 @@ package com.pnm.auth.service.impl.auth;
 import com.pnm.auth.domain.entity.AccountLinkToken;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.entity.UserOAuthProvider;
-import com.pnm.auth.domain.enums.AuthProviderType;
 import com.pnm.auth.dto.request.LinkOAuthRequest;
 import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.dto.result.LinkingResult;
@@ -13,7 +12,6 @@ import com.pnm.auth.repository.AccountLinkTokenRepository;
 import com.pnm.auth.repository.UserOAuthProviderRepository;
 import com.pnm.auth.service.auth.AccountLinkingService;
 import com.pnm.auth.service.auth.TokenService;
-import com.pnm.auth.service.auth.VerificationService;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,23 +28,25 @@ public class AccountLinkingServiceImpl implements AccountLinkingService {
     private final AccountLinkTokenRepository accountLinkTokenRepository;
     private final UserOAuthProviderRepository providerRepository;
     private final TokenService tokenService;
-    private final VerificationService verificationService;
 
     @Override
     @Transactional
     public LinkingResult linkAccount(LinkOAuthRequest request, RequestContext ctx) {
-        // 1️⃣ Load & validate link token
+        // 1. Load Token
         AccountLinkToken linkToken = accountLinkTokenRepository
                 .findByToken(request.getLinkToken())
-                .orElseThrow(() -> new InvalidTokenException("Invalid link token"));
+                .orElseThrow(() -> new InvalidTokenException("Invalid or expired link token"));
 
+        // 2. Validate Expiry
         if (linkToken.getExpiresAt().isBefore(LocalDateTime.now())) {
-            accountLinkTokenRepository.delete(linkToken);
-            throw new InvalidTokenException("Link token expired");
+            accountLinkTokenRepository.delete(linkToken); // Cleanup expired token
+            throw new InvalidTokenException("Link token has expired");
         }
 
+        // 3. Validate Provider Match
+        // Prevents using a token meant for Google to link a Facebook account
         if (linkToken.getProviderToLink() != request.getProvider()) {
-            throw new InvalidTokenException("Invalid provider for link token");
+            throw new InvalidTokenException("Token invalid for this provider");
         }
 
         User user = linkToken.getUser();
@@ -55,34 +55,30 @@ public class AccountLinkingServiceImpl implements AccountLinkingService {
             throw new AccountBlockedException("Your account has been blocked.");
         }
 
-        // 2️⃣ Idempotency & Save Provider
+        // 4. Idempotency: Only save if provider doesn't already exist
+        // This handles cases where the user double-clicks the link button
         if (!user.hasProvider(request.getProvider())) {
             UserOAuthProvider provider = UserOAuthProvider.builder()
                     .providerType(linkToken.getProviderToLink())
-                    .providerId(linkToken.getProviderUserId())
+                    .providerId(linkToken.getProviderUserId()) // Critical: Use ID from token, not request
                     .linkedAt(LocalDateTime.now())
                     .active(true)
                     .user(user)
                     .build();
+
             providerRepository.save(provider);
+            log.info("AccountLinkingService: Linked provider={} to user={}", request.getProvider(), user.getId());
         }
 
-        // 3️⃣ Cleanup
+        // 5. Cleanup: Burn the token so it cannot be used again
         accountLinkTokenRepository.delete(linkToken);
 
-        // 4️⃣ Generate Auto-Login Tokens
-        AuthenticationResult auth = tokenService.generateTokens(user, ctx);
-
-        // 5️⃣ Check if Password Setup is needed (Create token here within transaction)
-        String passwordResetToken = null;
-        if (request.getProvider() == AuthProviderType.EMAIL && user.getPassword() == null) {
-            passwordResetToken = verificationService.createVerificationToken(user, "PASSWORD_RESET");
-        }
+        // 6. Auto-Login: Generate JWTs immediately
+        AuthenticationResult authTokens = tokenService.generateTokens(user, ctx);
 
         return LinkingResult.builder()
                 .user(user)
-                .authTokens(auth)
-                .passwordResetToken(passwordResetToken)
+                .authTokens(authTokens)
                 .build();
     }
 }

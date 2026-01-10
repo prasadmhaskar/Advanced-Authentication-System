@@ -29,9 +29,6 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
 
     private final SecureRandom secureRandom = new SecureRandom();
 
-    @Value("${email.send.timeout.ms}")
-    private long emailTimeout;
-
     @Override
     public ForgotPasswordResult requestReset(String rawEmail, RequestContext ctx) {
 
@@ -51,7 +48,6 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
             // Return a fake successful response - in case if attacker is trying to find out email is registered or not.
             return ForgotPasswordResult.builder()
                     .outcome(AuthOutcome.PASSWORD_RESET)
-                    .emailSent(true)
                     .message("If your email is registered, password reset link has been dispatched to your email address.")
                     .build();
         }
@@ -62,31 +58,13 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
         String token = verificationService.createVerificationToken(user, "PASSWORD_RESET");
 
         // Send email
-        CompletableFuture<Boolean> emailResultFuture = emailService.sendSetPasswordEmail(user.getEmail(), token);
+        emailService.sendSetPasswordEmail(user.getEmail(), token);
 
-        boolean emailSent;
-        try {
-            emailSent = emailResultFuture.get(emailTimeout, TimeUnit.MILLISECONDS);
-
-        } catch (TimeoutException e) {
-            log.warn("ForgotPasswordOrchestrator: Email timed out. User will receive it eventually.");
-            emailSent = false;
-
-        } catch (ExecutionException e) {
-            log.error("ForgotPasswordOrchestrator: CRITICAL EMAIL FAILURE. Cause: {}", e.getCause().getMessage());
-            emailSent = false;
-
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            emailSent = false;
-        }
-
-        log.info("ForgotPasswordOrchestrator: finished ip={} and email={} , emailSentInTime={}",ip, email, emailSent);
+        log.info("ForgotPasswordOrchestrator: finished ip={} and email={}", ip, email);
 
         return ForgotPasswordResult.builder()
                 .outcome(AuthOutcome.PASSWORD_RESET)
                 .email(email)
-                .emailSent(emailSent)
                 .build();
     }
 }

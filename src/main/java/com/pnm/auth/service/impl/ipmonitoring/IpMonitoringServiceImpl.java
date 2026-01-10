@@ -182,12 +182,12 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         return UserIpLogResponse.fromEntity(saved, userEmail);
     }
 
-@Transactional(readOnly = true)
-@Override
-public void checkRegistrationEligibility(String ip, String userAgent) {
-    if (ip == null) return;
+    @Override
+    @Transactional(readOnly = true)
+    public void checkRegistrationEligibility(String ip, String userAgent) {
+        if (ip == null) return;
 
-    // 2. Check Device Limit
+        // 2. Check Device Limit
 //    DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
 //    String signature = deviceInfo.getSignature();
 //
@@ -202,21 +202,22 @@ public void checkRegistrationEligibility(String ip, String userAgent) {
 //        }
 //    }
 
-    // 1. Check IP Limit
-    // CRITICAL: This query must only count DISTINCT emails that were SUCCESSFUL.
-    // Ensure your repository query handles this correctly.
-    int accountsUsingIp = repo.countDistinctUsersByIp(ip);
+        // 1. Check IP Limit
+        // CRITICAL: This query must only count DISTINCT emails that were SUCCESSFUL.
+        // Ensure your repository query handles this correctly.
+        int accountsUsingIp = repo.countDistinctUsersByIp(ip);
 
-    if (accountsUsingIp >= 20) {
-        //Same here also, different users using same public network will have same public ip. Hence we have kept limit to 20.
-        log.warn("Registration blocked: IP {} has already created {} accounts.", ip, accountsUsingIp);
-        throw new RegistrationFailedException("Registration limit reached for this ip.");
+        if (accountsUsingIp >= 20) {
+            //Same here also, different users using same public network will have same public ip. Hence we have kept limit to 20.
+            log.warn("Registration blocked: IP {} has already created {} accounts.", ip, accountsUsingIp);
+            throw new RegistrationFailedException("Registration limit reached for this ip.");
+        }
+
     }
 
-}
 
-    @Transactional
     @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordRegistrationSuccess(Long userId, String ip, String userAgent) {
         // This runs ONLY after the user is successfully created.
 
@@ -233,13 +234,12 @@ public void checkRegistrationEligibility(String ip, String userAgent) {
                 .deviceType(deviceInfo.getDeviceType())
                 .deviceName(deviceInfo.getDeviceName())
                 .loginTime(LocalDateTime.now())
-                .isSuspicious(false) // It's successful, so not suspicious by definition
+                .isSuspicious(false)
                 .build();
 
         repo.save(entity);
         log.info("IpMonitoring: Recorded new account creation for userId={} ip={}", userId, ip);
     }
-
 
 
     @Override
