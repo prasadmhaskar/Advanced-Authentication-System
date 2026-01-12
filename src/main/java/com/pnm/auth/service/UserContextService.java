@@ -21,11 +21,9 @@ public class UserContextService {
     private final AuthUtil authUtil;
 
     @Transactional(readOnly = true)
-    public UserDetailsResponse getCurrentUser(RequestContext ctx) {
+    public UserDetailsResponse getCurrentUser() {
 
-        String ip = ctx.ip();
-
-        log.info("UserContextService: started ip={}", ip);
+        log.info("UserContextService: started");
 
         String email = authUtil.getCurrentEmail();
 
@@ -44,7 +42,7 @@ public class UserContextService {
             throw new AccountBlockedException("Your account has been blocked");
         }
 
-        log.info("UserContextService: finished ip={} and email={}", ip, email);
+        log.info("UserContextService: finished for email={}", email);
 
         return UserDetailsResponse.fromEntity(user);
     }

@@ -5,7 +5,6 @@ import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.security.filter.*;
 import com.pnm.auth.security.oauth.CookieOAuth2AuthorizationRequestRepository;
 import com.pnm.auth.security.oauth.OAuth2SuccessHandler;
-import com.pnm.auth.service.impl.user.UserDetailsServiceImpl;
 import com.pnm.auth.web.filter.RequestContextFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,12 +21,15 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.access.channel.ChannelProcessingFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.HeaderWriterFilter;
 
 import java.io.IOException;
 
@@ -39,7 +41,7 @@ import java.io.IOException;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
-    private final UserDetailsServiceImpl userDetailsServiceImpl;
+    private final UserDetailsService userDetailsService;
     private final OAuth2SuccessHandler oAuth2SuccessHandler;
     private final RedisRateLimiterFilter redisRateLimiterFilter;
     private final RequestLoggingFilter requestLoggingFilter;
@@ -123,41 +125,35 @@ public class SecurityConfig {
                 // -----------------------------------------------------
                 // UserDetails service for AuthenticationManager
                 // -----------------------------------------------------
-                .userDetailsService(userDetailsServiceImpl);
+                .userDetailsService(userDetailsService);
 
 // ---------------------------
 // Register filters (Robust Anchoring)
 // ---------------------------
 
-        http.addFilterBefore(requestContextFilter, org.springframework.security.web.access.channel.ChannelProcessingFilter.class);
-// 1. Logging - Run this as early as possible (e.g., before the Security Context is even loaded)
-// Anchor: ChannelProcessingFilter is typically the very first filter.
-        http.addFilterBefore(requestLoggingFilter, org.springframework.security.web.access.channel.ChannelProcessingFilter.class);
+        // 1. Request Context (IP/Agent extraction) - MUST BE FIRST
+        // Anchor: ChannelProcessingFilter is the first standard Spring Security filter.
+        http.addFilterBefore(requestContextFilter, ChannelProcessingFilter.class);
 
-// 2. Block Bad Methods - Run early to reject requests before wasting resources on Rate Limiting
-// Anchor: HeaderWriterFilter usually runs after context setup but before Auth.
-        http.addFilterBefore(blockHttpMethodsFilter, org.springframework.security.web.header.HeaderWriterFilter.class);
+        // 2. Logging - Logs the request (needs Context from step 1)
+        http.addFilterAfter(requestLoggingFilter, RequestContextFilter.class);
 
+        // 3. Block Bad HTTP Methods - Run early to save resources
+        http.addFilterAfter(blockHttpMethodsFilter, RequestLoggingFilter.class);
 
-// 3. Rate Limiter - Run before we attempt any expensive authentication logic
-// Anchor: UsernamePasswordAuthenticationFilter is the standard "Auth" phase.
-// We add "Before" it, so we limit rates before checking passwords/tokens.
+        // 4. Rate Limiter - Run before we touch any Auth logic (expensive)
+        // Anchor: UsernamePasswordAuthenticationFilter is where Auth starts.
         http.addFilterBefore(redisRateLimiterFilter, UsernamePasswordAuthenticationFilter.class);
 
-// 4. OAuth Redirect Validation - Specific check, can also run just before Auth
-// Note: Since we are adding multiple filters "Before" the same class,
-// the order of these lines matters (FIFO).
+        // 5. OAuth Redirect Validation - Specific check for OAuth flows
         http.addFilterBefore(oauthRedirectValidationFilter, UsernamePasswordAuthenticationFilter.class);
 
-// 5. JWT Authentication - The core auth logic
-// This must run before the standard UsernamePasswordAuthenticationFilter
-// so we can populate the context with our JWT user.
+        // 6. JWT Authentication - The core custom auth
+        // Must run before UsernamePasswordAuthenticationFilter to populate SecurityContext
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
-// 6. Security Headers - If this is a custom header filter, you can place it
-// after the standard HeaderWriterFilter to append/override defaults.
-        http.addFilterAfter(securityHeadersFilter, org.springframework.security.web.header.HeaderWriterFilter.class);
-
+        // 7. Security Headers - Add custom headers to response
+        http.addFilterAfter(securityHeadersFilter, HeaderWriterFilter.class);
 
         log.info("SecurityConfig.securityFilterChain(): final chain built successfully");
         return http.build();
@@ -238,6 +234,7 @@ public class SecurityConfig {
         registration.setEnabled(false); // prevent Spring Boot from auto-registering this filter as a servlet filter
         return registration;
     }
+
 
 
 

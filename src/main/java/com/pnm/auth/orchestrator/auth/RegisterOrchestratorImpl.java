@@ -39,7 +39,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         String ip = ctx.ip();
         String ua = ctx.userAgent();
 
-        log.info("RegisterOrchestrator: started ip={} and email={}",ctx.ip(), email);
+        log.info("RegisterOrchestrator: started for email={}", email);
 
         // Check for restricting multiple accounts registration per device
         //This is just a basic check code for restricting multiple users per device. We have kept limit to 20 because,
@@ -77,7 +77,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         // Send Verification Email (Async Bridge)
         emailService.sendVerificationEmail(email, result.token());
 
-        log.info("RegisterOrchestrator: finished ip={} and email={}",ctx.ip(), email);
+        log.info("RegisterOrchestrator: finished for email={}", email);
 
         return RegistrationResult.builder()
                 .outcome(AuthOutcome.REGISTERED)

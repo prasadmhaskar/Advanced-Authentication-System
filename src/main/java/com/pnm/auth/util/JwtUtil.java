@@ -2,9 +2,12 @@ package com.pnm.auth.util;
 
 import com.pnm.auth.domain.entity.User;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SignatureException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -90,15 +93,20 @@ public class JwtUtil {
 
     public Claims extractAllClaims(String token) {
         try {
-            log.debug("JwtUtil.extractAllClaims: Parsing claims");
             return Jwts.parser()
                     .verifyWith(getSigningKey())
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
-        } catch (Exception ex) {
-            log.error("JwtUtil.extractAllClaims: Failed to parse token ");
-            throw ex;
+        } catch (ExpiredJwtException e) {
+            log.warn("JwtUtil: Token expired. Subject: {}", e.getClaims().getSubject());
+            throw e;
+        } catch (MalformedJwtException | SignatureException | IllegalArgumentException e) {
+            log.warn("JwtUtil: Invalid token rejected. Message: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("JwtUtil: Unexpected error parsing token", e);
+            throw e;
         }
     }
 

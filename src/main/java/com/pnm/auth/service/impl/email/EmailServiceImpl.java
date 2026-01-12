@@ -6,6 +6,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
@@ -19,6 +20,9 @@ public class EmailServiceImpl implements EmailService {
 
     private final JavaMailSender mailSender;
 
+    @Value("${app.base-url}")
+    private String baseUrl;
+
     @Override
     @Async("emailExecutor")
     @Retry(name = "emailRetry")
@@ -28,7 +32,7 @@ public class EmailServiceImpl implements EmailService {
         log.info("EmailService: sending verification email to={}", toEmail);
 
         String subject = "Verify Your Email";
-        String verificationLink = "http://localhost:8080/api/auth/verify?token=" + token;
+        String verificationLink = baseUrl+ "/api/auth/verify?token=" + token;
 
         String body = """
                 Hello,
@@ -48,7 +52,7 @@ public class EmailServiceImpl implements EmailService {
 
         log.info("EmailService: sending set-password email to={}", email);
 
-        String link = "http://localhost:8080/reset-password?token=" + token;
+        String link = baseUrl+ "/reset-password?token=" + token;
 
         String subject = "Set your password";
         String body = """

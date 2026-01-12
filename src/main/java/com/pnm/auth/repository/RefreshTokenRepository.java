@@ -51,7 +51,7 @@ AND r.deviceSignature <> :deviceSignature
                 SELECT id FROM refresh_token
                 WHERE user_id = :userId
                 ORDER BY created_at DESC
-                LIMIT :limit
+                LIMIT :limit - 1
             ) tmp
         )
     """, nativeQuery = true)

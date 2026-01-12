@@ -4,6 +4,7 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -16,9 +17,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     private final UserRepository userRepository;
 
+    // value: name of the cache map in Redis
+    // key: the unique identifier (email)
+    // unless: don't cache null results (prevents caching "user not found" errors forever)
     @Override
+    @Cacheable(value = "user_details", key = "#email", unless = "#result == null")
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        log.info("UserDetailsServiceImpl.loadUserByUsername: Started for email={}", email);
+        log.info("UserDetailsServiceImpl: DB HIT for email={}", email);
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
@@ -26,14 +31,6 @@ public class UserDetailsServiceImpl implements UserDetailsService {
                     return new UsernameNotFoundException("User not found with email: " + email);
                 });
 
-        log.info("UserDetailsServiceImpl: User found email={} roles={}", user.getEmail(), user.getRoles());
-
-        UserDetailsImpl details = new UserDetailsImpl(user);
-
-        log.info("UserDetailsServiceImpl.loadUserByUsername: Completed for email={}", email);
-
-        return details;
+        return new UserDetailsImpl(user);
     }
-
 }
-

@@ -1,37 +1,47 @@
 package com.pnm.auth.service.impl.user;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.pnm.auth.domain.entity.User;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
 
 @Getter
+@NoArgsConstructor // Required for Redis/Jackson deserialization
+@AllArgsConstructor
 public class UserDetailsImpl implements UserDetails {
 
-    private final Long id;
-    private final String email;
-    private final String password;
-    private final Collection<? extends GrantedAuthority> authorities;
-    private final boolean active;
+    private Long id;
+    private String email;
+
+    @JsonIgnore
+    private String password;
+
+    private boolean active;
+    private Integer tokenVersion;
+    private Collection<? extends GrantedAuthority> authorities;
 
     public UserDetailsImpl(User user) {
         this.id = user.getId();
         this.email = user.getEmail();
         this.password = user.getPassword();
         this.active = user.isActive();
+        this.tokenVersion = user.getTokenVersion();
 
-        this.authorities = user.getRoles()
-                .stream()
-                .map(role -> (GrantedAuthority) () -> role)
+        this.authorities = user.getRoles().stream()
+                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
                 .collect(Collectors.toList());
     }
 
     @Override
     public String getUsername() {
-        return email;  // username == email in your project
+        return email;
     }
 
     @Override public boolean isAccountNonExpired() { return true; }

@@ -10,9 +10,9 @@ import java.util.List;
 
 public interface DeviceTrustService {
 
-    List<DeviceTrustResponse> getTrustedDevices(RequestContext ctx);
+    List<DeviceTrustResponse> getTrustedDevices();
 
-    void removeDevice(Long deviceId, RequestContext ctx);
+    void removeDevice(Long deviceId);
 
     void trustDevice(Long userId, String deviceSignature, String deviceName);
 

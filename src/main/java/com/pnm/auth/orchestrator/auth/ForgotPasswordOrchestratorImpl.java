@@ -30,12 +30,11 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Override
-    public ForgotPasswordResult requestReset(String rawEmail, RequestContext ctx) {
+    public ForgotPasswordResult requestReset(String rawEmail) {
 
-        String ip = ctx.ip();
         String email = rawEmail.trim().toLowerCase();
 
-        log.info("ForgotPasswordOrchestrator: started ip={} and email={}",ip, email);
+        log.info("ForgotPasswordOrchestrator: started for email={}", email);
 
         // Load user
         Optional<User> userOpt = userRepository.findByEmail(email);
@@ -60,7 +59,7 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
         // Send email
         emailService.sendSetPasswordEmail(user.getEmail(), token);
 
-        log.info("ForgotPasswordOrchestrator: finished ip={} and email={}", ip, email);
+        log.info("ForgotPasswordOrchestrator: finished for email={}", email);
 
         return ForgotPasswordResult.builder()
                 .outcome(AuthOutcome.PASSWORD_RESET)

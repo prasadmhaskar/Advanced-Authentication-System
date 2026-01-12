@@ -9,10 +9,8 @@ import com.pnm.auth.service.audit.AuditService;
 import com.pnm.auth.service.impl.admin.AdminServiceImpl;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.web.context.RequestContext;
-import com.pnm.auth.web.filter.RequestContextFilter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springdoc.core.annotations.ParameterObject;
@@ -40,15 +38,14 @@ public class AdminController {
     public ResponseEntity<ApiResponse<PagedResponse<UserAdminResponse>>> getAllUsers(
             @ParameterObject UserFilterRequest filter,
             @ParameterObject Pageable pageable,
-            HttpServletRequest httpServletRequest
+            RequestContext ctx
     ) {
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AdminController.getAllUsers(): started ip={}",ctx.ip());
+        log.info("AdminController.getAllUsers(): started");
 
         PagedResponse<UserAdminResponse> users = adminService.getAllUsers(filter, pageable);
 
-        log.info("AdminController.getAllUsers(): finished ip={}",ctx.ip());
+        log.info("AdminController.getAllUsers(): finished");
 
         return ResponseEntity.ok(ApiResponse.success(
                 "USERS_FETCHED",
@@ -60,15 +57,13 @@ public class AdminController {
 
 
     @DeleteMapping("/users/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id, HttpServletRequest httpServletRequest) {
+    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id, RequestContext ctx) {
 
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
-
-        log.info("AdminController.deleteUser(): started ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.deleteUser(): started for id={}", id);
 
         adminService.deleteUser(id);
 
-        log.info("AdminController.deleteUser(): finished ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.deleteUser(): finished for id={}", id);
 
         ApiResponse<Void> body = ApiResponse.success(
                 "USER_DELETED",
@@ -80,15 +75,14 @@ public class AdminController {
     }
 
     @PatchMapping("/users/{id}/block")
-    public ResponseEntity<ApiResponse<AdminServiceImpl.BlockUserResult>> blockUser(@PathVariable Long id, HttpServletRequest httpServletRequest) {
+    public ResponseEntity<ApiResponse<AdminServiceImpl.BlockUserResult>> blockUser(@PathVariable Long id,
+                                                                                   RequestContext ctx) {
 
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
-
-        log.info("AdminController.blockUser(): started ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.blockUser(): started for id={}", id);
 
         AdminServiceImpl.BlockUserResult result = adminService.blockUser(id);
 
-        log.info("AdminController.blockUser(): finished ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.blockUser(): finished for id={}", id);
 
         ApiResponse<AdminServiceImpl.BlockUserResult> body = ApiResponse.success(
                 result.code(),
@@ -100,15 +94,14 @@ public class AdminController {
     }
 
     @PatchMapping("/users/{id}/unblock")
-    public ResponseEntity<ApiResponse<AdminServiceImpl.UnblockUserResult>> unblockUser(@PathVariable Long id, HttpServletRequest httpServletRequest) {
+    public ResponseEntity<ApiResponse<AdminServiceImpl.UnblockUserResult>> unblockUser(@PathVariable Long id,
+                                                                                       RequestContext ctx) {
 
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
-
-        log.info("AdminController.unblockUser(): started ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.unblockUser(): started for id={}", id);
 
         AdminServiceImpl.UnblockUserResult result = adminService.unblockUser(id);
 
-        log.info("AdminController.unblockUser(): finished ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.unblockUser(): finished for id={}", id);
 
         ApiResponse<AdminServiceImpl.UnblockUserResult> body = ApiResponse.success(
                 result.code(),
@@ -125,15 +118,14 @@ public class AdminController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @ParameterObject LoginActivityFilterRequest filter,
-            HttpServletRequest httpServletRequest
+            RequestContext ctx
     ) {
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AdminController.getLoginActivities(): started ip={} page={} size={}", ctx.ip(), page, size);
+        log.info("AdminController.getLoginActivities(): started for page={} size={}", page, size);
 
         PagedResponse<LoginActivityResponse> response = adminService.getLoginActivities(page, size, filter);
 
-        log.info("AdminController.getLoginActivities(): finished ip={} page={} size={}", ctx.ip(), page, size);
+        log.info("AdminController.getLoginActivities(): finished for page={} size={}", page, size);
 
         return ResponseEntity.ok(ApiResponse.success(
                 "LOGIN_ACTIVITIES_FETCHED",
@@ -147,15 +139,13 @@ public class AdminController {
     @Operation(summary = "Get Login Activity By ID", description = "Fetch a single login activity detail")
     public ResponseEntity<ApiResponse<LoginActivityResponse>> getActivityById(
             @PathVariable Long id,
-            HttpServletRequest httpServletRequest
+            RequestContext ctx
     ) {
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
-
-        log.info("AdminController.getActivityById(): started ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.getActivityById(): started for id={}", id);
 
         LoginActivityResponse activityById = adminService.getActivityById(id);
 
-        log.info("AdminController.getActivityById(): finished ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.getActivityById(): finished for id={}", id);
 
         return ResponseEntity.ok(ApiResponse.success(
                 "LOGIN_ACTIVITY_FETCHED",
@@ -168,13 +158,14 @@ public class AdminController {
 
     @GetMapping("/security/ip/user/{userId}/recent")
     public ResponseEntity<ApiResponse<List<UserIpLogResponse>>> getRecentIpsForUser(
-            @PathVariable Long userId, HttpServletRequest httpServletRequest
+            @PathVariable Long userId, RequestContext ctx
     ) {
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AdminController.getRecentIpsForUser(): started ip={} for id={}",ctx.ip(), userId);
+        log.info("AdminController.getRecentIpsForUser(): started for id={}", userId);
 
         List<UserIpLogResponse> recentIps = ipMonitoringService.getRecentIpsForUser(userId);
+
+        log.info("AdminController.getRecentIpsForUser(): finished for id={}", userId);
 
         ApiResponse<List<UserIpLogResponse>> body = ApiResponse.success(
                 "RECENT_IPS_FETCHED",
@@ -188,15 +179,14 @@ public class AdminController {
 
     @GetMapping("/security/ip/usage")
     public ResponseEntity<ApiResponse<IpUsageResponse>> getIpUsage(
-            @RequestParam String ip, HttpServletRequest httpServletRequest
+            @RequestParam String ip, RequestContext ctx
     ) {
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AdminController.getIpUsage(): started ip={} for ip={}",ctx.ip(), ip);
+        log.info("AdminController.getIpUsage(): started for ip={}", ip);
 
         IpUsageResponse response = ipMonitoringService.countIpUsage(ip);
 
-        log.info("AdminController.getIpUsage(): finished ip={} for ip={}",ctx.ip(), ip);
+        log.info("AdminController.getIpUsage(): finished for ip={}", ip);
 
         ApiResponse<IpUsageResponse> body = ApiResponse.success(
                 "IP_USAGE_FETCHED",
@@ -210,15 +200,14 @@ public class AdminController {
 
     @GetMapping("/security/ip/log/{id}")
     public ResponseEntity<ApiResponse<UserIpLogResponse>> getSingleIpLog(
-            @PathVariable Long id, HttpServletRequest httpServletRequest
+            @PathVariable Long id, RequestContext ctx
     ) {
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AdminController.getSingleIpLog(): started ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.getSingleIpLog(): started for id={}", id);
 
         UserIpLogResponse logEntry = ipMonitoringService.getById(id);
 
-        log.info("AdminController.getSingleIpLog(): finished ip={} for id={}",ctx.ip(), id);
+        log.info("AdminController.getSingleIpLog(): finished for id={}", id);
 
         ApiResponse<UserIpLogResponse> body = ApiResponse.success(
                 "IP_LOG_ENTRY_FETCHED",
@@ -233,15 +222,14 @@ public class AdminController {
     public ResponseEntity<ApiResponse<PagedResponse<AuditLogResponse>>> getAuditLogs(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            HttpServletRequest httpServletRequest
+            RequestContext ctx
     ) {
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
 
-        log.info("AuditController.getAuditLogs(): started ip={} page={} size={}", ctx.ip(), page, size);
+        log.info("AuditController.getAuditLogs(): started for page={} size={}", page, size);
 
         PagedResponse<AuditLogResponse> response = auditService.getAll(page, size);
 
-        log.info("AuditController.getAuditLogs(): finished ip={} page={} size={}", ctx.ip(), page, size);
+        log.info("AuditController.getAuditLogs(): finished for page={} size={}", page, size);
 
         ApiResponse<PagedResponse<AuditLogResponse>> body = ApiResponse.success(
                 "AUDIT_LOGS_FETCHED",
@@ -254,15 +242,13 @@ public class AdminController {
     }
 
     @GetMapping("/analytics")
-    public ResponseEntity<ApiResponse<AdminAnalyticsResponse>> getAnalytics(HttpServletRequest httpServletRequest) {
+    public ResponseEntity<ApiResponse<AdminAnalyticsResponse>> getAnalytics(RequestContext ctx) {
 
-        RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
-
-        log.info("AdminController.getAnalytics(): started ip={}", ctx.ip());
+        log.info("AdminController.getAnalytics(): started");
 
         AdminAnalyticsResponse analytics = adminAnalyticsService.getAnalytics();
 
-        log.info("AdminController.getAnalytics(): finished ip={}", ctx.ip());
+        log.info("AdminController.getAnalytics(): finished");
 
         ApiResponse<AdminAnalyticsResponse> body = ApiResponse.success(
                 "ADMIN_ANALYTICS_FETCHED",

@@ -55,7 +55,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         String userAgent = ctx.userAgent();
         String email = request.getEmail().trim().toLowerCase();
 
-        log.info("LoginOrchestrator: started ip={} and email={}", ip, email);
+        log.info("LoginOrchestrator: started for email={}", email);
 
         // Load user
         Optional<User> userOpt = userValidationService.findUserByEmail(email);
@@ -64,10 +64,9 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         // Password verification
         try {
             passwordAuthService.verifyPassword(user, request.getPassword());
-        } catch (RuntimeException ex) { // FIX: Catch RuntimeException explicitly
-            // Log failure generically
+        } catch (RuntimeException ex) {
             loginActivityService.recordFailure(email, "Invalid email or password", ip, userAgent);
-            throw ex; // Rethrowing RuntimeException does not require 'throws' in method signature
+            throw ex;
         }
 
         // User status check - Active/Blocked
@@ -127,7 +126,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
             log.warn("LoginOrchestrator: failed to trust device", ex);
         }
 
-        log.info("LoginOrchestrator: finished ip={} and email={}", ip, email);
+        log.info("LoginOrchestrator: finished for email={}", email);
 
         return AuthenticationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)

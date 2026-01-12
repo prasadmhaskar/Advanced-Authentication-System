@@ -25,8 +25,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
     @Audit(action = AuditAction.OAUTH_LINK, description = "Link OAuth account")
     public AccountLinkResult link(LinkOAuthRequest request, RequestContext ctx) {
 
-        String ip = ctx.ip();
-        log.info("LinkOAuthOrchestrator: started ip={} and provider={}", ip, request.getProvider());
+        log.info("LinkOAuthOrchestrator: started for provider={}", request.getProvider());
 
         // Delegate business logic to Service
         LinkingResult internalResult = accountLinkingService.linkAccount(request, ctx);
@@ -35,15 +34,15 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
         String accessToken = internalResult.getAuthTokens().getAccessToken();
         String refreshToken = internalResult.getAuthTokens().getRefreshToken();
 
-        log.info("LinkOAuthOrchestrator: finished ip={} email={} provider={}",
-                ip, user.getEmail(), request.getProvider());
+        log.info("LinkOAuthOrchestrator: finished for email={} and provider={}",
+                user.getEmail(), request.getProvider());
 
         return AccountLinkResult.builder()
                 .outcome(AuthOutcome.SUCCESS)
                 .email(user.getEmail())
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
-                .nextAction(NextAction.LOGIN) // User is immediately logged in
+                .nextAction(NextAction.LOGIN)
                 .message("Account linked successfully")
                 .build();
     }

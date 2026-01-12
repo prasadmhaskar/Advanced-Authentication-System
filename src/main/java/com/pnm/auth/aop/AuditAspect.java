@@ -17,7 +17,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class    AuditAspect {
+public class AuditAspect {
 
     private final AuditService auditService;
     private final AuthUtil authUtil;
@@ -41,9 +41,7 @@ public class    AuditAspect {
         if (attrs != null && attrs.getRequest() != null) {
             HttpServletRequest request = attrs.getRequest();
 
-            ip = request.getHeader("X-Forwarded-For");
-            if (ip == null) ip = request.getRemoteAddr();
-
+            ip = getClientIp(request);
             userAgent = request.getHeader("User-Agent");
             if (userAgent == null) userAgent = "UNKNOWN";
         }
@@ -106,6 +104,24 @@ public class    AuditAspect {
 
         log.warn("AuditAspect: targetUserId arg is not Long");
         return null;
+    }
+
+    public String getClientIp(HttpServletRequest request) {
+        String xff = request.getHeader("X-Forwarded-For");
+
+        if (xff != null && !xff.isEmpty() && !"unknown".equalsIgnoreCase(xff)) {
+            String ip = xff.split(",")[0].trim();
+
+            if (isValidIp(ip)) {
+                return ip;
+            }
+        }
+
+        return request.getRemoteAddr();
+    }
+
+    private boolean isValidIp(String ip) {
+        return ip.length() <= 45; // IPv6 max length
     }
 }
 

@@ -9,6 +9,7 @@ import com.pnm.auth.exception.custom.PasswordResetException;
 import com.pnm.auth.orchestrator.auth.ResetPasswordOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
+import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -26,32 +27,31 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final LoginActivityService loginActivityService;
+    private final CacheManagementService cacheManagementService;
 
     @Override
     @Transactional
     public void resetPassword(ResetPasswordRequest request, RequestContext ctx) {
-        String ip = ctx.ip();
-        String userAgent = ctx.userAgent();
 
-        log.info("ResetPasswordOrchestrator: started ip={}",ip);
+        log.info("ResetPasswordOrchestrator: started");
 
         // Load verification token
         VerificationToken token = verificationTokenRepository
                 .findByToken(request.getToken())
                 .orElseThrow(() -> {
-                    log.warn("ResetPasswordOrchestrator: invalid token for ip={}",ip);
+                    log.warn("ResetPasswordOrchestrator: invalid token");
                     return new InvalidTokenException("Invalid or expired reset token");
                 });
 
         // Validate token type
         if (!"PASSWORD_RESET".equals(token.getType())) {
-            log.warn("ResetPasswordOrchestrator: token type mismatch for ip={}",ip);
+            log.warn("ResetPasswordOrchestrator: token type mismatch");
             throw new InvalidTokenException("Invalid reset token");
         }
 
         // Validate expiry
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            log.warn("ResetPasswordOrchestrator: token expired for ip={}",ip);
+            log.warn("ResetPasswordOrchestrator: token expired");
             throw new InvalidTokenException("Reset token has expired");
         }
 
@@ -74,13 +74,16 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
 
             // Record success
             try {
-                loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
+                loginActivityService.recordSuccess(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent());
             } catch (Exception ex) {
                 log.warn("ResetPasswordOrchestrator: activity log failed userId={} msg={}",
                         user.getId(), ex.getMessage());
             }
 
-            log.info("ResetPasswordOrchestrator: finished ip={} and email={}",ip, user.getEmail());
+            // Delete user details from cache
+            cacheManagementService.evictUserFromCache(user.getEmail());
+
+            log.info("ResetPasswordOrchestrator: finished for email={}", user.getEmail());
 
         } catch (Exception ex) {
             log.error("ResetPasswordOrchestrator: failed userId={} msg={}",

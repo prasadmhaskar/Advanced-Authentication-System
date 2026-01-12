@@ -13,6 +13,7 @@ import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.repository.*;
 import com.pnm.auth.service.admin.AdminService;
 import com.pnm.auth.service.auth.UserPersistenceService;
+import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.specification.LoginActivitySpecification;
 import com.pnm.auth.specification.UserSpecification;
 import com.pnm.auth.util.Audit;
@@ -40,6 +41,7 @@ public class AdminServiceImpl implements AdminService {
     private final UserRepository userRepository;
     private final LoginActivityRepository loginActivityRepository;
     private final UserPersistenceService userPersistenceService;
+    private final CacheManagementService cacheManagementService;
 
     public record UnblockUserResult(String code, String message) {
     }
@@ -119,6 +121,9 @@ public class AdminServiceImpl implements AdminService {
         user.incrementTokenVersion();
         user.setActive(false);
         userRepository.save(user);
+
+        // Delete user details from cache
+        cacheManagementService.evictUserFromCache(user.getEmail());
 
         log.info("AdminService.blockUser(): user blocked successfully id={}", id);
         return new BlockUserResult("USER_BLOCKED", "User blocked successfully");

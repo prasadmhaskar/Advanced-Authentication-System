@@ -9,6 +9,7 @@ import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.orchestrator.auth.LogoutOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
+import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.web.context.RequestContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,16 +26,15 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
     private final JwtUtil jwtUtil;
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
+    private final CacheManagementService cacheManagementService;
 
     @Transactional
     public void logout(
             LogoutRequest request,
-            HttpServletRequest httpServletRequest,
-            RequestContext ctx
+            HttpServletRequest httpServletRequest
     ) {
-        String ip = ctx.ip();
 
-        log.info("LogoutOrchestrator: started ip={}", ip);
+        log.info("LogoutOrchestrator: started");
 
         // Extract access token from header
         String accessToken = extractAccessToken(httpServletRequest);
@@ -69,11 +69,13 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
             user.incrementTokenVersion();
             userRepository.save(user);
 
+            // Delete user details from cache
+            cacheManagementService.evictUserFromCache(user.getEmail());
+
             refreshTokenRepository.deleteByUserId(user.getId());
 
         }
-
-        log.info("LogoutOrchestrator: finished ip={} email={}", ip, email);
+        log.info("LogoutOrchestrator: finished for email={}", email);
     }
 
     private String extractAccessToken(HttpServletRequest request) {

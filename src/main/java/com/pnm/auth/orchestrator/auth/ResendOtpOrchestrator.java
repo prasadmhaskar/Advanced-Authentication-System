@@ -5,6 +5,6 @@ import com.pnm.auth.dto.response.ResendOtpResponse;
 import com.pnm.auth.web.context.RequestContext;
 
 public interface ResendOtpOrchestrator {
-    ResendOtpResponse resend(OtpResendRequest request, RequestContext ctx);
+    ResendOtpResponse resend(OtpResendRequest request);
 }
 

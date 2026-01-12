@@ -14,6 +14,7 @@ import com.pnm.auth.orchestrator.auth.ChangePasswordOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.AuthUtil;
@@ -36,6 +37,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
     private final TokenService tokenService;
     private final LoginActivityService loginActivityService;
     private final AuthUtil authUtil;
+    private final CacheManagementService cacheManagementService;
 
     @Override
     @Transactional
@@ -47,7 +49,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
         String ip = ctx.ip();
         String userAgent = ctx.userAgent();
 
-        log.info("ChangePasswordOrchestrator: started ip={}", ip);
+        log.info("ChangePasswordOrchestrator: started");
 
         String email = authUtil.getCurrentEmail();
 
@@ -103,7 +105,10 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
             log.warn("ChangePasswordOrchestrator: failed to record success email={}", email);
         }
 
-        log.info("ChangePasswordOrchestrator: finished ip={} and email={}", ctx.ip(), email);
+        // Delete user details from cache
+        cacheManagementService.evictUserFromCache(user.getEmail());
+
+        log.info("ChangePasswordOrchestrator: finished for email={}", email);
 
         return AuthenticationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)

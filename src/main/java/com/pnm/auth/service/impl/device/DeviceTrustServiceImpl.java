@@ -28,12 +28,12 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     private final RefreshTokenRepository refreshTokenRepository;
 
     @Override
-    public List<DeviceTrustResponse> getTrustedDevices(RequestContext ctx) {
-        log.info("DeviceTrustService.getTrustedDevices(): started ip={}", ctx.ip());
+    public List<DeviceTrustResponse> getTrustedDevices() {
+        log.info("DeviceTrustService.getTrustedDevices(): started");
 
         Long id = authUtil.getCurrentUserId();
 
-        log.info("DeviceTrustService.getTrustedDevices() finished ip={}", ctx.ip());
+        log.info("DeviceTrustService.getTrustedDevices() finished");
         return trustedDeviceRepository.findByUserIdAndActiveTrue(id)
                 .stream()
                 .map(DeviceTrustResponse::fromEntity)
@@ -41,9 +41,9 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     }
 
     @Override
-    public void removeDevice(Long deviceId, RequestContext ctx) {
+    public void removeDevice(Long deviceId) {
 
-        log.info("DeviceTrustService.removeDevice(): started ip={}", ctx.ip());
+        log.info("DeviceTrustService.removeDevice(): started");
 
         Long userId = authUtil.getCurrentUserId();
         TrustedDevice device = trustedDeviceRepository.findById(deviceId)
@@ -56,7 +56,7 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
         device.setActive(false);
         trustedDeviceRepository.save(device);
 
-        log.info("DeviceTrustService.removeDevice(): finished ip={}", ctx.ip());
+        log.info("DeviceTrustService.removeDevice(): finished");
     }
 
     @Override
@@ -96,7 +96,7 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     @Override
     public void removeAllExceptCurrent(RequestContext ctx) {
 
-        log.info("DeviceTrustService.removeAllExceptCurrent(): started ip={}", ctx.ip());
+        log.info("DeviceTrustService.removeAllExceptCurrent(): started");
 
         String currentDeviceSignature = UserAgentParser
                 .parse(ctx.userAgent())
@@ -112,8 +112,8 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
 
         refreshTokenRepository.invalidateAllExceptCurrentDevice(userId, currentDeviceSignature);
 
-        log.info("DeviceTrustService.removeAllExceptCurrent(): finished ip={} removed old devices for userId={} except={}",
-                ctx.ip(), userId, currentDeviceSignature);
+        log.info("DeviceTrustService.removeAllExceptCurrent(): finished and removed old devices for userId={} except={}",
+                userId, currentDeviceSignature);
     }
 
     @Override

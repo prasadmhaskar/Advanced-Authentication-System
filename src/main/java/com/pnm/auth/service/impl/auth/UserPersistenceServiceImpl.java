@@ -6,6 +6,7 @@ import com.pnm.auth.dto.request.RegisterRequest;
 import com.pnm.auth.repository.*;
 import com.pnm.auth.service.auth.UserPersistenceService;
 import com.pnm.auth.service.auth.VerificationService;
+import com.pnm.auth.service.impl.cache.CacheManagementService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -67,6 +68,7 @@ public class UserPersistenceServiceImpl implements UserPersistenceService {
         userIpLogRepository.deleteByUserId(userId);
         userOAuthProviderRepository.deleteByUserId(userId);
         verificationTokenRepository.deleteByUserId(userId);
+
 
         userRepository.deleteById(userId);
     }

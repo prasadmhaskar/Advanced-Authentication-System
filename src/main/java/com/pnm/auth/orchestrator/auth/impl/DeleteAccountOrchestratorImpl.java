@@ -8,6 +8,7 @@ import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.orchestrator.auth.DeleteAccountOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.auth.UserPersistenceService;
+import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.BlacklistedTokenStore;
@@ -31,13 +32,14 @@ public class DeleteAccountOrchestratorImpl implements DeleteAccountOrchestrator 
     private final AuthUtil authUtil;
     private final JwtUtil jwtUtil;
     private final BlacklistedTokenStore blacklistedTokenStore;
+    private final CacheManagementService cacheManagementService;
 
     @Transactional
     @Audit(action = AuditAction.SELF_DELETE, description = "User deleted his account", targetUserArgIndex = 0)
     @Override
-    public void deleteMyAccount(DeleteAccountRequest request, HttpServletRequest httpServletRequest, RequestContext ctx) {
+    public void deleteMyAccount(DeleteAccountRequest request, HttpServletRequest httpServletRequest) {
 
-        log.info("DeleteAccountOrchestrator: started ip={}", ctx.ip());
+        log.info("DeleteAccountOrchestrator: started");
 
         Long userId = authUtil.getCurrentUserId();
         String password = request.getPassword();
@@ -63,6 +65,9 @@ public class DeleteAccountOrchestratorImpl implements DeleteAccountOrchestrator 
         // Deletes all data from all repositories related to this user
         userPersistenceService.deleteUserPermanently(userId);
 
-        log.info("DeleteAccountOrchestrator: finished ip={} User with userId={} deleted their own account successfully", ctx.ip(), userId);
+        // Delete user details from cache
+        cacheManagementService.evictUserFromCache(user.getEmail());
+
+        log.info("DeleteAccountOrchestrator: finished and User with userId={} deleted their own account successfully", userId);
     }
 }

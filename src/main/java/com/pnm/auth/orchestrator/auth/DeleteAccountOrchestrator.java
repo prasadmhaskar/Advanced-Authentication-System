@@ -5,5 +5,5 @@ import com.pnm.auth.web.context.RequestContext;
 import jakarta.servlet.http.HttpServletRequest;
 
 public interface DeleteAccountOrchestrator {
-    void deleteMyAccount(DeleteAccountRequest request, HttpServletRequest httpServletRequest, RequestContext ctx);
+    void deleteMyAccount(DeleteAccountRequest request, HttpServletRequest httpServletRequest);
 }

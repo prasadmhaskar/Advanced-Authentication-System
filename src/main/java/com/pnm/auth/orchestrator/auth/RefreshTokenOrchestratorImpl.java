@@ -42,14 +42,11 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
     @Transactional
     public AuthenticationResult refresh(String rawToken, RequestContext ctx) {
 
-        String ip = ctx.ip();
-        String userAgent = ctx.userAgent();
-
         String currentDeviceSignature = UserAgentParser
                 .parse(ctx.userAgent())
                 .getSignature();
 
-        log.info("RefreshTokenOrchestrator: started ip={}",ip);
+        log.info("RefreshTokenOrchestrator: started");
 
         // Load token
         RefreshToken stored = refreshTokenRepository.findByToken(rawToken)
@@ -120,11 +117,11 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
             // Record success
             try {
-                loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
+                loginActivityService.recordSuccess(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent());
             } catch (Exception ignored) {
             }
 
-            log.info("RefreshTokenOrchestrator: finished ip={} and email={}",ip, user.getEmail());
+            log.info("RefreshTokenOrchestrator: finished for email={}", user.getEmail());
 
             return result;
 

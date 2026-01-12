@@ -35,16 +35,13 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
     @Override
     public ResendVerificationResult resend(String email, RequestContext ctx) {
 
-        String ip = ctx.ip();
-        String userAgent = ctx.userAgent();
-
-        log.info("ResendVerificationOrchestrator: started ip={} and email={}", ip, email);
+        log.info("ResendVerificationOrchestrator: started for email={}", email);
 
         // Find User
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("ResendVerificationOrchestrator: user not found email={}", email);
-                    loginActivityService.recordFailure(email, "User not found", ip, userAgent);
+                    loginActivityService.recordFailure(email, "User not found", ctx.ip(), ctx.userAgent());
                     return new UserNotFoundException("User not found with email: " + email);
                 });
 
@@ -74,8 +71,7 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
         // Send Email
         emailService.sendVerificationEmail(email, token);
 
-
-        log.info("ResendVerificationOrchestrator: finished ip={} and email={}",ip, email);
+        log.info("ResendVerificationOrchestrator: finished for email={}", email);
 
         return ResendVerificationResult.builder()
                 .outcome(ResendVerificationOutcome.EMAIL_SENT)

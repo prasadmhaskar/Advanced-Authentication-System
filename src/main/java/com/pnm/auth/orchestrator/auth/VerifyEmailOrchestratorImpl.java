@@ -13,8 +13,6 @@ import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.service.device.DeviceTrustService;
-import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
-import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -41,10 +39,8 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
     public EmailVerificationResult verify(String rawToken, RequestContext ctx) {
 
         String token = rawToken.trim();
-        String ip = ctx.ip();
-        String ua = ctx.userAgent();
 
-        log.info("VerifyEmailOrchestrator: started ip={}",ip);
+        log.info("VerifyEmailOrchestrator: started");
 
         // Load token
         VerificationToken verificationToken =
@@ -113,19 +109,19 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
                 new LoginSuccessEvent(
                         user.getId(),
                         user.getEmail(),
-                        ip,
-                        ua));
+                        ctx.ip(),
+                        ctx.userAgent()));
 
         // Save this device as trustedDevice
         try {
-            var agent = UserAgentParser.parse(ua);
+            var agent = UserAgentParser.parse(ctx.userAgent());
             deviceTrustService.trustDevice(user.getId(), agent.getSignature(), agent.getDeviceName());
         } catch (Exception ex) {
             log.warn("VerifyEmailOrchestrator: failed to trust device email={} err={}",
                     user.getEmail(), ex.getMessage());
         }
 
-        log.info("VerifyEmailOrchestrator: finished ip={} and email={}",ip ,user.getEmail());
+        log.info("VerifyEmailOrchestrator: finished for email={}", user.getEmail());
 
         return EmailVerificationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)

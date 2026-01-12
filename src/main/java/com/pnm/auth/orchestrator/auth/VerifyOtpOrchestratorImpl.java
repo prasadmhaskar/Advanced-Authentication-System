@@ -41,7 +41,7 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
         String ip = ctx.ip();
         String userAgent = ctx.userAgent();
 
-        log.info("VerifyOtpOrchestrator: started ip={}", ip);
+        log.info("VerifyOtpOrchestrator: started");
 
         // Load otp token
         MfaToken token = mfaTokenRepository.findByIdAndUsedFalse(request.getTokenId())
@@ -105,7 +105,7 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
         // Generate tokens
         AuthenticationResult tokens = tokenService.generateTokens(user, ctx);
 
-        log.info("VerifyOtpOrchestrator: finished ip={} and email={}", ip, user.getEmail());
+        log.info("VerifyOtpOrchestrator: finished for email={}", user.getEmail());
 
         String message = token.isRiskBased()
                 ? "Risk-based OTP verified successfully"

@@ -9,16 +9,10 @@ import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.auth.MfaPersistenceService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.impl.redis.RedisCooldownService;
-import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.time.Duration;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 @Service
 @RequiredArgsConstructor
@@ -31,12 +25,12 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
     private final MfaTokenRepository mfaTokenRepository;
 
     @Override
-    public ResendOtpResponse resend(OtpResendRequest request, RequestContext ctx) {
+    public ResendOtpResponse resend(OtpResendRequest request) {
 
-        log.info("ResendOtpOrchestrator: started ip={}", ctx.ip());
+        log.info("ResendOtpOrchestrator: started");
 
         MfaToken existingToken = mfaTokenRepository.findByIdAndUsedFalse(request.getTokenId()).orElseThrow(() -> {
-            log.warn("MfaPersistence: token not found or already used ip={}", ctx.ip());
+            log.warn("MfaPersistence: token not found or already used");
             return new InvalidTokenException("OTP token not found or already used");
         });
 
@@ -62,7 +56,7 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
         // Send email
         emailService.sendMfaOtpEmail(email, newToken.getOtp());
 
-        log.info("ResendOtpOrchestrator: finished ip={} and email={}",ctx.ip(), email);
+        log.info("ResendOtpOrchestrator: finished for email={}", email);
 
         return ResendOtpResponse.builder()
                 .newTokenId(newToken.getId())
