@@ -6,6 +6,7 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.auth.VerificationService;
+import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,13 +35,13 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
 
         String email = rawEmail.trim().toLowerCase();
 
-        log.info("ForgotPasswordOrchestrator: started for email={}", email);
+        log.info("ForgotPasswordOrchestrator: started for email={}", MaskingUtil.maskEmail(email));
 
         // Load user
         Optional<User> userOpt = userRepository.findByEmail(email);
 
         if (userOpt.isEmpty()) {
-            log.warn("ForgotPasswordOrchestrator: account not found with email={}", email);
+            log.warn("ForgotPasswordOrchestrator: account not found with email={}", MaskingUtil.maskEmail(email));
 
             try { Thread.sleep(secureRandom.nextInt(200) + 300); } catch (InterruptedException ignored) {}
 
@@ -59,7 +60,7 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
         // Send email
         emailService.sendSetPasswordEmail(user.getEmail(), token);
 
-        log.info("ForgotPasswordOrchestrator: finished for email={}", email);
+        log.info("ForgotPasswordOrchestrator: finished for email={}", MaskingUtil.maskEmail(email));
 
         return ForgotPasswordResult.builder()
                 .outcome(AuthOutcome.PASSWORD_RESET)

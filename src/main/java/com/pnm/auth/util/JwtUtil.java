@@ -8,6 +8,7 @@ import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,10 +31,16 @@ public class JwtUtil {
     @Value("${jwt.refresh.expiration}")
     private Long jwtRefreshExpiration;
 
-    private SecretKey getSigningKey() {
+    private SecretKey cachedSecretKey;
+
+    @PostConstruct
+    public void init() {
         byte[] keyBytes = Decoders.BASE64.decode(jwtSecretKey);
-        if (keyBytes.length < 32) throw new IllegalStateException("JWT secret too short");
-        return Keys.hmacShaKeyFor(keyBytes);
+        this.cachedSecretKey = Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private SecretKey getSigningKey() {
+        return this.cachedSecretKey;
     }
 
 

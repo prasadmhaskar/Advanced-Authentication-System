@@ -9,6 +9,7 @@ import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.orchestrator.auth.*;
 import com.pnm.auth.service.UserContextService;
 import com.pnm.auth.service.device.DeviceTrustService;
+import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import com.pnm.auth.web.filter.RequestContextFilter;
 import io.swagger.v3.oas.annotations.Operation;
@@ -51,11 +52,11 @@ public class AuthController {
     public ResponseEntity<ApiResponse<?>> register(@Valid @RequestBody RegisterRequest request,
                                                    RequestContext ctx) {
 
-        log.info("AuthController.register(): started for email={}", request.getEmail());
+        log.info("AuthController.register(): started for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
         RegistrationResult result = registerOrchestrator.register(request, ctx);
 
-        log.info("AuthController.register(): finished for email={}", request.getEmail());
+        log.info("AuthController.register(): finished for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                             ApiResponse.success(
@@ -74,7 +75,7 @@ public class AuthController {
 
         EmailVerificationResult result = verifyEmailOrchestrator.verify(token, ctx);
 
-        log.info("AuthController.verifyEmail(): finished for email={}", result.getEmail());
+        log.info("AuthController.verifyEmail(): finished for email={}", MaskingUtil.maskEmail(result.getEmail()));
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -92,11 +93,11 @@ public class AuthController {
             @Valid @RequestBody ResendVerificationRequest request,
             RequestContext ctx) {
 
-        log.info("AuthController.resendVerificationEmail(): started for email={}", request.getEmail());
+        log.info("AuthController.resendVerificationEmail(): started for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
         ResendVerificationResult result = resendVerificationOrchestrator.resend(request.getEmail(), ctx);
 
-        log.info("AuthController.resendVerificationEmail(): finished for email={}", request.getEmail());
+        log.info("AuthController.resendVerificationEmail(): finished for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
         return switch (result.getOutcome()) {
             case EMAIL_SENT -> ResponseEntity.ok(
@@ -121,11 +122,11 @@ public class AuthController {
             @Valid @RequestBody LoginRequest request,
             RequestContext ctx) {
 
-        log.info("AuthController.login(): started for email={}", request.getEmail());
+        log.info("AuthController.login(): started for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
         AuthenticationResult result = loginOrchestrator.login(request, ctx);
 
-        log.info("AuthController.login(): finished for email={}", request.getEmail());
+        log.info("AuthController.login(): finished for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
         return switch (result.getOutcome()) {
 
@@ -209,11 +210,11 @@ public class AuthController {
             @Valid @RequestBody ForgotPasswordRequest request,
             RequestContext ctx) {
 
-        log.info("AuthController.forgotPassword(): started for email={}", request.getEmail());
+        log.info("AuthController.forgotPassword(): started for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
         ForgotPasswordResult result = forgotPasswordOrchestrator.requestReset(request.getEmail());
 
-        log.info("AuthController.forgotPassword(): finished for email={}", request.getEmail());
+        log.info("AuthController.forgotPassword(): finished for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
         return ResponseEntity.ok(
                 ApiResponse.success(

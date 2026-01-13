@@ -3,6 +3,7 @@ package com.pnm.auth.service.impl.auth;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.service.auth.PasswordAuthService;
+import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -48,10 +49,10 @@ public class PasswordAuthServiceImpl implements PasswordAuthService {
         }
 
         if (!matches) {
-            log.warn("PasswordAuthService: Password mismatch for email={}", userOrNull.getEmail());
+            log.warn("PasswordAuthService: Password mismatch for email={}", MaskingUtil.maskEmail(userOrNull.getEmail()));
             throw new InvalidCredentialsException("Invalid email or password.");
         }
 
-        log.info("PasswordAuthService: Password verified for email={}", userOrNull.getEmail());
+        log.info("PasswordAuthService: Password verified for email={}", MaskingUtil.maskEmail(userOrNull.getEmail()));
     }
 }

@@ -11,6 +11,7 @@ import com.pnm.auth.service.auth.VerificationService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.redis.RedisRateLimiterService;
+import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,19 +36,19 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
     @Override
     public ResendVerificationResult resend(String email, RequestContext ctx) {
 
-        log.info("ResendVerificationOrchestrator: started for email={}", email);
+        log.info("ResendVerificationOrchestrator: started for email={}", MaskingUtil.maskEmail(email));
 
         // Find User
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    log.warn("ResendVerificationOrchestrator: user not found email={}", email);
+                    log.warn("ResendVerificationOrchestrator: user not found email={}", MaskingUtil.maskEmail(email));
                     loginActivityService.recordFailure(email, "User not found", ctx.ip(), ctx.userAgent());
-                    return new UserNotFoundException("User not found with email: " + email);
+                    return new UserNotFoundException("User not found with email: " + MaskingUtil.maskEmail(email));
                 });
 
         // Idempotency Check
         if (user.getEmailVerified()) {
-            log.info("ResendVerificationOrchestrator: email already verified email={}", email);
+            log.info("ResendVerificationOrchestrator: email already verified email={}", MaskingUtil.maskEmail(email));
             return ResendVerificationResult.builder()
                     .outcome(ResendVerificationOutcome.ALREADY_VERIFIED)
                     .email(email)
@@ -71,7 +72,7 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
         // Send Email
         emailService.sendVerificationEmail(email, token);
 
-        log.info("ResendVerificationOrchestrator: finished for email={}", email);
+        log.info("ResendVerificationOrchestrator: finished for email={}", MaskingUtil.maskEmail(email));
 
         return ResendVerificationResult.builder()
                 .outcome(ResendVerificationOutcome.EMAIL_SENT)

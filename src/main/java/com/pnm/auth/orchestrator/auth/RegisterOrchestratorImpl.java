@@ -10,6 +10,7 @@ import com.pnm.auth.service.auth.UserPersistenceService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.impl.auth.UserPersistenceServiceImpl;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
+import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +40,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         String ip = ctx.ip();
         String ua = ctx.userAgent();
 
-        log.info("RegisterOrchestrator: started for email={}", email);
+        log.info("RegisterOrchestrator: started for email={}", MaskingUtil.maskEmail(email));
 
         // Check for restricting multiple accounts registration per device
         //This is just a basic check code for restricting multiple users per device. We have kept limit to 20 because,
@@ -53,7 +54,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         if (optionalUser.isPresent()) {
             // SECURITY: Whether the user exists via EMAIL or OAuth, we return a fake success.
             // This prevents User Enumeration attacks (hackers checking if an email is registered).
-            log.warn("RegisterOrchestrator: Registration attempt for existing email={} (Provider irrelevant). Returning fake success.", email);
+            log.warn("RegisterOrchestrator: Registration attempt for existing email={} (Provider irrelevant). Returning fake success.", MaskingUtil.maskEmail(email));
 
             // for matching response time with normal registration, we are adding this block for adding time
             passwordEncoder.encode(request.getPassword());
@@ -71,13 +72,13 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         try {
             ipMonitoringService.recordRegistrationSuccess(result.user().getId(), ip, ua);
         } catch (Exception e) {
-            log.error("Failed to log IP for new user={}", email, e);
+            log.error("Failed to log IP for new user={}", MaskingUtil.maskEmail(email), e);
         }
 
         // Send Verification Email (Async Bridge)
         emailService.sendVerificationEmail(email, result.token());
 
-        log.info("RegisterOrchestrator: finished for email={}", email);
+        log.info("RegisterOrchestrator: finished for email={}", MaskingUtil.maskEmail(email));
 
         return RegistrationResult.builder()
                 .outcome(AuthOutcome.REGISTERED)

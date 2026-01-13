@@ -2,6 +2,7 @@ package com.pnm.auth.service.impl.user;
 
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.repository.UserRepository;
+import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
@@ -28,7 +29,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("UserDetailsServiceImpl: User not found email={}", email);
-                    return new UsernameNotFoundException("User not found with email: " + email);
+                    return new UsernameNotFoundException("User not found with email: " + MaskingUtil.maskEmail(email));
                 });
 
         return new UserDetailsImpl(user);

@@ -48,8 +48,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             // Check redis for blacklisted token
             if (blacklistedTokenStore.isBlacklisted(jwt)) {
-                log.warn("Rejected blacklisted token");
-                filterChain.doFilter(request, response);
+                log.warn("Blocked blacklisted token usage");
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.getWriter().write("{\"error\": \"Token is blacklisted\"}");
                 return;
             }
 

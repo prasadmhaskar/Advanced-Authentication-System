@@ -6,6 +6,7 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.risk.RiskEngineService;
+import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,7 +75,7 @@ public class RiskEngineServiceImpl implements RiskEngineService {
 
     @Override
     public RiskResult evaluateRisk(User user, String ip, String userAgent) {
-        log.info("Evaluating risk for email={} ip={}", user.getEmail(), ip);
+        log.info("Evaluating risk for email={} ip={}", MaskingUtil.maskEmail(user.getEmail()), ip);
 
         try {
             // Calling the parallelized recordLogin

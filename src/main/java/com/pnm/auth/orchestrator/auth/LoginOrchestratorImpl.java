@@ -17,6 +17,7 @@ import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.risk.RiskEngineService;
+import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +56,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         String userAgent = ctx.userAgent();
         String email = request.getEmail().trim().toLowerCase();
 
-        log.info("LoginOrchestrator: started for email={}", email);
+        log.info("LoginOrchestrator: started for email={}", MaskingUtil.maskEmail(email));
 
         // Load user
         Optional<User> userOpt = userValidationService.findUserByEmail(email);
@@ -83,7 +84,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
 
         // Mfa handling
         if (user.isMfaEnabled()) {
-            log.info("LoginOrchestrator: MFA enabled for email={}", user.getEmail());
+            log.info("LoginOrchestrator: MFA enabled for email={}", MaskingUtil.maskEmail(user.getEmail()));
             MfaResult mfaResult = mfaService.handleMfaLogin(user);
 
             return AuthenticationResult.builder()
@@ -97,14 +98,14 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
 
         if (risk.getScore() >= highRiskScore) {
-            log.warn("LoginOrchestrator: HIGH RISK → login blocked for ip={} and security email sent to email={}",ip, user.getEmail());
+            log.warn("LoginOrchestrator: HIGH RISK → login blocked for ip={} and security email sent to email={}",ip, MaskingUtil.maskEmail(user.getEmail()));
             emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
             loginActivityService.recordFailure(user.getEmail(), "High risk email login", ip, userAgent);
             throw new HighRiskLoginException("Login blocked due to high risk activity.");
         }
 
         if (risk.getScore() >= mediumRiskScore) {
-            log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", email);
+            log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", MaskingUtil.maskEmail(email));
             MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
 
             return AuthenticationResult.builder()
@@ -126,7 +127,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
             log.warn("LoginOrchestrator: failed to trust device", ex);
         }
 
-        log.info("LoginOrchestrator: finished for email={}", email);
+        log.info("LoginOrchestrator: finished for email={}", MaskingUtil.maskEmail(email));
 
         return AuthenticationResult.builder()
                 .outcome(AuthOutcome.SUCCESS)

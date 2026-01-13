@@ -9,6 +9,7 @@ import com.pnm.auth.exception.custom.TokenGenerationException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +39,7 @@ public class TokenServiceImpl implements TokenService {
     @Transactional
     public AuthenticationResult generateTokens(User user, RequestContext ctx) {
 
-        log.info("TokenService: generating tokens for email={}", user.getEmail());
+        log.info("TokenService: generating tokens for email={}", MaskingUtil.maskEmail(user.getEmail()));
 
         try {
             refreshTokenRepository.deleteOldestSessions(user.getId(), MAX_SESSIONS - 1);
@@ -64,7 +65,7 @@ public class TokenServiceImpl implements TokenService {
 
             refreshTokenRepository.save(token);
 
-            log.info("TokenService: tokens generated successfully for user={}", user.getEmail());
+            log.info("TokenService: tokens generated successfully for user={}", MaskingUtil.maskEmail(user.getEmail()));
 
             // 5) Return unified AuthenticationResult
             return AuthenticationResult.builder()

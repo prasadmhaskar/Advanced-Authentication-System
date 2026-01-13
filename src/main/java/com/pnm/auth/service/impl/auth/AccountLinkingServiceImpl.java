@@ -7,14 +7,18 @@ import com.pnm.auth.dto.request.LinkOAuthRequest;
 import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.dto.result.LinkingResult;
 import com.pnm.auth.exception.custom.AccountBlockedException;
+import com.pnm.auth.exception.custom.HighRiskLoginException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.repository.AccountLinkTokenRepository;
 import com.pnm.auth.repository.UserOAuthProviderRepository;
 import com.pnm.auth.service.auth.AccountLinkingService;
 import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.service.login.LoginActivityService;
+import com.pnm.auth.service.risk.RiskEngineService;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +32,11 @@ public class AccountLinkingServiceImpl implements AccountLinkingService {
     private final AccountLinkTokenRepository accountLinkTokenRepository;
     private final UserOAuthProviderRepository providerRepository;
     private final TokenService tokenService;
+    private final RiskEngineService riskEngineService;
+    private final LoginActivityService loginActivityService;
+
+    @Value("${auth.risk.threshold.high}")
+    private int highRiskScore;
 
     @Override
     @Transactional
@@ -53,6 +62,19 @@ public class AccountLinkingServiceImpl implements AccountLinkingService {
 
         if (!user.isActive()) {
             throw new AccountBlockedException("Your account has been blocked.");
+        }
+
+        String ip = ctx.ip();
+        String userAgent = ctx.userAgent();
+
+        var risk = riskEngineService.evaluateRisk(user, ip, userAgent);
+
+        if (risk.getScore() >= highRiskScore) {
+            log.warn("AccountLinking: HIGH RISK link attempt blocked ip={}", ip);
+            loginActivityService.recordFailure(user.getEmail(), "High risk link attempt", ip, userAgent);
+            // Burn token to prevent retry spam
+            accountLinkTokenRepository.delete(linkToken);
+            throw new HighRiskLoginException("Linking blocked due to high risk activity.");
         }
 
         // 4. Idempotency: Only save if provider doesn't already exist

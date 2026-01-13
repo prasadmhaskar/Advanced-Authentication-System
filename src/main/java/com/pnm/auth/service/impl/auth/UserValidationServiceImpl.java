@@ -7,6 +7,7 @@ import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.auth.UserValidationService;
+import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
@@ -70,16 +71,16 @@ public class UserValidationServiceImpl implements UserValidationService {
     @Override
     public void validateUserStatus(User user) {
         if (!user.isActive()) {
-            log.warn("UserValidationService.validateUserStatus(): blocked account attempted login email={}", user.getEmail());
+            log.warn("UserValidationService.validateUserStatus(): blocked account attempted login email={}", MaskingUtil.maskEmail(user.getEmail()));
             throw new AccountBlockedException("Your account has been blocked. Contact support.");
         }
 
         if (!user.getEmailVerified()) {
-            log.warn("UserValidationService.validateUserStatus(): email not verified email={}", user.getEmail());
+            log.warn("UserValidationService.validateUserStatus(): email not verified email={}", MaskingUtil.maskEmail(user.getEmail()));
             throw new EmailNotVerifiedException("Verify your email to continue.");
         }
 
-        log.info("UserValidationService.validateUserStatus(): status check passed for email={}", user.getEmail());
+        log.info("UserValidationService.validateUserStatus(): status check passed for email={}", MaskingUtil.maskEmail(user.getEmail()));
     }
 }
 

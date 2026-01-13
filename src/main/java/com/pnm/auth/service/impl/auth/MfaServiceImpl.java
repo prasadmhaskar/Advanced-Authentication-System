@@ -7,6 +7,7 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.service.auth.MfaPersistenceService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.auth.MfaService;
+import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,14 +25,14 @@ public class MfaServiceImpl implements MfaService {
     @Override
     public MfaResult handleMfaLogin(User user) {
 
-        log.info("MfaService: handling MFA login for email={}", user.getEmail());
+        log.info("MfaService: handling MFA login for email={}", MaskingUtil.maskEmail(user.getEmail()));
 
         // 1. DB Transaction (Opens and Closes here)
         MfaToken token = mfaPersistenceService.createMfaToken(user, false);
 
         emailService.sendMfaOtpEmail(user.getEmail(), token.getOtp());
 
-        log.info("MfaService.handleMfaLogin(): OTP generated for email={}", user.getEmail());
+        log.info("MfaService.handleMfaLogin(): OTP generated for email={}", MaskingUtil.maskEmail(user.getEmail()));
 
         return MfaResult.builder()
                 .outcome(AuthOutcome.OTP_REQUIRED)
@@ -44,14 +45,14 @@ public class MfaServiceImpl implements MfaService {
     @Override
     public MfaResult handleMediumRiskOtp(User user) {
 
-        log.warn("MfaService: handling RISK OTP for email={}", user.getEmail());
+        log.warn("MfaService: handling RISK OTP for email={}", MaskingUtil.maskEmail(user.getEmail()));
 
         // 1. DB Transaction
         MfaToken token = mfaPersistenceService.createMfaToken(user, true);
 
         emailService.sendMfaOtpEmail(user.getEmail(), token.getOtp());
 
-        log.info("MfaService.handleMediumRiskOtp(): Risk OTP generated for email={}", user.getEmail());
+        log.info("MfaService.handleMediumRiskOtp(): Risk OTP generated for email={}", MaskingUtil.maskEmail(user.getEmail()));
 
         return MfaResult.builder()
                 .outcome(AuthOutcome.RISK_OTP_REQUIRED)

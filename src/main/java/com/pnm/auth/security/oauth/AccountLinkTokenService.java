@@ -39,7 +39,7 @@ public class AccountLinkTokenService {
                 .user(user)
                 .providerToLink(providerToLink)
                 .providerUserId(providerUserId)
-                .expiresAt(LocalDateTime.now().plusMinutes(10))
+                .expiresAt(LocalDateTime.now().plusMinutes(5))
                 .createdAt(LocalDateTime.now())
                 .build();
 

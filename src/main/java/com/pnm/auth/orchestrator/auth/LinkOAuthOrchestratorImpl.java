@@ -7,11 +7,18 @@ import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.request.LinkOAuthRequest;
 import com.pnm.auth.dto.result.AccountLinkResult;
 import com.pnm.auth.dto.result.LinkingResult;
+import com.pnm.auth.event.LoginSuccessEvent;
+import com.pnm.auth.exception.custom.HighRiskLoginException;
+import com.pnm.auth.repository.AccountLinkTokenRepository;
 import com.pnm.auth.service.auth.AccountLinkingService;
+import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
+import com.pnm.auth.service.login.LoginActivityService;
+import com.pnm.auth.service.risk.RiskEngineService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -20,6 +27,8 @@ import org.springframework.stereotype.Service;
 public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
 
     private final AccountLinkingService accountLinkingService;
+    private final ApplicationEventPublisher eventPublisher;
+
 
     @Override
     @Audit(action = AuditAction.OAUTH_LINK, description = "Link OAuth account")
@@ -31,8 +40,11 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
         LinkingResult internalResult = accountLinkingService.linkAccount(request, ctx);
 
         User user = internalResult.getUser();
+
         String accessToken = internalResult.getAuthTokens().getAccessToken();
         String refreshToken = internalResult.getAuthTokens().getRefreshToken();
+
+        eventPublisher.publishEvent(new LoginSuccessEvent(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent()));
 
         log.info("LinkOAuthOrchestrator: finished for email={} and provider={}",
                 user.getEmail(), request.getProvider());

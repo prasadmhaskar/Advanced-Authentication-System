@@ -14,6 +14,7 @@ import com.pnm.auth.service.device.DeviceTrustService;
 import com.pnm.auth.service.auth.MfaService;
 import com.pnm.auth.service.risk.RiskEngineService;
 import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.util.OAuth2Util;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
@@ -101,14 +102,14 @@ import org.springframework.stereotype.Service;
             RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
 
             if (risk.getScore() >= highRiskScore) {
-                log.warn("OAuth2Service: HIGH RISK → login blocked for ip={} and security email sent to email={}",ip, user.getEmail());
+                log.warn("OAuth2Service: HIGH RISK → login blocked for ip={} and security email sent to email={}",ip, MaskingUtil.maskEmail(user.getEmail()));
                 emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
                 loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login", ip, userAgent);
                 throw new HighRiskLoginException("Login blocked due to high risk activity.");
             }
 
             if (risk.getScore() >= mediumRiskScore) {
-                log.warn("OAuth2Service: MEDIUM RISK → OTP required for ip={} and email={}", ip, user.getEmail());
+                log.warn("OAuth2Service: MEDIUM RISK → OTP required for ip={} and email={}", ip, MaskingUtil.maskEmail(user.getEmail()));
                 MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
 
                 return AuthenticationResult.builder()

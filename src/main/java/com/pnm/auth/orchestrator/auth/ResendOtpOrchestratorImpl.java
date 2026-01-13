@@ -9,6 +9,7 @@ import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.auth.MfaPersistenceService;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.impl.redis.RedisCooldownService;
+import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -56,7 +57,7 @@ public class ResendOtpOrchestratorImpl implements ResendOtpOrchestrator {
         // Send email
         emailService.sendMfaOtpEmail(email, newToken.getOtp());
 
-        log.info("ResendOtpOrchestrator: finished for email={}", email);
+        log.info("ResendOtpOrchestrator: finished for email={}", MaskingUtil.maskEmail(email));
 
         return ResendOtpResponse.builder()
                 .newTokenId(newToken.getId())

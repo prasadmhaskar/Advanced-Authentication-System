@@ -14,6 +14,7 @@ import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.service.auth.TokenService;
 import com.pnm.auth.service.device.DeviceTrustService;
+import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +56,7 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
 
         // Validate user status
         if (!user.isActive()) {
-            log.warn("VerifyOtpOrchestrator: blocked user tried to verify OTP email={}", user.getEmail());
+            log.warn("VerifyOtpOrchestrator: blocked user tried to verify OTP email={}", MaskingUtil.maskEmail(user.getEmail()));
             throw new AccountBlockedException("Your account has been blocked.");
         }
 
@@ -105,7 +106,7 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
         // Generate tokens
         AuthenticationResult tokens = tokenService.generateTokens(user, ctx);
 
-        log.info("VerifyOtpOrchestrator: finished for email={}", user.getEmail());
+        log.info("VerifyOtpOrchestrator: finished for email={}", MaskingUtil.maskEmail(user.getEmail()));
 
         String message = token.isRiskBased()
                 ? "Risk-based OTP verified successfully"
