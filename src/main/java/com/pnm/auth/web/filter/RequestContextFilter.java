@@ -1,5 +1,6 @@
 package com.pnm.auth.web.filter;
 
+import com.pnm.auth.util.IpUtils;
 import com.pnm.auth.web.context.RequestContext;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,7 +24,7 @@ public class RequestContextFilter extends OncePerRequestFilter {
             FilterChain filterChain
     ) throws ServletException, IOException {
 
-        String ip = getClientIp(request);
+        String ip = IpUtils.getClientIp(request);
         String userAgent = request.getHeader("User-Agent");
         String path = request.getRequestURI();
 
@@ -39,22 +40,5 @@ public class RequestContextFilter extends OncePerRequestFilter {
         finally {
             MDC.clear();
         }
-    }
-
-    public String getClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-
-        if (xff != null && !xff.isEmpty() && !"unknown".equalsIgnoreCase(xff)) {
-            String ip = xff.split(",")[0].trim();
-
-            if (isValidIp(ip)) {
-                return ip;
-            }
-        }
-        return request.getRemoteAddr();
-    }
-
-    private boolean isValidIp(String ip) {
-        return ip.length() <= 45; // IPv6 max length
     }
 }

@@ -3,6 +3,7 @@ package com.pnm.auth.aop;
 import com.pnm.auth.service.audit.AuditService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.AuthUtil;
+import com.pnm.auth.util.IpUtils;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +42,8 @@ public class AuditAspect {
         if (attrs != null && attrs.getRequest() != null) {
             HttpServletRequest request = attrs.getRequest();
 
-            ip = getClientIp(request);
+            ip = IpUtils.getClientIp(request);
+
             userAgent = request.getHeader("User-Agent");
             if (userAgent == null) userAgent = "UNKNOWN";
         }
@@ -104,24 +106,6 @@ public class AuditAspect {
 
         log.warn("AuditAspect: targetUserId arg is not Long");
         return null;
-    }
-
-    public String getClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-
-        if (xff != null && !xff.isEmpty() && !"unknown".equalsIgnoreCase(xff)) {
-            String ip = xff.split(",")[0].trim();
-
-            if (isValidIp(ip)) {
-                return ip;
-            }
-        }
-
-        return request.getRemoteAddr();
-    }
-
-    private boolean isValidIp(String ip) {
-        return ip.length() <= 45; // IPv6 max length
     }
 }
 

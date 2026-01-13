@@ -15,7 +15,7 @@ public class LoginSuccessListener {
 
     private final LoginActivityService loginActivityService;
 
-    @Async
+    @Async("emailExecutor")
     @TransactionalEventListener(
             phase = TransactionPhase.AFTER_COMMIT
     )

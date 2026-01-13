@@ -44,14 +44,14 @@ AND r.deviceSignature <> :deviceSignature
 
     @Modifying
     @Query(value = """
-        DELETE FROM refresh_token
+        DELETE FROM user_refresh_tokens
         WHERE user_id = :userId
         AND id NOT IN (
             SELECT id FROM (
-                SELECT id FROM refresh_token
+                SELECT id FROM user_refresh_tokens
                 WHERE user_id = :userId
                 ORDER BY created_at DESC
-                LIMIT :limit - 1
+                LIMIT :limit
             ) tmp
         )
     """, nativeQuery = true)

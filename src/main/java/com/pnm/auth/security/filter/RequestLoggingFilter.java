@@ -1,5 +1,6 @@
 package com.pnm.auth.security.filter;
 
+import com.pnm.auth.util.IpUtils;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,7 +28,8 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                 .filter(h -> !h.isBlank())
                 .orElse(UUID.randomUUID().toString());
 
-        String ip = getClientIp(request);
+        // FIXED: Use centralized, spoof-resistant utility
+        String ip = IpUtils.getClientIp(request);
 
         String userAgent = request.getHeader("User-Agent");
 
@@ -51,22 +53,5 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         }
     }
 
-    public String getClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-
-        if (xff != null && !xff.isEmpty() && !"unknown".equalsIgnoreCase(xff)) {
-            String ip = xff.split(",")[0].trim();
-
-            if (isValidIp(ip)) {
-                return ip;
-            }
-        }
-
-        return request.getRemoteAddr();
-    }
-
-    private boolean isValidIp(String ip) {
-        return ip.length() <= 45; // IPv6 max length
-    }
 }
 

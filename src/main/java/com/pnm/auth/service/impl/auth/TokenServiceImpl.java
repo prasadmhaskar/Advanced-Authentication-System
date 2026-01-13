@@ -29,6 +29,8 @@ public class TokenServiceImpl implements TokenService {
     private final JwtUtil jwtUtil;
 
 
+    private static final int MAX_SESSIONS = 5;
+
     @Value("${jwt.refresh.expiration}")
     private Long jwtRefreshExpiration;
 
@@ -39,7 +41,7 @@ public class TokenServiceImpl implements TokenService {
         log.info("TokenService: generating tokens for email={}", user.getEmail());
 
         try {
-            refreshTokenRepository.deleteOldestSessions(user.getId(), 4);
+            refreshTokenRepository.deleteOldestSessions(user.getId(), MAX_SESSIONS - 1);
 
             String deviceSignature = UserAgentParser
                     .parse(ctx.userAgent())
