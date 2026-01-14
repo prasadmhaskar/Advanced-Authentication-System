@@ -79,7 +79,7 @@ public class SecurityConfig {
                 // Authorization Rules
                 // -----------------------------------------------------
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**", "/actuator/**").hasRole("ADMIN")
                         .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers(
                                 "/api/auth/register",
@@ -98,7 +98,6 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
-                                "/actuator/**",
                                 "/favicon.ico"
                         ).permitAll()
                         .requestMatchers("/error").permitAll()

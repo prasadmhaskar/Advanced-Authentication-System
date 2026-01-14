@@ -1,9 +1,12 @@
 package com.pnm.auth.security.filter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.impl.user.UserDetailsImpl;
 import com.pnm.auth.util.BlacklistedTokenStore;
 import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.util.MaskingUtil;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -11,6 +14,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -27,6 +31,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
     private final BlacklistedTokenStore blacklistedTokenStore;
+    private final ObjectMapper objectMapper;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -49,8 +54,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             // Check redis for blacklisted token
             if (blacklistedTokenStore.isBlacklisted(jwt)) {
                 log.warn("Blocked blacklisted token usage");
+
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.getWriter().write("{\"error\": \"Token is blacklisted\"}");
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+
+                ApiResponse<Void> body = ApiResponse.error(
+                        "TOKEN_BLACKLISTED",
+                        "The token has been invalidated. Please login again.",
+                        request.getRequestURI()
+                );
+
+                objectMapper.writeValue(response.getOutputStream(), body);
                 return;
             }
 
@@ -68,13 +82,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 userDetails = (UserDetailsImpl) userDetailsService.loadUserByUsername(username);
             } catch (Exception e) {
-                log.warn("User not found for token: {}", username);
+                log.warn("User not found for token: {}", MaskingUtil.maskEmail(username));
                 filterChain.doFilter(request, response);
                 return;
             }
 
             if (!userDetails.isActive()) {
-                log.warn("Blocked user attempted access: {}", username);
+                log.warn("Blocked user attempted access: {}", MaskingUtil.maskEmail(username));
                 filterChain.doFilter(request, response);
                 return;
             }
@@ -82,7 +96,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Integer tokenVersionInJwt = claims.get("tv", Integer.class);
             if (tokenVersionInJwt == null || !tokenVersionInJwt.equals(userDetails.getTokenVersion())) {
                 log.warn("Token version mismatch for user={}", userDetails.getEmail());
-                filterChain.doFilter(request, response);
+
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+
+                ApiResponse<Void> body = ApiResponse.error("TOKEN_REVOKED", "Session expired", request.getRequestURI());
+
+                objectMapper.writeValue(response.getOutputStream(), body);
                 return;
             }
 

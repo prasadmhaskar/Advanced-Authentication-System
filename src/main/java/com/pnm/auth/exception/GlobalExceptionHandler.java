@@ -22,9 +22,7 @@ import java.util.Map;
 @Slf4j
 public class GlobalExceptionHandler {
 
-    // ================================================================
-    //            VALIDATION ERRORS (400)
-    // ================================================================
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidationErrors(
             MethodArgumentNotValidException ex,
@@ -43,16 +41,10 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 fieldErrors
         );
-
         return ResponseEntity.badRequest().body(body);
     }
 
 
-    // ================================================================
-    //            SECURITY RELATED EXCEPTIONS
-    // ================================================================
-
-    // ❌ Wrong password, wrong OTP, login failed
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidCredentials(
             InvalidCredentialsException ex, HttpServletRequest request) {
@@ -64,11 +56,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
-    // ❌ Token invalid, corrupted, not found
+
     @ExceptionHandler(InvalidTokenException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidToken(
             InvalidTokenException ex, HttpServletRequest request) {
@@ -80,11 +71,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
-    // 🚫 Account is blocked
+
     @ExceptionHandler(AccountBlockedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccountBlocked(
             AccountBlockedException ex, HttpServletRequest request) {
@@ -96,11 +86,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
-    // 🚫 Risk Engine High-Risk: Block login
+
     @ExceptionHandler(HighRiskLoginException.class)
     public ResponseEntity<ApiResponse<Void>> handleHighRisk(
             HighRiskLoginException ex, HttpServletRequest request) {
@@ -112,9 +101,9 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
+
 
     @ExceptionHandler(RiskOtpRequiredException.class)
     public ResponseEntity<ApiResponse<Void>> handleRiskOtpRequired(
@@ -131,15 +120,10 @@ public class GlobalExceptionHandler {
                 request.getRequestURI(),
                 meta
         );
-
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
 
-
-    // ================================================================
-    //            USER MANAGEMENT EXCEPTIONS
-    // ================================================================
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleUserNotFound(
             UserNotFoundException ex, HttpServletRequest request) {
@@ -155,6 +139,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
+
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ApiResponse<Void>> handleUserExists(
             UserAlreadyExistsException ex, HttpServletRequest request) {
@@ -166,14 +151,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
 
-    // ================================================================
-    //            EMAIL / OTP EXCEPTIONS
-    // ================================================================
     @ExceptionHandler(EmailSendFailedException.class)
     public ResponseEntity<ApiResponse<Void>> handleEmailSendFailure(
             EmailSendFailedException ex, HttpServletRequest request) {
@@ -185,14 +166,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
 
-    // ================================================================
-    //            RESOURCE NOT FOUND (404)
-    // ================================================================
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleResourceNotFound(
             ResourceNotFoundException ex, HttpServletRequest request) {
@@ -204,14 +181,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
 
-    // ================================================================
-//                    REGISTRATION EXCEPTIONS
-// ================================================================
     @ExceptionHandler(RegistrationFailedException.class)
     public ResponseEntity<ApiResponse<Void>> handleRegistrationFailure(
             RegistrationFailedException ex, HttpServletRequest request) {
@@ -223,14 +196,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
 
-    // ================================================================
-//                        LOGIN EXCEPTIONS
-// ================================================================
     @ExceptionHandler(LoginFailedException.class)
     public ResponseEntity<ApiResponse<Void>> handleLoginFailure(
             LoginFailedException ex, HttpServletRequest request) {
@@ -242,14 +211,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
 
-    // ================================================================
-//               TOKEN / VERIFICATION / RESET EXCEPTIONS
-// ================================================================
     @ExceptionHandler(TokenGenerationException.class)
     public ResponseEntity<ApiResponse<Void>> handleTokenGenerationFailure(
             TokenGenerationException ex, HttpServletRequest request) {
@@ -261,14 +226,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
 
-    // ================================================================
-//                       USER UPDATE EXCEPTIONS
-// ================================================================
     @ExceptionHandler(UserUpdateException.class)
     public ResponseEntity<ApiResponse<Void>> handleUserUpdateFailure(
             UserUpdateException ex, HttpServletRequest request) {
@@ -280,14 +241,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
 
-    // ================================================================
-//                    DATABASE OPERATION EXCEPTIONS
-// ================================================================
     @ExceptionHandler(DatabaseOperationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDatabaseOperationFailure(
             DatabaseOperationException ex, HttpServletRequest request) {
@@ -299,14 +256,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
 
-    // ================================================================
-//                       OTP GENERATION EXCEPTIONS
-// ================================================================
     @ExceptionHandler(OtpGenerationException.class)
     public ResponseEntity<ApiResponse<Void>> handleOtpGenerationFailure(
             OtpGenerationException ex, HttpServletRequest request) {
@@ -318,18 +271,16 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
-    // ================================================================
-//                     PASSWORD RESET EXCEPTIONS
-// ================================================================
+
     @ExceptionHandler(PasswordResetException.class)
     public ResponseEntity<ApiResponse<Void>> handlePasswordResetException(
             PasswordResetException ex,
             HttpServletRequest request
     ) {
+
         log.error("PasswordResetException at path={}: {}", request.getRequestURI(), ex.getMessage());
 
         ApiResponse<Void> body = ApiResponse.error(
@@ -337,14 +288,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
 
-    // ================================================================
-//                     LOGOUT EXCEPTIONS
-// ================================================================
     @ExceptionHandler(LogoutFailedException.class)
     public ResponseEntity<ApiResponse<Void>> handleLogoutFailedException(
             LogoutFailedException ex,
@@ -357,13 +304,9 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
-    // ================================================================
-//                     OAuth link failed EXCEPTIONS
-// ================================================================
 
     @ExceptionHandler(OAuthLinkFailedException.class)
     public ResponseEntity<ApiResponse<Void>> handleOAuthLinkFailed(
@@ -377,14 +320,9 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
-
-    // ================================================================
-//                     Password change EXCEPTIONS
-// ================================================================
 
     @ExceptionHandler(PasswordChangeException.class)
     public ResponseEntity<ApiResponse<Void>> handlePasswordChangeException(
@@ -398,14 +336,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
 
-    // ================================================================
-//                     OTP VERIFICATION EXCEPTIONS
-// ================================================================
     @ExceptionHandler(OtpVerificationException.class)
     public ResponseEntity<ApiResponse<Void>> handleOtpVerificationException(
             OtpVerificationException ex,
@@ -418,13 +352,10 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
-    // ================================================================
-//                    OAUTH2 LOGIN EXCEPTIONS
-// ================================================================
+
     @ExceptionHandler(OAuth2LoginFailedException.class)
     public ResponseEntity<ApiResponse<Void>> handleOAuth2LoginFailedException(
             OAuth2LoginFailedException ex,
@@ -437,7 +368,6 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
@@ -483,7 +413,6 @@ public class GlobalExceptionHandler {
                 ex.getMessage(),
                 request.getRequestURI()
         );
-
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(body);
     }
 
@@ -541,9 +470,7 @@ public class GlobalExceptionHandler {
 
 
 
-    // ================================================================
-    //            FALLBACK FOR ALL UNHANDLED ERRORS (500)
-    // ================================================================
+//    FALLBACK FOR ALL UNHANDLED ERRORS (500)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneral(
             Exception ex, HttpServletRequest request) {
