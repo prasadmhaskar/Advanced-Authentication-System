@@ -1,4 +1,4 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.NextAction;
@@ -6,6 +6,7 @@ import com.pnm.auth.domain.enums.ResendVerificationOutcome;
 import com.pnm.auth.dto.result.ResendVerificationResult;
 import com.pnm.auth.exception.custom.TooManyRequestsException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
+import com.pnm.auth.orchestrator.auth.ResendVerificationOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.auth.VerificationService;
 import com.pnm.auth.service.email.EmailService;
@@ -15,10 +16,7 @@ import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-
-import java.util.concurrent.CompletableFuture;
 
 
 @Service

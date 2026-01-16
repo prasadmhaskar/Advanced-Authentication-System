@@ -5,14 +5,19 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.util.SerializationUtils;
 
+import java.io.*;
 import java.util.Base64;
 import java.util.Optional;
 
-public class CookieUtils {
+public final class CookieUtils {
+
+    private CookieUtils() {
+        throw new UnsupportedOperationException("Utility class cannot be instantiated");
+    }
 
     public static Optional<Cookie> getCookie(HttpServletRequest request, String name) {
         Cookie[] cookies = request.getCookies();
-        if (cookies != null && cookies.length > 0) {
+        if (cookies != null) {
             for (Cookie cookie : cookies) {
                 if (cookie.getName().equals(name)) {
                     return Optional.of(cookie);
@@ -38,7 +43,7 @@ public class CookieUtils {
 
     public static void deleteCookie(HttpServletRequest request, HttpServletResponse response, String name) {
         Cookie[] cookies = request.getCookies();
-        if (cookies != null && cookies.length > 0) {
+        if (cookies != null) {
             for (Cookie cookie : cookies) {
                 if (cookie.getName().equals(name)) {
                     cookie.setValue("");
@@ -56,14 +61,33 @@ public class CookieUtils {
     // Note: OAuth2AuthorizationRequest is NOT JSON-friendly.
     // We must use standard Java serialization here.
 
+
     public static String serialize(Object object) {
-        return Base64.getUrlEncoder()
-                .encodeToString(SerializationUtils.serialize(object));
+        try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+             ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream)) {
+
+            objectOutputStream.writeObject(object);
+            return Base64.getUrlEncoder().encodeToString(byteArrayOutputStream.toByteArray());
+
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to serialize object", e);
+        }
     }
 
     public static <T> T deserialize(Cookie cookie, Class<T> cls) {
-        return cls.cast(SerializationUtils.deserialize(
-                Base64.getUrlDecoder().decode(cookie.getValue())
-        ));
+        if (cookie.getValue() == null || cookie.getValue().isEmpty()) {
+            return null;
+        }
+
+        byte[] data = Base64.getUrlDecoder().decode(cookie.getValue());
+
+        try (ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(data);
+             ObjectInputStream objectInputStream = new ObjectInputStream(byteArrayInputStream)) {
+
+            return cls.cast(objectInputStream.readObject());
+
+        } catch (IOException | ClassNotFoundException e) {
+            return null;
+        }
     }
 }

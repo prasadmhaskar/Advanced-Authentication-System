@@ -9,14 +9,17 @@ import com.pnm.auth.domain.entity.LoginActivity;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
+import com.pnm.auth.exception.custom.UserAlreadyExistsException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.repository.*;
 import com.pnm.auth.service.admin.AdminService;
 import com.pnm.auth.service.auth.UserPersistenceService;
+import com.pnm.auth.service.auth.UserValidationService;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.specification.LoginActivitySpecification;
 import com.pnm.auth.specification.UserSpecification;
 import com.pnm.auth.util.Audit;
+import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -30,7 +33,9 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -42,12 +47,14 @@ public class AdminServiceImpl implements AdminService {
     private final LoginActivityRepository loginActivityRepository;
     private final UserPersistenceService userPersistenceService;
     private final CacheManagementService cacheManagementService;
+    private final UserValidationService userValidationService;
+    private static final String USER_NOT_FOUND = "User not found with id=";
 
-    public record UnblockUserResult(String code, String message) {
-    }
+    public record UnblockUserResult(String code, String message) {}
 
-    public record BlockUserResult(String code, String message) {
-    }
+    public record BlockUserResult(String code, String message) {}
+
+    public record CreateAdminResult(String code, String message) {}
 
     // ============================================================
     //  1. GET USERS WITH FILTERS + PAGINATION
@@ -83,7 +90,7 @@ public class AdminServiceImpl implements AdminService {
 
         userRepository.findById(id).orElseThrow(() -> {
                     log.warn("AdminService.deleteUser(): user not found id={}", id);
-                    return new UserNotFoundException("User not found with id=" + id);
+                    return new UserNotFoundException(USER_NOT_FOUND + id);
                 });
 
         userPersistenceService.deleteUserPermanently(id);
@@ -110,7 +117,7 @@ public class AdminServiceImpl implements AdminService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> {
                     log.warn("AdminService.blockUser(): user not found id={}", id);
-                    return new UserNotFoundException("User not found with id=" + id);
+                    return new UserNotFoundException(USER_NOT_FOUND + id);
                 });
 
         if (!user.isActive()) {
@@ -148,7 +155,7 @@ public class AdminServiceImpl implements AdminService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> {
                     log.warn("AdminService.unblockUser(): user not found id={}", id);
-                    return new UserNotFoundException("User not found with id=" + id);
+                    return new UserNotFoundException(USER_NOT_FOUND + id);
                 });
 
         if (user.isActive()) {
@@ -216,5 +223,44 @@ public class AdminServiceImpl implements AdminService {
                 });
 
         return LoginActivityResponse.fromEntity(activity);
+    }
+
+    @Override
+    @Transactional
+    public CreateAdminResult createAdmin(String rawEmail){
+
+        String email = rawEmail.trim().toLowerCase();
+
+        log.info("AdminService.createAdmin(): Started for email={}", MaskingUtil.maskEmail(email));
+
+        User user = userRepository.findByEmail(email).orElseThrow(() -> {
+            log.warn("AdminService.createAdmin(): User not found with email={}", MaskingUtil.maskEmail(email));
+            return new UserNotFoundException("User not found with email=" + email);
+        });
+
+        try {
+            userValidationService.validateUserStatus(user);
+        } catch (RuntimeException ex) {
+            log.warn("AdminService.createAdmin(): Validation failed for user with email={}", MaskingUtil.maskEmail(email));
+            throw ex;
+        }
+
+        if (user.getRoles().contains("ROLE_ADMIN")){
+            log.warn("AdminService.createAdmin(): User is already admin");
+            return new CreateAdminResult("ALREADY_ADMIN", "User is already admin");
+        }
+
+        List<String> updatedRoles = new ArrayList<>(user.getRoles());
+        updatedRoles.add("ROLE_ADMIN");
+        user.setRoles(updatedRoles);
+
+        userRepository.save(user);
+
+        cacheManagementService.evictUserFromCache(email);
+
+        log.info("AdminService.createAdmin(): Started for email={}", MaskingUtil.maskEmail(email));
+
+        return new CreateAdminResult("ADMIN_CREATED", "User with email= " +email+ " has been successfully appointed as ADMIN");
+
     }
 }

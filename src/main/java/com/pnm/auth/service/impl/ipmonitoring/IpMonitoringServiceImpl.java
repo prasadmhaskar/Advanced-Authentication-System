@@ -277,7 +277,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         List<UserIpLogResponse> result = repo.findTop10ByUserIdOrderByLoginTimeDesc(userId)
                 .stream()
                 .map(logEntry -> UserIpLogResponse.fromEntity(logEntry, userEmail))
-                .collect(Collectors.toList());
+                .toList();
 
         log.info("IpMonitoringService.getRecentIpsForUser(): returning {} entries for userId={}",
                 result.size(), userId);

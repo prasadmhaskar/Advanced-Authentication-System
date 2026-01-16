@@ -17,7 +17,7 @@ public class ApiResponse<T> {
 
     private boolean success;
 
-    private String code;     // e.g. SUCCESS, USER_CREATED, VALIDATION_FAILED
+    private String code;
 
     private String message;
 
@@ -27,14 +27,12 @@ public class ApiResponse<T> {
 
     private T data;
 
-    private List<FieldErrorResponse> errors; // only for validation errors
+    private List<FieldErrorResponse> errors;
 
-    private Map<String, Object> meta; // ⭐ NEW FIELD
+    private Map<String, Object> meta;
 
 
-    // -----------------------------------------------------
     // SUCCESS (no meta)
-    // -----------------------------------------------------
     public static <T> ApiResponse<T> success(String code, String message, T data, String path) {
         return ApiResponse.<T>builder()
                 .success(true)
@@ -46,9 +44,7 @@ public class ApiResponse<T> {
                 .build();
     }
 
-    // -----------------------------------------------------
     // SUCCESS with meta
-    // -----------------------------------------------------
     public static <T> ApiResponse<T> successWithMeta(
             String code, String message, T data, String path, Map<String, Object> meta) {
         return ApiResponse.<T>builder()
@@ -62,10 +58,7 @@ public class ApiResponse<T> {
                 .build();
     }
 
-
-    // -----------------------------------------------------
     // ERROR (no meta)
-    // -----------------------------------------------------
     public static <T> ApiResponse<T> error(String code, String message, String path) {
         return ApiResponse.<T>builder()
                 .success(false)
@@ -76,9 +69,7 @@ public class ApiResponse<T> {
                 .build();
     }
 
-    // -----------------------------------------------------
-    // ERROR with meta (⭐ Risk-based OTP will use this)
-    // -----------------------------------------------------
+    // ERROR with meta
     public static <T> ApiResponse<T> errorWithMeta(
             String code,
             String message,
@@ -96,9 +87,7 @@ public class ApiResponse<T> {
     }
 
 
-    // -----------------------------------------------------
     // VALIDATION ERROR
-    // -----------------------------------------------------
     public static <T> ApiResponse<T> validationError(
             String message,
             String path,

@@ -14,6 +14,10 @@ import java.util.List;
 
 public class LoginActivitySpecification {
 
+    private LoginActivitySpecification() {
+        throw new UnsupportedOperationException("Utility class cannot be instantiated");
+    }
+
     public static Specification<LoginActivity> getFilter(LoginActivityFilterRequest request) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -47,6 +51,7 @@ public class LoginActivitySpecification {
                 predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), request.getEndDate()));
             }
 
+            assert query != null;
             query.distinct(true);
 
             return cb.and(predicates.toArray(new Predicate[0]));

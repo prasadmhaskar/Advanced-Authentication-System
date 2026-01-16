@@ -11,15 +11,18 @@ import org.springframework.stereotype.Component;
 @Slf4j
 public class OAuth2Util {
 
+    private static final String GOOGLE = "google";
+    private static final String GITHUB = "github";
+
     public AuthProviderType getProviderTypeFromRegistrationId(String registrationId) {
         log.info("OAuth2Util.getProviderTypeFromRegistrationId(): registrationId={}", registrationId);
 
         return switch (registrationId.toLowerCase()) {
-            case "google" -> {
+            case GOOGLE -> {
                 log.info("OAuth2Util.getProviderTypeFromRegistrationId(): Provider resolved as GOOGLE");
                 yield AuthProviderType.GOOGLE;
             }
-            case "github" -> {
+            case GITHUB -> {
                 log.info("OAuth2Util.getProviderTypeFromRegistrationId(): Provider resolved as GITHUB");
                 yield AuthProviderType.GITHUB;
             }
@@ -42,8 +45,8 @@ public class OAuth2Util {
         log.info("OAuth2Util.determineProviderIdFromOAuth2User(): Extracting providerId from provider={}", registrationId);
 
         String providerId = switch (registrationId.toLowerCase()) {
-            case "google" -> oAuth2User.getAttribute("sub");
-            case "github" -> oAuth2User.getAttribute("id") != null ?
+            case GOOGLE -> oAuth2User.getAttribute("sub");
+            case GITHUB -> oAuth2User.getAttribute("id") != null ?
                     oAuth2User.getAttribute("id").toString() : null;
             default -> {
                 log.error("OAuth2Util.determineProviderIdFromOAuth2User(): Unsupported OAuth2 provider={}", registrationId);
@@ -76,7 +79,7 @@ public class OAuth2Util {
             emailUsername = email.substring(0, atIndex);
         }
         switch (registrationId.toLowerCase()) {
-            case "google":
+            case GOOGLE:
                 // Try given_name, then full name, then email prefix, then sub
                 username = oAuth2User.getAttribute("given_name");
                 if (username == null || username.isEmpty()) {
@@ -90,7 +93,7 @@ public class OAuth2Util {
                 }
                 break;
 
-            case "github":
+            case GITHUB:
                 // GitHub provides "login" as username
                 username = oAuth2User.getAttribute("login");
                 if (username == null || username.isEmpty()) {

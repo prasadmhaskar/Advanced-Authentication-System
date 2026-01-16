@@ -132,22 +132,22 @@ public class EmailServiceImpl implements EmailService {
     // -----------------------------
     // FALLBACKS (NO THROWING!)
     // -----------------------------
-    public void fallbackVerificationEmail(String email, String token, Throwable ex) {
+    public void fallbackVerificationEmail(String email, Throwable ex) {
         log.error("EmailService FALLBACK: verification email failed email={} reason={}", email, ex.getMessage(), ex);
     }
 
-    public void fallbackPasswordEmail(String email, String token, Throwable ex) {
+    public void fallbackPasswordEmail(String email, Throwable ex) {
         log.error("EmailService FALLBACK: password email failed email={} reason={}",
                 email, ex.getMessage(), ex);
     }
 
-    public void fallbackOtpEmail(String email, String otp, Throwable ex) {
+    public void fallbackOtpEmail(String email, Throwable ex) {
         log.error("EmailService FALLBACK: OTP email failed email={} reason={}",
                 email, ex.getMessage(), ex);
     }
 
-    public void fallbackHighRiskAlert(User user, String ip, String userAgent, List<String> reasons, Throwable ex) {
-        log.error("SuspiciousLoginAlertService: Failed to send alert email={} reason={}", user.getEmail(), ex.getMessage());
+    public void fallbackHighRiskAlert(User user, List<String> reasons, Throwable ex) {
+        log.error("SuspiciousLoginAlertService: Failed to send alert email={} reason={}", user.getEmail(),reasons, ex);
     }
 }
 

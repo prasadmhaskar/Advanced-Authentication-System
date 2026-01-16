@@ -1,4 +1,4 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.dto.request.OtpVerifyRequest;
 import com.pnm.auth.dto.response.UserResponse;
@@ -9,6 +9,7 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
+import com.pnm.auth.orchestrator.auth.VerifyOtpOrchestrator;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.service.login.LoginActivityService;

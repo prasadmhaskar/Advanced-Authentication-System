@@ -21,20 +21,21 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class AuditAspect {
 
     private final AuditService auditService;
-    private final AuthUtil authUtil;
+
+    private static final String UNKNOWN_VALUE = "UNKNOWN";
 
     @Around("@annotation(audit)")
     public Object logAudit(ProceedingJoinPoint pjp, Audit audit) throws Throwable {
 
         Long actorUserId = null;
         try {
-            actorUserId = authUtil.getCurrentUserId();
+            actorUserId = AuthUtil.getCurrentUserId();
         } catch (Exception ignored) {
             // actor may be null only in rare cases, acceptable
         }
 
-        String ip = "UNKNOWN";
-        String userAgent = "UNKNOWN";
+        String ip = UNKNOWN_VALUE;
+        String userAgent = UNKNOWN_VALUE;
 
         ServletRequestAttributes attrs =
                 (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
@@ -45,7 +46,7 @@ public class AuditAspect {
             ip = IpUtils.getClientIp(request);
 
             userAgent = request.getHeader("User-Agent");
-            if (userAgent == null) userAgent = "UNKNOWN";
+            if (userAgent == null) userAgent = UNKNOWN_VALUE;
         }
 
         Long targetUserId = resolveTargetUserId(pjp, audit, actorUserId);
@@ -53,7 +54,7 @@ public class AuditAspect {
         try {
             Object result = pjp.proceed();
 
-            auditService.record(
+            auditService.recordAudit(
                     audit.action(),
                     actorUserId,
                     targetUserId,
@@ -66,7 +67,7 @@ public class AuditAspect {
 
         } catch (Throwable ex) {
 
-            auditService.record(
+            auditService.recordAudit(
                     audit.action(),
                     actorUserId,
                     targetUserId,

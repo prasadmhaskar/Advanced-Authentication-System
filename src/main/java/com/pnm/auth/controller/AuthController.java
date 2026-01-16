@@ -49,7 +49,7 @@ public class AuthController {
 
 
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<?>> register(@Valid @RequestBody RegisterRequest request,
+    public ResponseEntity<ApiResponse<RegistrationResult>> register(@Valid @RequestBody RegisterRequest request,
                                                    RequestContext ctx) {
 
         log.info("AuthController.register(): started for email={}", MaskingUtil.maskEmail(request.getEmail()));
@@ -69,7 +69,7 @@ public class AuthController {
 
 
     @GetMapping("/verify")
-    public ResponseEntity<ApiResponse<?>> verifyEmail(@RequestParam("token") String token, RequestContext ctx) {
+    public ResponseEntity<ApiResponse<EmailVerificationResult>> verifyEmail(@RequestParam("token") String token, RequestContext ctx) {
 
         log.info("AuthController.verifyEmail(): started");
 
@@ -89,7 +89,7 @@ public class AuthController {
 
 
     @PostMapping("/verify/resend")
-    public ResponseEntity<ApiResponse<?>> resendVerificationEmail(
+    public ResponseEntity<ApiResponse<ResendVerificationResult>> resendVerificationEmail(
             @Valid @RequestBody ResendVerificationRequest request,
             RequestContext ctx) {
 
@@ -118,7 +118,7 @@ public class AuthController {
 
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<?>> login(
+    public ResponseEntity<ApiResponse<AuthenticationResult>> login(
             @Valid @RequestBody LoginRequest request,
             RequestContext ctx) {
 
@@ -182,7 +182,7 @@ public class AuthController {
 
 
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<?>> refreshToken(
+    public ResponseEntity<ApiResponse<AuthenticationResult>> refreshToken(
             @Valid @RequestBody RefreshTokenRequest request,
             RequestContext ctx) {
 
@@ -206,7 +206,7 @@ public class AuthController {
     //When user is not logged-in. Uses email for getting reset-email link for setting new password.
     //Just sends password reset email on users email
     @PostMapping("/forgot-password")
-    public ResponseEntity<ApiResponse<?>> forgotPassword(
+    public ResponseEntity<ApiResponse<ForgotPasswordResult>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request,
             RequestContext ctx) {
 
@@ -253,7 +253,7 @@ public class AuthController {
     //When user is logged-in. In profile settings user can change his password after entering old-Password and new-password.
     @PostMapping("/change-password")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
-    public ResponseEntity<ApiResponse<?>> changePassword(
+    public ResponseEntity<ApiResponse<AuthenticationResult>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request,
             RequestContext ctx
     ) {
@@ -318,7 +318,7 @@ public class AuthController {
 
 
     @PostMapping("/link-oauth")
-    public ResponseEntity<ApiResponse<?>> linkOAuth(
+    public ResponseEntity<ApiResponse<AccountLinkResult>> linkOAuth(
             @RequestBody @Valid LinkOAuthRequest request,
             RequestContext ctx
     ) {
@@ -339,7 +339,7 @@ public class AuthController {
 
 
     @PostMapping("/otp/verify")
-    public ResponseEntity<ApiResponse<?>> verifyOtp(
+    public ResponseEntity<ApiResponse<AuthenticationResult>> verifyOtp(
             @Valid @RequestBody OtpVerifyRequest request,
             RequestContext ctx
     ) {

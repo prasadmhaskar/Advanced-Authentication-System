@@ -1,5 +1,6 @@
 package com.pnm.auth.controller;
 
+import com.pnm.auth.dto.request.CreateAdminRequest;
 import com.pnm.auth.dto.request.LoginActivityFilterRequest;
 import com.pnm.auth.dto.request.UserFilterRequest;
 import com.pnm.auth.dto.response.*;
@@ -8,9 +9,11 @@ import com.pnm.auth.service.admin.AdminService;
 import com.pnm.auth.service.audit.AuditService;
 import com.pnm.auth.service.impl.admin.AdminServiceImpl;
 import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
+import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springdoc.core.annotations.ParameterObject;
@@ -257,5 +260,23 @@ public class AdminController {
                 ctx.path()
         );
         return ResponseEntity.ok(body);
+    }
+
+    @PutMapping("/create-admin")
+    @Operation(summary = "Create Admin", description = "Appoint normal user to admin")
+    public ResponseEntity<ApiResponse<AdminServiceImpl.CreateAdminResult>> createAdmin(RequestContext ctx, @RequestBody @Valid CreateAdminRequest request){
+
+        log.info("AdminController.createAdmin(): started for email={}", MaskingUtil.maskEmail(request.getEmail()));
+
+        AdminServiceImpl.CreateAdminResult adminResult = adminService.createAdmin(request.getEmail());
+
+        log.info("AdminController.createAdmin(): finished for email={}", MaskingUtil.maskEmail(request.getEmail()));
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        adminResult.code(),
+                        adminResult.message(),
+                        null,
+                        ctx.path()));
     }
 }

@@ -1,4 +1,4 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.dto.request.LoginRequest;
@@ -9,6 +9,7 @@ import com.pnm.auth.dto.result.RiskResult;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.event.LoginSuccessEvent;
 import com.pnm.auth.exception.custom.HighRiskLoginException;
+import com.pnm.auth.orchestrator.auth.LoginOrchestrator;
 import com.pnm.auth.service.auth.MfaService;
 import com.pnm.auth.service.auth.PasswordAuthService;
 import com.pnm.auth.service.auth.TokenService;

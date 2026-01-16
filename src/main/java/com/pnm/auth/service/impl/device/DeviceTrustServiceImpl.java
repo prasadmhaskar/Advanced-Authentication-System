@@ -2,7 +2,6 @@ package com.pnm.auth.service.impl.device;
 
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.domain.entity.TrustedDevice;
-import com.pnm.auth.dto.result.DeviceInfoResult;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
 import com.pnm.auth.repository.RefreshTokenRepository;
@@ -24,14 +23,13 @@ import java.util.List;
 @Slf4j
 public class DeviceTrustServiceImpl implements DeviceTrustService {
     private final TrustedDeviceRepository trustedDeviceRepository;
-    private final AuthUtil authUtil;
     private final RefreshTokenRepository refreshTokenRepository;
 
     @Override
     public List<DeviceTrustResponse> getTrustedDevices() {
         log.info("DeviceTrustService.getTrustedDevices(): started");
 
-        Long id = authUtil.getCurrentUserId();
+        Long id = AuthUtil.getCurrentUserId();
 
         log.info("DeviceTrustService.getTrustedDevices() finished");
         return trustedDeviceRepository.findByUserIdAndActiveTrue(id)
@@ -45,7 +43,7 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
 
         log.info("DeviceTrustService.removeDevice(): started");
 
-        Long userId = authUtil.getCurrentUserId();
+        Long userId = AuthUtil.getCurrentUserId();
         TrustedDevice device = trustedDeviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
 
@@ -102,7 +100,7 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
                 .parse(ctx.userAgent())
                 .getSignature();
 
-        Long userId = authUtil.getCurrentUserId();
+        Long userId = AuthUtil.getCurrentUserId();
 
         if (userId == null || currentDeviceSignature == null) {
             log.warn("TrustedDeviceService.removeAllExceptCurrent(): invalid params");

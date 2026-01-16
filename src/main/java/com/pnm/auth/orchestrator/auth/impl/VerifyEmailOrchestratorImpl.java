@@ -1,4 +1,4 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.result.AuthenticationResult;
@@ -9,6 +9,7 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.event.LoginSuccessEvent;
 import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
+import com.pnm.auth.orchestrator.auth.VerifyEmailOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.auth.TokenService;

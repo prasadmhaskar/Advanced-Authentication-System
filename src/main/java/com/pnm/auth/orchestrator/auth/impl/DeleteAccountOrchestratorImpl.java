@@ -29,7 +29,6 @@ public class DeleteAccountOrchestratorImpl implements DeleteAccountOrchestrator 
     private final UserRepository userRepository;
     private final UserPersistenceService userPersistenceService;
     private final PasswordEncoder passwordEncoder;
-    private final AuthUtil authUtil;
     private final JwtUtil jwtUtil;
     private final BlacklistedTokenStore blacklistedTokenStore;
     private final CacheManagementService cacheManagementService;
@@ -41,19 +40,17 @@ public class DeleteAccountOrchestratorImpl implements DeleteAccountOrchestrator 
 
         log.info("DeleteAccountOrchestrator: started");
 
-        Long userId = authUtil.getCurrentUserId();
+        Long userId = AuthUtil.getCurrentUserId();
         String password = request.getPassword();
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
         // If the user has a password, they must prove it's them.
-        if (user.getPassword() != null) {
-            if (password == null || !passwordEncoder.matches(password, user.getPassword())) {
+        if (user.getPassword() != null && (password == null || !passwordEncoder.matches(password, user.getPassword()))) {
                 log.warn("DeleteAccountOrchestrator: Deletion failed. Invalid password for user {}", userId);
                 throw new InvalidCredentialsException("Incorrect password. Account deletion aborted.");
             }
-        }
 
         // Blacklist the token used for this request
         String accessToken = jwtUtil.resolveToken(httpServletRequest);

@@ -18,14 +18,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserContextService {
 
     private final UserRepository userRepository;
-    private final AuthUtil authUtil;
 
     @Transactional(readOnly = true)
     public UserDetailsResponse getCurrentUser() {
 
         log.info("UserContextService: started");
 
-        String email = authUtil.getCurrentEmail();
+        String email = AuthUtil.getCurrentEmail();
 
         log.debug("UserContextService: extracted email={}", email);
 

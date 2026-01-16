@@ -36,7 +36,6 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
     private final RefreshTokenRepository refreshTokenRepository;
     private final TokenService tokenService;
     private final LoginActivityService loginActivityService;
-    private final AuthUtil authUtil;
     private final CacheManagementService cacheManagementService;
 
     @Override
@@ -51,7 +50,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
 
         log.info("ChangePasswordOrchestrator: started");
 
-        String email = authUtil.getCurrentEmail();
+        String email = AuthUtil.getCurrentEmail();
 
         // Load and validate user
         User user = userRepository.findByEmail(email)

@@ -32,9 +32,6 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
     private final ObjectMapper objectMapper;
     private final OAuth2ServiceImpl oAuth2Service;
 
-//    @Value("${app.oauth2.authorized-redirect-uris}")
-//    private String frontendRedirectUrl;
-
     @Override
     public void onAuthenticationSuccess(HttpServletRequest httpRequest, HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
@@ -105,14 +102,5 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
 
         log.info("OAuth2SuccessHandler: Response sent for OAuth provider={}", registrationId);
 
-//        AuthenticationResult authResult = oAuth2Service.handleOAuth2LoginRequest(oAuth2User, registrationId, request);
-//
-//        // 🚨 FIX: Redirect to Frontend with Token in URL Query Param
-//        String targetUrl = UriComponentsBuilder.fromUriString(frontendRedirectUrl)
-//                .queryParam("token", authResult.getToken()) // Or refreshToken
-//                .queryParam("error", authResult.getOutcome() == AuthOutcome.SUCCESS ? "" : "link_required")
-//                .build().toUriString();
-//
-//        getRedirectStrategy().sendRedirect(request, response, targetUrl);
     }
 }

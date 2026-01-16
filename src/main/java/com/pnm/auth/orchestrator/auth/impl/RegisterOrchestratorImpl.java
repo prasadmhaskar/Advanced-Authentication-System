@@ -1,10 +1,11 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.request.RegisterRequest;
 import com.pnm.auth.dto.result.RegistrationResult;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.orchestrator.auth.RegisterOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.auth.UserPersistenceService;
 import com.pnm.auth.service.email.EmailService;
@@ -14,7 +15,6 @@ import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -45,14 +45,14 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         // Check for restricting multiple accounts registration per device
         //This is just a basic check code for restricting multiple users per device. We have kept limit to 20 because,
         // we have written basic UserAgentParser code. Hence, different clients can have same device signature.
-        // In future, we can replace this with frontEnd fingerprint library which generates unique hash for different users.
+        // In the future, we can replace this with frontEnd fingerprint library which generates unique hash for different users.
         ipMonitoringService.checkRegistrationEligibility(ip, ua);
 
         // Check if user exists
         Optional<User> optionalUser = userRepository.findByEmail(email);
 
         if (optionalUser.isPresent()) {
-            // SECURITY: Whether the user exists via EMAIL or OAuth, we return a fake success.
+            // SECURITY: Whether the user exists via email or OAuth, we return a fake success.
             // This prevents User Enumeration attacks (hackers checking if an email is registered).
             log.warn("RegisterOrchestrator: Registration attempt for existing email={} (Provider irrelevant). Returning fake success.", MaskingUtil.maskEmail(email));
 

@@ -1,23 +1,18 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.dto.result.ForgotPasswordResult;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.orchestrator.auth.ForgotPasswordOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.email.EmailService;
 import com.pnm.auth.service.auth.VerificationService;
 import com.pnm.auth.util.MaskingUtil;
-import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.security.SecureRandom;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 @Service
 @RequiredArgsConstructor
@@ -43,7 +38,10 @@ public class ForgotPasswordOrchestratorImpl implements ForgotPasswordOrchestrato
         if (userOpt.isEmpty()) {
             log.warn("ForgotPasswordOrchestrator: account not found with email={}", MaskingUtil.maskEmail(email));
 
-            try { Thread.sleep(secureRandom.nextInt(200) + 300); } catch (InterruptedException ignored) {}
+            try { Thread.sleep(secureRandom.nextInt(200) + 300L); } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                log.warn("ForgotPasswordOrchestrator: Interrupted during timing attack mitigation delay");
+            }
 
             // Return a fake successful response - in case if attacker is trying to find out email is registered or not.
             return ForgotPasswordResult.builder()

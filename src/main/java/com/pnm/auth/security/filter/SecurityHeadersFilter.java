@@ -32,9 +32,10 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
     @Value("${security.hsts.preload}")
     private boolean hstsPreload;
 
-    // TODO: Replace with actual frontend domain during deployment
     private static final String FRONTEND_DEV = "http://localhost:5173";
     private static final String FRONTEND_PROD = "https://yourfrontend.com";
+
+    private static final String CSP_HEADER = "Content-Security-Policy";
 
     @Override
     protected void doFilterInternal(
@@ -95,7 +96,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
 
         // RELAXED CSP FOR OAUTH REDIRECT HANDSHAKES
         if (path.startsWith("/login/oauth2") || path.startsWith("/oauth2")) {
-            response.setHeader("Content-Security-Policy",
+            response.setHeader(CSP_HEADER,
                     "default-src 'self'; " +
                             "script-src 'self' 'unsafe-inline'; " +       // OAuth libs often inline scripts
                             "connect-src 'self'; " +
@@ -105,7 +106,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
 
         // HIGHLY RESTRICTED ADMIN PANEL
         if (path.startsWith("/api/admin")) {
-            response.setHeader("Content-Security-Policy",
+            response.setHeader(CSP_HEADER,
                     "default-src 'none'; " +
                             "script-src 'self'; " +
                             "img-src 'self'; " +
@@ -117,7 +118,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         }
 
         // FUTURE FRONTEND INTEGRATION (React)
-        response.setHeader("Content-Security-Policy",
+        response.setHeader(CSP_HEADER,
                 "default-src 'self'; " +
                         "script-src 'self' 'unsafe-inline' " + FRONTEND_DEV + " " + FRONTEND_PROD + "; " +
                         "style-src 'self' 'unsafe-inline'; " +

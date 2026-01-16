@@ -31,7 +31,7 @@ public class OAuthRedirectValidationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(allowed)) {
             allowedRedirects = Arrays.stream(allowed.split(","))
                     .map(String::trim)
-                    .collect(Collectors.toList());
+                    .toList();
         } else {
             allowedRedirects = List.of();
         }

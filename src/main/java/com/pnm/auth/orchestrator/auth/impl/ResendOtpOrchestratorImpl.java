@@ -1,10 +1,11 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.dto.request.OtpResendRequest;
 import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.dto.response.ResendOtpResponse;
 import com.pnm.auth.exception.custom.CooldownActiveException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
+import com.pnm.auth.orchestrator.auth.ResendOtpOrchestrator;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.auth.MfaPersistenceService;
 import com.pnm.auth.service.email.EmailService;

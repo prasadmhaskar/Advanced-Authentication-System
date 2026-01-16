@@ -1,13 +1,15 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.domain.entity.RefreshToken;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
+import com.pnm.auth.event.LoginSuccessEvent;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.TokenGenerationException;
+import com.pnm.auth.orchestrator.auth.RefreshTokenOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.audit.AuditService;
@@ -17,6 +19,7 @@ import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +37,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
     private final LoginActivityService loginActivityService;
     private final AuditService auditService;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -98,8 +102,8 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
             user.incrementTokenVersion();
             userRepository.save(user);
 
-            auditService.record(AuditAction.REFRESH_TOKEN_REUSE, user.getId(), user.getId(),
-                    "Token reuse detected", null, null);
+            auditService.recordAudit(AuditAction.REFRESH_TOKEN_REUSE, user.getId(), user.getId(),
+                    "Token reuse detected", ctx.ip(), ctx.userAgent());
 
             throw new InvalidCredentialsException("Session compromised. Please login again.");
         }
@@ -115,12 +119,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
             redisTemplate.opsForValue().set(graceKey, jsonResult, 60, TimeUnit.SECONDS);
 
-            // Record success
-            try {
-                loginActivityService.recordSuccess(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent());
-            } catch (Exception ignored) {
-            }
-
+            eventPublisher.publishEvent(new LoginSuccessEvent(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent()));
             log.info("RefreshTokenOrchestrator: finished for email={}", user.getEmail());
 
             return result;

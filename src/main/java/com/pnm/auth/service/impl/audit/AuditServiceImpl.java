@@ -28,12 +28,12 @@ public class AuditServiceImpl implements AuditService {
 
     @Override
     @Async("loggingExecutor")
-    public void record(AuditAction action,
-                       Long actorUserId,
-                       Long targetUserId,
-                       String description,
-                       String ip,
-                       String userAgent) {
+    public void recordAudit(AuditAction action,
+                            Long actorUserId,
+                            Long targetUserId,
+                            String description,
+                            String ip,
+                            String userAgent) {
 
         AuditLog entry = AuditLog.builder()
                 .action(action)

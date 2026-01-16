@@ -16,4 +16,5 @@ public interface AdminService {
     AdminServiceImpl.UnblockUserResult unblockUser(Long id);
     PagedResponse<LoginActivityResponse> getLoginActivities(int page, int size, LoginActivityFilterRequest filter);
     LoginActivityResponse getActivityById(Long id);
+    AdminServiceImpl.CreateAdminResult createAdmin(String email);
 }

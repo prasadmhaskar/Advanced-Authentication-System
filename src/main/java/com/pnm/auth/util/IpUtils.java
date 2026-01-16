@@ -3,7 +3,11 @@ package com.pnm.auth.util;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.InetAddress;
 
-public class IpUtils {
+public final class IpUtils {
+
+    private IpUtils() {
+        throw new UnsupportedOperationException("Utility class cannot be instantiated");
+    }
 
     public static String getClientIp(HttpServletRequest request) {
         String xff = request.getHeader("X-Forwarded-For");

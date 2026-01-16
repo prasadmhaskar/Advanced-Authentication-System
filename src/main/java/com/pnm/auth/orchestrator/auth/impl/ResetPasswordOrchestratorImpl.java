@@ -26,7 +26,6 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
     private final VerificationTokenRepository verificationTokenRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final LoginActivityService loginActivityService;
     private final CacheManagementService cacheManagementService;
 
     @Override
@@ -71,14 +70,6 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
 
             // Delete token after use
             verificationTokenRepository.delete(token);
-
-            // Record success
-            try {
-                loginActivityService.recordSuccess(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent());
-            } catch (Exception ex) {
-                log.warn("ResetPasswordOrchestrator: activity log failed userId={} msg={}",
-                        user.getId(), ex.getMessage());
-            }
 
             // Delete user details from cache
             cacheManagementService.evictUserFromCache(user.getEmail());

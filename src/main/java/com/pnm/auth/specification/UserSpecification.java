@@ -14,12 +14,17 @@ import java.util.List;
 
 public class UserSpecification {
 
+    private UserSpecification() {
+        throw new UnsupportedOperationException("Utility class cannot be instantiated");
+    }
+
     public static Specification<User> getFilter(UserFilterRequest request) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             // 🚨 CRITICAL: Use DISTINCT to prevent duplicate rows when joining roles/providers
             // Without this, pagination totals will be wrong or queries might fail.
+            assert query != null;
             query.distinct(true);
 
             // 1. Search (Email or Full Name)
