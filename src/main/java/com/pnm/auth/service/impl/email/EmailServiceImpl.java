@@ -1,7 +1,7 @@
 package com.pnm.auth.service.impl.email;
 
 import com.pnm.auth.domain.entity.User;
-import com.pnm.auth.service.email.EmailService;
+import com.pnm.auth.service.interfaces.email.EmailService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import lombok.RequiredArgsConstructor;
@@ -129,9 +129,7 @@ public class EmailServiceImpl implements EmailService {
         log.info("EmailService: email sent to={}", toEmail);
     }
 
-    // -----------------------------
-    // FALLBACKS (NO THROWING!)
-    // -----------------------------
+    // FALLBACKS - no throwing
     public void fallbackVerificationEmail(String email, Throwable ex) {
         log.error("EmailService FALLBACK: verification email failed email={} reason={}", email, ex.getMessage(), ex);
     }

@@ -19,7 +19,7 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     private final UserRepository userRepository;
 
     // value: name of the cache map in Redis
-    // key: the unique identifier (email)
+    // key: the unique identifier
     // unless: don't cache null results (prevents caching "user not found" errors forever)
     @Override
     @Cacheable(value = "user_details", key = "#email", unless = "#result == null")

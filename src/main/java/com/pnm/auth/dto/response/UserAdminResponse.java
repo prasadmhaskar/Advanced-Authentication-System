@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
 import com.pnm.auth.domain.entity.User;
+import com.pnm.auth.domain.entity.UserOAuthProvider;
 import com.pnm.auth.domain.enums.AuthProviderType;
 import lombok.*;
 
@@ -44,11 +45,7 @@ public class UserAdminResponse {
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
-
-                // 🚨 CRITICAL FIX: Wrap in new ArrayList to force standard Java List
-                // This strips the Hibernate Proxy so Redis can serialize/deserialize it safely.
                 .roles(user.getRoles() != null ? new ArrayList<>(user.getRoles()) : new ArrayList<>())
-
                 .active(user.isActive())
                 .emailVerified(user.getEmailVerified())
                 .mfaEnabled(user.isMfaEnabled())
@@ -56,8 +53,8 @@ public class UserAdminResponse {
                 .updatedAt(user.getUpdatedAt())
                 .providers(user.getAuthProviders() == null ? List.of() :
                         user.getAuthProviders().stream()
-                                .map(p -> p.getProviderType())
-                                .collect(Collectors.toList()))
+                                .map(UserOAuthProvider::getProviderType)
+                                .toList())
                 .build();
     }
 }

@@ -9,7 +9,7 @@ import com.pnm.auth.dto.result.ResolveOAuthResult;
 import com.pnm.auth.exception.custom.OAuth2LoginFailedException;
 import com.pnm.auth.repository.UserOAuthProviderRepository;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
+import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.util.OAuth2Util;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,7 +39,7 @@ public class OAuthPersistenceService {
             throw new OAuth2LoginFailedException("Provider did not supply email");
         }
 
-        // 1️⃣ Provider already linked? -> Success
+        // Provider already linked? -> Success
         Optional<UserOAuthProvider> provider = oAuthProviderRepository
                 .findByProviderTypeAndProviderId(providerType, providerId);
 
@@ -50,7 +50,7 @@ public class OAuthPersistenceService {
                     .build();
         }
 
-        // 2️⃣ Email exists but provider NOT linked? -> LINK_REQUIRED
+        // Email exists but provider NOT linked? -> LINK_REQUIRED
         Optional<User> emailUser = userRepository.findByEmail(email);
 
         if (emailUser.isPresent()) {
@@ -58,7 +58,7 @@ public class OAuthPersistenceService {
             AuthProviderType existingProvider = existingUser.getAuthProviders()
                     .iterator().next().getProviderType();
 
-            // Create Link Token (Atomic with this check)
+            // Create Link Token (Atomic check)
             String linkToken = accountLinkTokenService.createLinkToken(
                     existingUser, providerType, providerId
             );
@@ -73,15 +73,15 @@ public class OAuthPersistenceService {
                     .build();
         }
 
-        // 3️⃣ New OAuth user -> Create & Link
+        // New OAuth user -> Create & Link
         log.info("OAuthPersistence: Detected new user creation for email={}", email);
 
-        // 🛑 PREVENTATIVE CHECK (Inside Transaction)
-        // We only check this if we are SURE it's a new registration.
+        // Preventive check
+        // We only check this if we are sure it's a new registration.
         // This prevents blocking existing users on shared IPs.
         ipMonitoringService.checkRegistrationEligibility(ip, userAgent);
 
-        // 3️⃣ New OAuth user -> Create & Link
+        // New OAuth user -> Create & Link
         User user = new User();
         user.setFullName(oAuth2Util.determineUsernameFromOAuth2User(oAuth2User, providerType.name()));
         user.setEmail(email);

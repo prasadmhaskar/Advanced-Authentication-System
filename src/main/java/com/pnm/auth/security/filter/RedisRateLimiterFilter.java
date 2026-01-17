@@ -25,9 +25,6 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        // 1️⃣ GLOBAL PROTECTION: Never skip.
-        // We want to rate limit EVERY request to the API.
-        // Only skip static resources or health checks if necessary.
         String path = request.getRequestURI();
 
         return path.startsWith("/actuator") ||
@@ -48,8 +45,6 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
         String rateLimitKey;
         int maxRequests;
         int windowSeconds;
-
-        // 2️⃣ DYNAMIC RULES based on Endpoint Sensitivity
 
         // A) CRITICAL AUTH ENDPOINTS (Strict: 5 req / min)
         // Login, Register, Forgot Password
@@ -72,7 +67,7 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
             windowSeconds = 60;
         }
 
-        // 🔐 Special MFA Handling Override
+        // Special MFA Handling Override
         if (path.startsWith("/api/auth/mfa/resend")) {
             String tokenId = request.getParameter("otpTokenId");
             String email = request.getParameter("email");
@@ -81,18 +76,16 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
             if (userKey != null) {
                 rateLimitKey = "MFA_RESEND:" + userKey;
                 maxRequests = 3;
-                windowSeconds = 300; // 5 minutes
+                windowSeconds = 300;
             }
         }
 
-        // 3️⃣ EXECUTE CHECK
         boolean allowed = rateLimiterService.isAllowed(rateLimitKey, maxRequests, windowSeconds);
 
         if (!allowed) {
             log.warn("RateLimiter: BLOCKED key={} path={}", rateLimitKey, path);
             response.setStatus(429);
             response.setContentType("application/json");
-            // ... (Write your ApiResponse JSON here) ...
             return;
         }
 

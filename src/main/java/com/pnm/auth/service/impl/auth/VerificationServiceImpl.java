@@ -3,7 +3,7 @@ package com.pnm.auth.service.impl.auth;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.entity.VerificationToken;
 import com.pnm.auth.repository.VerificationTokenRepository;
-import com.pnm.auth.service.auth.VerificationService;
+import com.pnm.auth.service.interfaces.auth.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -30,10 +30,10 @@ public class VerificationServiceImpl implements VerificationService {
         log.info("VerificationService.createVerificationToken: Started for email={} type={}",
                 user.getEmail(), type);
 
-        // 🔐 Invalidate previous unused tokens of same type
+        // Invalidate previous unused tokens of the same type
         verificationTokenRepository.invalidateUnusedTokens(user.getId(), type);
 
-        //Creating new object
+        // Creating a new object
         VerificationToken verificationToken = new VerificationToken();
 
         String token = UUID.randomUUID().toString();
@@ -42,7 +42,7 @@ public class VerificationServiceImpl implements VerificationService {
         verificationToken.setType(type);
         verificationToken.setUsedAt(null);
         verificationToken.setExpiresAt(LocalDateTime.now().plusMinutes(verificationExpiryMinutes));
-        //Saving to repository
+        // Saving to repository
         verificationTokenRepository.save(verificationToken);
 
         log.info("VerificationService.createVerificationToken: Token created and saved for email={}", user.getEmail());

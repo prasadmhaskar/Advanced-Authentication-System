@@ -29,7 +29,6 @@ public class VerificationToken {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // "EMAIL_VERIFICATION", "RESET_PASSWORD", "OTP", etc.
     @Column(nullable = false)
     private String type;
 }

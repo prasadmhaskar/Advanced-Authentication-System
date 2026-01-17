@@ -17,8 +17,6 @@ public interface VerificationTokenRepository extends JpaRepository<VerificationT
 
     Optional<VerificationToken> findByTokenAndUsedAtIsNull(String token);
 
-    void deleteByToken(String token);
-
     @Modifying
     @Query("""
 UPDATE VerificationToken t

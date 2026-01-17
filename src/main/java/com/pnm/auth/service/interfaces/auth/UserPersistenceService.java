@@ -1,0 +1,9 @@
+package com.pnm.auth.service.interfaces.auth;
+
+import com.pnm.auth.dto.request.RegisterRequest;
+import com.pnm.auth.service.impl.auth.UserPersistenceServiceImpl;
+
+public interface UserPersistenceService {
+    UserPersistenceServiceImpl.UserCreationResult saveUserAndCreateToken(RegisterRequest request);
+    void deleteUserPermanently(Long userId);
+}

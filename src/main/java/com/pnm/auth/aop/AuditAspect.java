@@ -1,6 +1,6 @@
 package com.pnm.auth.aop;
 
-import com.pnm.auth.service.audit.AuditService;
+import com.pnm.auth.service.interfaces.audit.AuditService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.IpUtils;

@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 
 @Data
 @Builder
-@NoArgsConstructor  // ✅ Required for Redis/Jackson deserialization
+@NoArgsConstructor
 @AllArgsConstructor
 public class LoginActivityResponse {
 
@@ -23,8 +23,8 @@ public class LoginActivityResponse {
     private String email;
     private String ipAddress;
     private String userAgent;
-    private String status;     // Matches Entity "status"
-    private String message;    // Matches Entity "message"
+    private String status;
+    private String message;
 
     @JsonSerialize(using = LocalDateTimeSerializer.class)
     @JsonDeserialize(using = LocalDateTimeDeserializer.class)

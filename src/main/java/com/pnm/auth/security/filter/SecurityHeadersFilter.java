@@ -62,10 +62,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    // --------------------------------------------------------------
     // 1. CORE SECURITY HEADERS (MUST APPLY TO ALL ROUTES)
-    // --------------------------------------------------------------
-
     private void applyCommonSecurityHeaders(HttpServletResponse response) {
         response.setHeader("X-Frame-Options", "DENY");                      // Prevent clickjacking
         response.setHeader("X-Content-Type-Options", "nosniff");            // Disable MIME sniffing
@@ -88,10 +85,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         response.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     }
 
-    // --------------------------------------------------------------
     // 2. CONTENT SECURITY POLICY (DYNAMIC BASED ON PATH)
-    // --------------------------------------------------------------
-
     private void applyContentSecurityPolicy(HttpServletResponse response, String path) {
 
         // RELAXED CSP FOR OAUTH REDIRECT HANDSHAKES
@@ -128,9 +122,7 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
                         "object-src 'none';");
     }
 
-    /**
-     * Disable caching for auth and sensitive endpoints. For public static content, do not set.
-     */
+    // Disable caching for auth and sensitive endpoints. For public static content, do not set.
     private void applyCacheControl(HttpServletResponse response, String path) {
         if (path.startsWith("/api/auth") || path.startsWith("/api/user") || path.startsWith("/api/admin")) {
             response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");

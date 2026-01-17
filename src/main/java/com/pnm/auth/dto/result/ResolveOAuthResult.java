@@ -11,10 +11,8 @@ import lombok.Data;
 public class ResolveOAuthResult {
     private AuthOutcome outcome;
 
-    // success
     private User user;
 
-    // link required
     private String email;
     private AuthProviderType existingProvider;
     private String linkToken;

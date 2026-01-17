@@ -470,7 +470,7 @@ public class GlobalExceptionHandler {
 
 
 
-//    FALLBACK FOR ALL UNHANDLED ERRORS (500)
+//    fallback for all unhandled exception
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGeneral(
             Exception ex, HttpServletRequest request) {

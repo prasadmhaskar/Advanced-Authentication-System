@@ -10,9 +10,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class DeviceInfoResult {
-    private String browser;        // Chrome, Edge, Safari, Firefox, Other
-    private String os;             // Windows, Mac, Linux, Android, iOS, Other
-    private String deviceType;     // DESKTOP, MOBILE, TABLET, BOT, UNKNOWN
-    private String deviceName;     // "Chrome on Windows", "Mobile Chrome on Android", etc.
-    private String signature;      // "Chrome_Windows_DESKTOP", used for identification
+    private String browser;
+    private String os;
+    private String deviceType;
+    private String deviceName;
+    private String signature;
 }

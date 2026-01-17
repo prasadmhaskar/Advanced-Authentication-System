@@ -14,6 +14,7 @@ import java.util.Optional;
 
 @Repository
 public interface MfaTokenRepository extends JpaRepository<MfaToken, Long> {
+
     @Modifying
     @Transactional
     @Query("UPDATE MfaToken t SET t.used = true WHERE t.user.id = :userId AND t.used = false")
@@ -21,10 +22,6 @@ public interface MfaTokenRepository extends JpaRepository<MfaToken, Long> {
 
     Optional<MfaToken> findByIdAndUsedFalse(Long id);
 
-    @Query("SELECT t FROM MfaToken t WHERE t.user.id = :userId AND t.used = false AND t.expiresAt > :now")
-    List<MfaToken> findValidTokens(@Param("userId") Long userId, @Param("now") LocalDateTime now);
-
-    // ✅ Cleanup: used tokens older than X time
     @Modifying
     @Query("""
         DELETE FROM MfaToken t
@@ -33,7 +30,6 @@ public interface MfaTokenRepository extends JpaRepository<MfaToken, Long> {
     """)
     int deleteUsedTokensBefore(@Param("cutoff") LocalDateTime cutoff);
 
-    // ✅ Cleanup: expired & unused tokens
     @Modifying
     @Query("""
         DELETE FROM MfaToken t

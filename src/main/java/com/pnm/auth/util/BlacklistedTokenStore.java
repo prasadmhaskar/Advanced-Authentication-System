@@ -22,8 +22,7 @@ public class BlacklistedTokenStore {
         long durationMillis = expiryTimeMillis - now;
 
         if (durationMillis > 0) {
-            // Store in Redis with an automatic TTL (Time To Live)
-            // We don't need a value, so we just store "true"
+            // Store in Redis with ttl
             redisTemplate.opsForValue().set(
                     BLACKLIST_PREFIX + token,
                     "true",

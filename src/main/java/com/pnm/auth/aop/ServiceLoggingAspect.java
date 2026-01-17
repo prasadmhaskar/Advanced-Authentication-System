@@ -14,7 +14,7 @@ import java.util.*;
 @Aspect
 @Component
 @Slf4j
-@Order(2) // order > request filter order; adjust if needed
+@Order(2)
 public class ServiceLoggingAspect {
 
     private static final Set<String> SENSITIVE_PARAM_NAMES = Set.of(
@@ -39,7 +39,7 @@ public class ServiceLoggingAspect {
         // Build safe args
         String argsStr = buildSafeArgs(sig.getParameterNames(), pjp.getArgs());
 
-        // Read MDC context (requestId etc) set by RequestLoggingFilter
+        // Read MDC values set by RequestLoggingFilter
         String requestId = MDC.get("requestId");
         String ip = MDC.get("ip");
         String userAgent = MDC.get("userAgent");
@@ -88,10 +88,10 @@ public class ServiceLoggingAspect {
         return "[" + String.join(", ", parts) + "]";
     }
 
+    // guard for DTO containing password fields
     private boolean isSensitive(String name, Object value) {
         if (SENSITIVE_PARAM_NAMES.contains(name.toLowerCase())) return true;
         if (value instanceof char[] || value instanceof byte[]) return true;
-        // guard for DTO containing password fields? best to annotate such DTO methods with @NoLogging if necessary
         return false;
     }
 

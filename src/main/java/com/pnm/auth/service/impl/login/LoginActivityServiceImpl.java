@@ -4,13 +4,11 @@ import com.pnm.auth.domain.entity.LoginActivity;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
 import com.pnm.auth.repository.LoginActivityRepository;
-import com.pnm.auth.repository.TrustedDeviceRepository;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
-import com.pnm.auth.service.login.LoginActivityService;
+import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
+import com.pnm.auth.service.interfaces.login.LoginActivityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,9 +25,6 @@ public class LoginActivityServiceImpl implements LoginActivityService {
     private final LoginActivityRepository loginActivityRepository;
     private final IpMonitoringService ipMonitoringService;
 
-    // ---------------------------------------------
-    // SUCCESS
-    // ---------------------------------------------
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
     public void recordSuccess(Long userId, String email, String ip, String userAgent) {
@@ -51,15 +46,12 @@ public class LoginActivityServiceImpl implements LoginActivityService {
 
         loginActivityRepository.save(activity);
 
-        // ---- ADD IP MONITORING ----
+        // ip-monitoring
         ipMonitoringService.recordLogin(userId, ip, userAgent);
 
         log.info("LoginActivityService.recordSuccess(): completed userId={} email={}", userId, email);
     }
 
-    // ---------------------------------------------
-    // FAILURE
-    // ---------------------------------------------
     @Transactional
     @Override
     public void recordFailure(String email, String message, String ip, String userAgent) {

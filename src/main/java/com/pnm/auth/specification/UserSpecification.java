@@ -22,12 +22,10 @@ public class UserSpecification {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // 🚨 CRITICAL: Use DISTINCT to prevent duplicate rows when joining roles/providers
-            // Without this, pagination totals will be wrong or queries might fail.
             assert query != null;
             query.distinct(true);
 
-            // 1. Search (Email or Full Name)
+            // Search (email or full name)
             if (StringUtils.hasText(request.getSearch())) {
                 String searchPattern = "%" + request.getSearch().toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -36,20 +34,18 @@ public class UserSpecification {
                 ));
             }
 
-            // 2. Filter by Role (Join ElementCollection)
+            // Filter by role
             if (StringUtils.hasText(request.getRole())) {
-                // "roles" is the name of the List<String> field in User entity
                 predicates.add(cb.equal(root.join("roles", JoinType.LEFT), request.getRole()));
             }
 
-            // 3. Filter by Active Status
+            // Filter by active status
             if (request.getActive() != null) {
                 predicates.add(cb.equal(root.get("active"), request.getActive()));
             }
 
-            // 4. Filter by Provider (Google/Email)
+            // Filter by Provider (Google/Email)
             if (request.getProvider() != null) {
-                // "authProviders" is the name of Set<UserOAuthProvider> in User entity
                 Join<User, UserOAuthProvider> providerJoin = root.join("authProviders", JoinType.LEFT);
                 predicates.add(cb.equal(providerJoin.get("providerType"), request.getProvider()));
             }

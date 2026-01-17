@@ -2,7 +2,6 @@ package com.pnm.auth.security.filter;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pnm.auth.dto.response.ApiResponse;
-import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.impl.user.UserDetailsImpl;
 import com.pnm.auth.util.BlacklistedTokenStore;
 import com.pnm.auth.util.JwtUtil;
@@ -100,7 +99,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 
-                ApiResponse<Void> body = ApiResponse.error("TOKEN_REVOKED", "Session expired", request.getRequestURI());
+                ApiResponse<Void> body = ApiResponse.error("TOKEN_REVOKED", "Session expired please login again", request.getRequestURI());
 
                 objectMapper.writeValue(response.getOutputStream(), body);
                 return;

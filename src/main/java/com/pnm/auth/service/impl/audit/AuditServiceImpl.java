@@ -5,7 +5,7 @@ import com.pnm.auth.dto.response.PagedResponse;
 import com.pnm.auth.domain.entity.AuditLog;
 import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.repository.AuditLogRepository;
-import com.pnm.auth.service.audit.AuditService;
+import com.pnm.auth.service.interfaces.audit.AuditService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;

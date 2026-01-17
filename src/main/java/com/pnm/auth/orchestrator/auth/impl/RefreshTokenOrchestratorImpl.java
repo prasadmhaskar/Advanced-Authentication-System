@@ -9,12 +9,13 @@ import com.pnm.auth.event.LoginSuccessEvent;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.TokenGenerationException;
+import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.orchestrator.auth.RefreshTokenOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.audit.AuditService;
-import com.pnm.auth.service.login.LoginActivityService;
-import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.service.impl.cache.CacheManagementService;
+import com.pnm.auth.service.interfaces.audit.AuditService;
+import com.pnm.auth.service.interfaces.auth.TokenService;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -34,16 +35,16 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final TokenService tokenService;
-    private final LoginActivityService loginActivityService;
     private final AuditService auditService;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final CacheManagementService cacheManagementService;
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = {InvalidCredentialsException.class})
     public AuthenticationResult refresh(String rawToken, RequestContext ctx) {
 
         String currentDeviceSignature = UserAgentParser
@@ -69,7 +70,6 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
         if (!stored.getDeviceSignature().equals(currentDeviceSignature)) {
             throw new InvalidTokenException("Refresh token used from different device");
         }
-
 
         // Reuse detection - we attempt to mark the token as used.
         // If rows updated is 0, it means the token was already used either historically or by a racing thread.
@@ -97,12 +97,22 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
             // No Grace Period -> Real Token Theft
             log.error("RefreshTokenOrchestrator: SECURITY ALERT - Token Reuse Detected! invalidating all sessions for userId={}", user.getId());
 
-            // for security, Invalidate ALL sessions for this user immediately
-            refreshTokenRepository.invalidateAllForUser(user.getId());
-            user.incrementTokenVersion();
-            userRepository.save(user);
+            Long userId = user.getId();
 
-            auditService.recordAudit(AuditAction.REFRESH_TOKEN_REUSE, user.getId(), user.getId(),
+            // 2. Invalidate Tokens
+            // WARNING: This clears the persistence context due to @Modifying(clearAutomatically = true)
+            refreshTokenRepository.invalidateAllForUser(userId);
+
+            User managedUser = userRepository.findById(userId)
+                    .orElseThrow(() -> new UserNotFoundException("User not found during security invalidation"));
+
+            // for security, Invalidate ALL sessions for this user immediately
+            managedUser.incrementTokenVersion();
+            userRepository.save(managedUser);
+
+            cacheManagementService.evictUserFromCache(managedUser.getEmail());
+
+            auditService.recordAudit(AuditAction.REFRESH_TOKEN_REUSE, managedUser.getId(), managedUser.getId(),
                     "Token reuse detected", ctx.ip(), ctx.userAgent());
 
             throw new InvalidCredentialsException("Session compromised. Please login again.");

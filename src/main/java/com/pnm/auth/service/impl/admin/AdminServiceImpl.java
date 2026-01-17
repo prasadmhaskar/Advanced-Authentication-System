@@ -9,12 +9,11 @@ import com.pnm.auth.domain.entity.LoginActivity;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
-import com.pnm.auth.exception.custom.UserAlreadyExistsException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.repository.*;
-import com.pnm.auth.service.admin.AdminService;
-import com.pnm.auth.service.auth.UserPersistenceService;
-import com.pnm.auth.service.auth.UserValidationService;
+import com.pnm.auth.service.interfaces.admin.AdminService;
+import com.pnm.auth.service.interfaces.auth.UserPersistenceService;
+import com.pnm.auth.service.interfaces.auth.UserValidationService;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.specification.LoginActivitySpecification;
 import com.pnm.auth.specification.UserSpecification;
@@ -35,7 +34,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -56,30 +54,25 @@ public class AdminServiceImpl implements AdminService {
 
     public record CreateAdminResult(String code, String message) {}
 
-    // ============================================================
     //  1. GET USERS WITH FILTERS + PAGINATION
-    // ============================================================
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "users.list", key = "#page + '-' + #size + '-' + #filter")
     public PagedResponse<UserAdminResponse> getAllUsers(UserFilterRequest filter, Pageable pageable) {
         log.info("Admin: Fetching users with filter={}", filter);
 
-        // 1. Create Specification from Request
+        // Create Specification from Request
         Specification<User> spec = UserSpecification.getFilter(filter);
 
-        // 2. Fetch Page from DB
+        // Fetch Page from DB
         Page<User> userPage = userRepository.findAll(spec, pageable);
 
-        // 3. Map Entity -> DTO and Wrap in PagedResponse
-        // Assuming PagedResponse has a constructor or static method that takes a Spring Page
+        // Map Entity -> DTO and Wrap in PagedResponse
         return PagedResponse.of(userPage.map(UserAdminResponse::from));
     }
 
 
-    // ============================================================
     //  2. DELETE USER
-    // ============================================================
     @Override
     @Transactional
     @CacheEvict(value = {"users.list", "users"}, allEntries = true)
@@ -96,13 +89,10 @@ public class AdminServiceImpl implements AdminService {
         userPersistenceService.deleteUserPermanently(id);
 
         log.info("AdminService.deleteUser(): deleted user id={}", id);
-
     }
 
 
-    // ============================================================
     //  3. BLOCK USER
-    // ============================================================
     @Override
     @Transactional
     @Caching(evict = {
@@ -138,9 +128,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
 
-    // ============================================================
     //  4. UNBLOCK USER
-    // ============================================================
     @Override
     @Transactional
     @Caching(evict = {
@@ -159,7 +147,6 @@ public class AdminServiceImpl implements AdminService {
                 });
 
         if (user.isActive()) {
-
             log.info("AdminService.unblockUser(): user is already unblocked id={}", id);
             return new UnblockUserResult("USER_ALREADY_UNBLOCKED", "User is already unblocked");
         }
@@ -173,13 +160,9 @@ public class AdminServiceImpl implements AdminService {
     }
 
 
-    // ============================================================
     //  5. LOGIN ACTIVITY LIST
-    // ============================================================
     @Override
     @Transactional(readOnly = true)
-    // ⚠️ Caution: Caching lists with complex filters is hard to invalidate efficiently.
-    // If real-time accuracy is critical, remove @Cacheable here or use a short TTL.
     @Cacheable(value = "loginActivities", key = "#page + '-' + #size + '-' + #filter.hashCode()")
     public PagedResponse<LoginActivityResponse> getLoginActivities(
             int page,

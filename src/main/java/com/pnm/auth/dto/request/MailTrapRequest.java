@@ -12,11 +12,11 @@ public class MailTrapRequest {
     private EmailAddress from;
     private List<EmailAddress> to;
     private String subject;
-    private String text;   // Plain text version
-    private String html;   // HTML version
+    private String text;
+    private String html;
     private String category;
 
-    // Optional: Custom variables for templates
+
     @JsonProperty("custom_variables")
     private Map<String, String> customVariables;
 

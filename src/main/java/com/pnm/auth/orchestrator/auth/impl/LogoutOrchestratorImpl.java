@@ -10,6 +10,7 @@ import com.pnm.auth.orchestrator.auth.LogoutOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
+import com.pnm.auth.util.BlacklistedTokenStore;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.web.context.RequestContext;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +28,7 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
     private final CacheManagementService cacheManagementService;
+    private final BlacklistedTokenStore blacklistedTokenStore;
 
     @Transactional
     public void logout(
@@ -42,7 +44,7 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
         // Extract user email
         String email;
         try {
-            email = jwtUtil.extractAllClaims(accessToken).getSubject();
+            email = jwtUtil.extractUsername(accessToken);
         } catch (Exception e) {
             throw new InvalidTokenException("Invalid access token");
         }
@@ -56,6 +58,9 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
             if (!refreshToken.getUser().getEmail().equals(email)) {
                 throw new InvalidCredentialsException("Token ownership mismatch");
             }
+
+            long expirationTimestamp = jwtUtil.getExpirationTimestamp(accessToken);
+            blacklistedTokenStore.blacklistToken(accessToken, expirationTimestamp);
 
             refreshTokenRepository.delete(refreshToken);
         }

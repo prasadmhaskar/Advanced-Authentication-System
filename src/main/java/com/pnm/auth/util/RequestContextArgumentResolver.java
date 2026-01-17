@@ -27,7 +27,6 @@ public class RequestContextArgumentResolver implements HandlerMethodArgumentReso
     ) {
         HttpServletRequest request = (HttpServletRequest) webRequest.getNativeRequest();
 
-        // This attribute MUST be set by RequestContextFilter for this to work
         return request.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
     }
 }

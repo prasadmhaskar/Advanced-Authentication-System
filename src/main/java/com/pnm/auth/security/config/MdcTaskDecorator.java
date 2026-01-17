@@ -10,7 +10,7 @@ public class MdcTaskDecorator implements TaskDecorator {
 
     @Override
     public Runnable decorate(Runnable runnable) {
-        // Capture the MDC context of the calling thread
+        // Capture the MDC values of the calling thread
         Map<String, String> contextMap = MDC.getCopyOfContextMap();
         return () -> {
             try {

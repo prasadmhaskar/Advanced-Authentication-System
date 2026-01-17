@@ -9,12 +9,7 @@ import java.util.Optional;
 public interface UserOAuthProviderRepository
         extends JpaRepository<UserOAuthProvider, Long> {
 
-    Optional<UserOAuthProvider> findByProviderTypeAndProviderId(
-            AuthProviderType providerType,
-            String providerId
-    );
-
-    boolean existsByUserIdAndProviderType(Long userId, AuthProviderType providerType);
+    Optional<UserOAuthProvider> findByProviderTypeAndProviderId(AuthProviderType providerType, String providerId);
 
     void deleteByUserId(Long userId);
 }

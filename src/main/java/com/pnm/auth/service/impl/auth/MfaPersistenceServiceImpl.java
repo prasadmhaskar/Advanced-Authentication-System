@@ -3,9 +3,8 @@ package com.pnm.auth.service.impl.auth;
 import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.exception.custom.AccountBlockedException;
-import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.repository.MfaTokenRepository;
-import com.pnm.auth.service.auth.MfaPersistenceService;
+import com.pnm.auth.service.interfaces.auth.MfaPersistenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,13 +23,13 @@ public class MfaPersistenceServiceImpl implements MfaPersistenceService {
     @Transactional
     @Override
     public MfaToken createMfaToken(User user, boolean riskBased) {
-        // 1. Invalidate old tokens
+        // Invalidate old tokens
         mfaTokenRepository.markAllUnusedTokensAsUsed(user.getId());
 
-        // 2. Generate new OTP
+        // Generate new otp
         String otp = String.format("%06d", secureRandom.nextInt(1_000_000));
 
-        // 3. Save new token
+        // Save new token
         MfaToken token = new MfaToken();
         token.setUser(user);
         token.setOtp(otp);

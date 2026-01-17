@@ -22,13 +22,13 @@ public class LoginActivitySpecification {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // 1. User ID Filter (The New Feature)
+            // User if filter
             if (request.getUserId() != null) {
                 Join<LoginActivity, User> userJoin = root.join("user", JoinType.LEFT);
                 predicates.add(cb.equal(userJoin.get("id"), request.getUserId()));
             }
 
-            // 2. Search (Email or IP)
+            // Search (Email or IP)
             if (StringUtils.hasText(request.getSearch())) {
                 String pattern = "%" + request.getSearch().toLowerCase() + "%";
                 predicates.add(cb.or(
@@ -37,13 +37,13 @@ public class LoginActivitySpecification {
                 ));
             }
 
-            // 3. Status Filter
+            // Status Filter
             if (request.getSuccess() != null) {
                 String statusValue = request.getSuccess() ? "SUCCESS" : "FAILED";
                 predicates.add(cb.equal(root.get("status"), statusValue));
             }
 
-            // 4. Date Range
+            // Date Range
             if (request.getStartDate() != null) {
                 predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), request.getStartDate()));
             }

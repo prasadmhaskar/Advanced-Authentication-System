@@ -8,7 +8,7 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.exception.custom.TokenGenerationException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.util.JwtUtil;
-import com.pnm.auth.service.auth.TokenService;
+import com.pnm.auth.service.interfaces.auth.TokenService;
 import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
@@ -49,11 +49,11 @@ public class TokenServiceImpl implements TokenService {
                     .getSignature();
 
 
-            // 2) Create new access + refresh tokens
+            // Create new access and refresh tokens
             String accessToken = jwtUtil.generateAccessToken(user);
             String refreshToken = jwtUtil.generateRefreshToken(user);
 
-            // 3) Save new refresh token entity
+            // Save new refresh token entity
             RefreshToken token = new RefreshToken();
             token.setToken(refreshToken);
             token.setUser(user);
@@ -67,7 +67,7 @@ public class TokenServiceImpl implements TokenService {
 
             log.info("TokenService: tokens generated successfully for user={}", MaskingUtil.maskEmail(user.getEmail()));
 
-            // 5) Return unified AuthenticationResult
+            // Return AuthenticationResult
             return AuthenticationResult.builder()
                     .outcome(AuthOutcome.SUCCESS)
                     .user(UserResponse.from(user))

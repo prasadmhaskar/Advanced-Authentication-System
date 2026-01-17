@@ -28,7 +28,6 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                 .filter(h -> !h.isBlank())
                 .orElse(UUID.randomUUID().toString());
 
-        // FIXED: Use centralized, spoof-resistant utility
         String ip = IpUtils.getClientIp(request);
 
         String userAgent = request.getHeader("User-Agent");

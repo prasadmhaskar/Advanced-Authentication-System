@@ -21,12 +21,12 @@ public class TrustedDevice {
     private Long userId;
 
     @Column(nullable = false)
-    private String deviceSignature;    // hashed device fingerprint
+    private String deviceSignature;
 
     private String deviceName;
 
     private LocalDateTime trustedAt;
 
-    private Boolean active = true;     // user can deactivate device
+    private Boolean active = true;
 }
 

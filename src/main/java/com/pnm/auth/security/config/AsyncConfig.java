@@ -14,9 +14,9 @@ public class AsyncConfig {
     @Bean(name = "loggingExecutor")
     public Executor loggingExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5); // DB writes are fast; you don't need 10
+        executor.setCorePoolSize(5);
         executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(500); // Larger queue for logs
+        executor.setQueueCapacity(500);
         executor.setThreadNamePrefix("logging-async-");
         executor.setTaskDecorator(new MdcTaskDecorator());
         executor.initialize();
@@ -26,7 +26,7 @@ public class AsyncConfig {
     @Bean(name = "emailExecutor")
     public Executor emailExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(2); // SMTP is slow; don't overwhelm the mail server
+        executor.setCorePoolSize(2);
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("email-async-");

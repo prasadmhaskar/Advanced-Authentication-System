@@ -18,16 +18,15 @@ public class LoginActivity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // User who attempted login (nullable for unknown-email attempts)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
 
-    private String email;      // attempted email
-    private String ipAddress;  // IP address
-    private String userAgent;  // browser/device info
-    private String status;     // SUCCESS / FAILED
-    private String message;    // failure reason or success note
+    private String email;
+    private String ipAddress;
+    private String userAgent;
+    private String status;
+    private String message;
 
     private LocalDateTime createdAt;
 

@@ -10,6 +10,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GeoLocationResponse {
-    private String countryCode; // e.g. "IN", "US"
-    private String city;        // e.g. "Mumbai"
+    private String countryCode;
+    private String city;
 }

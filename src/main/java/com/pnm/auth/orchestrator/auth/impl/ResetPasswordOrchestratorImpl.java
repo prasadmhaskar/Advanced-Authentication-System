@@ -10,7 +10,6 @@ import com.pnm.auth.orchestrator.auth.ResetPasswordOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
-import com.pnm.auth.service.login.LoginActivityService;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

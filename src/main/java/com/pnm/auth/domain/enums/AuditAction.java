@@ -2,9 +2,7 @@ package com.pnm.auth.domain.enums;
 
 public enum AuditAction {
 
-    // -----------------------
-    // AUTH + SECURITY ACTIONS
-    // -----------------------
+    // security and authentication
     USER_REGISTER,
     LOGIN_ATTEMPT,
     MFA_VERIFY,
@@ -17,23 +15,17 @@ public enum AuditAction {
     PROFILE_UPDATE,
     SELF_DELETE,
 
-    // -----------------------
-    // TRUSTED DEVICE ACTIONS
-    // -----------------------
+    // trusted devices
     DEVICE_TRUST_ADD,
     DEVICE_REMOVE,
     DEVICE_REMOVE_OTHERS,
 
-    // -----------------------
-    // ADMIN ACTIONS
-    // -----------------------
+    // admin
     ADMIN_DELETE_USER,
     ADMIN_BLOCK_USER,
     ADMIN_UNBLOCK_USER,
 
-    // -----------------------
-    // REFRESH TOKEN
-    // -----------------------
+    // refresh token
     REFRESH_TOKEN_ROTATION,
     REFRESH_TOKEN_REUSE
 

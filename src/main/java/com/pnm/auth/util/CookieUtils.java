@@ -3,7 +3,6 @@ package com.pnm.auth.util;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.util.SerializationUtils;
 
 import java.io.*;
 import java.util.Base64;
@@ -32,11 +31,9 @@ public final class CookieUtils {
         cookie.setPath("/");
         cookie.setHttpOnly(true);
         cookie.setMaxAge(maxAge);
-
-        // 🚨 LOCALHOST CONFIGURATION
         // setSecure(false) allows cookies to be sent over HTTP (localhost).
         // In Production (HTTPS), this should be changed to true or handled dynamically.
-        cookie.setSecure(false);
+//        cookie.setSecure(false);
 
         response.addCookie(cookie);
     }
@@ -54,13 +51,6 @@ public final class CookieUtils {
             }
         }
     }
-
-    // -----------------------------------------------------------
-    // Serialization Methods (Using Java Native Serialization)
-    // -----------------------------------------------------------
-    // Note: OAuth2AuthorizationRequest is NOT JSON-friendly.
-    // We must use standard Java serialization here.
-
 
     public static String serialize(Object object) {
         try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();

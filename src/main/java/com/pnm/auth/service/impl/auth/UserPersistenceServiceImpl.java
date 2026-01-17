@@ -4,9 +4,8 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthProviderType;
 import com.pnm.auth.dto.request.RegisterRequest;
 import com.pnm.auth.repository.*;
-import com.pnm.auth.service.auth.UserPersistenceService;
-import com.pnm.auth.service.auth.VerificationService;
-import com.pnm.auth.service.impl.cache.CacheManagementService;
+import com.pnm.auth.service.interfaces.auth.UserPersistenceService;
+import com.pnm.auth.service.interfaces.auth.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -47,10 +46,10 @@ public class UserPersistenceServiceImpl implements UserPersistenceService {
         user.linkProvider(AuthProviderType.EMAIL, email);
         userRepository.save(user);
 
-        // 2. Create Token
+        // Create tokens
         String token = verificationService.createVerificationToken(user, "EMAIL_VERIFICATION");
 
-        // 3. Return BOTH
+        // Return tokens
         return new UserCreationResult(user, token);
     }
 

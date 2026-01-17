@@ -19,8 +19,8 @@ public class AuditLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long actorUserId;      // who performed the action
-    private Long targetUserId;     // user affected (can be same)
+    private Long actorUserId;
+    private Long targetUserId;
 
     @Enumerated(EnumType.STRING)
     private AuditAction action;

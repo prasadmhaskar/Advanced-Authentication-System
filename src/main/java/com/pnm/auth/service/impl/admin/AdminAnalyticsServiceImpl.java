@@ -3,7 +3,7 @@ package com.pnm.auth.service.impl.admin;
 import com.pnm.auth.dto.response.AdminAnalyticsResponse;
 import com.pnm.auth.repository.UserIpLogRepository;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.admin.AdminAnalyticsService;
+import com.pnm.auth.service.interfaces.admin.AdminAnalyticsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

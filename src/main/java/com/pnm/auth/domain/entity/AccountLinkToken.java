@@ -31,13 +31,12 @@ public class AccountLinkToken {
     private AuthProviderType providerToLink;
 
     @Column(nullable = false)
-    private String providerUserId; // Google sub / GitHub id
+    private String providerUserId;
 
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 
     private LocalDateTime createdAt;
-
 
 }
 

@@ -29,17 +29,17 @@ public class RefreshToken {
 
     private String deviceSignature;
 
-    private LocalDateTime expiresAt;   // NEW
+    private LocalDateTime expiresAt;
 
-    private boolean used = false;      // NEW
+    private boolean used = false;
 
-    private boolean invalidated = false;  // NEW
+    private boolean invalidated = false;
 
     public RefreshToken(String refreshToken, User user, LocalDateTime now) {
         this.token = refreshToken;
         this.user = user;
         this.createdAt = now;
-        this.expiresAt = now.plusDays(60);  // matching your JWT refresh TTL
+        this.expiresAt = now.plusDays(60);
     }
 }
 

@@ -34,6 +34,6 @@ public class MfaToken {
     private boolean used = false;
 
     @Column(nullable = false)
-    private boolean riskBased = false; // false = MFA, true = Risk-based OTP
+    private boolean riskBased = false;
 
 }

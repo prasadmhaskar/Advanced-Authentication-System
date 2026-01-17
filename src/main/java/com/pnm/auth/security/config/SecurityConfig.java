@@ -20,6 +20,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -59,25 +60,19 @@ public class SecurityConfig {
         log.info("SecurityConfig.securityFilterChain(): initializing");
 
         http
-                // -----------------------------------------------------
                 // CORS / CSRF / Stateless Sessions
-                // -----------------------------------------------------
                 .cors(cors -> {})
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // -----------------------------------------------------
-                // Exception Handling (401 / 403)
-                // -----------------------------------------------------
+                // Exception Handling
                 .exceptionHandling(ex -> {
                     ex.authenticationEntryPoint(authenticationEntryPoint());
                     ex.accessDeniedHandler(accessDeniedHandler());
                 })
 
-                // -----------------------------------------------------
                 // Authorization Rules
-                // -----------------------------------------------------
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/admin/**", "/actuator/**").hasRole("ADMIN")
                         .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
@@ -104,9 +99,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
 
-                // -----------------------------------------------------
                 // OAuth2 Login
-                // -----------------------------------------------------
                 .oauth2Login(oauth2 -> {
                     oauth2.authorizationEndpoint(auth -> auth.authorizationRequestRepository(cookieOAuth2AuthorizationRequestRepository));
                     oauth2.successHandler(oAuth2SuccessHandler);
@@ -121,34 +114,27 @@ public class SecurityConfig {
                     });
                 })
 
-                // -----------------------------------------------------
                 // UserDetails service for AuthenticationManager
-                // -----------------------------------------------------
                 .userDetailsService(userDetailsService);
 
-// ---------------------------
-// Register filters (Robust Anchoring)
-// ---------------------------
+// Register filters
 
-        // 1. Request Context (IP/Agent extraction) - MUST BE FIRST
-        // Anchor: ChannelProcessingFilter is the first standard Spring Security filter.
+        // 1. Request Context (IP/Agent extraction)
         http.addFilterBefore(requestContextFilter, ChannelProcessingFilter.class);
 
-        // 2. Logging - Logs the request (needs Context from step 1)
+        // 2. Logging - Logs the request
         http.addFilterAfter(requestLoggingFilter, RequestContextFilter.class);
 
-        // 3. Block Bad HTTP Methods - Run early to save resources
+        // 3. Block Bad HTTP Methods
         http.addFilterAfter(blockHttpMethodsFilter, RequestLoggingFilter.class);
 
-        // 4. Rate Limiter - Run before we touch any Auth logic (expensive)
-        // Anchor: UsernamePasswordAuthenticationFilter is where Auth starts.
+        // 4. Rate Limiter
         http.addFilterBefore(redisRateLimiterFilter, UsernamePasswordAuthenticationFilter.class);
 
-        // 5. OAuth Redirect Validation - Specific check for OAuth flows
+        // 5. OAuth Redirect Validation
         http.addFilterBefore(oauthRedirectValidationFilter, UsernamePasswordAuthenticationFilter.class);
 
-        // 6. JWT Authentication - The core custom auth
-        // Must run before UsernamePasswordAuthenticationFilter to populate SecurityContext
+        // 6. JWT Authentication
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         // 7. Security Headers - Add custom headers to response
@@ -158,9 +144,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // =====================================================================
     // 401 Unauthorized Handler → ApiResponse format
-    // =====================================================================
     @Bean
     public AuthenticationEntryPoint authenticationEntryPoint() {
         return (request, response, ex) -> {
@@ -174,9 +158,7 @@ public class SecurityConfig {
         };
     }
 
-    // =====================================================================
     // 403 Forbidden Handler → ApiResponse format
-    // =====================================================================
     @Bean
     public AccessDeniedHandler accessDeniedHandler() {
         return (request, response, ex) -> {
@@ -190,9 +172,7 @@ public class SecurityConfig {
         };
     }
 
-    // =====================================================================
     // Helper → Standardized JSON error response
-    // =====================================================================
     private void writeErrorResponse(
             HttpServletRequest request,
             HttpServletResponse response,
@@ -233,9 +213,5 @@ public class SecurityConfig {
         registration.setEnabled(false); // prevent Spring Boot from auto-registering this filter as a servlet filter
         return registration;
     }
-
-
-
-
 }
 

@@ -12,8 +12,8 @@ import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.orchestrator.auth.VerifyEmailOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
-import com.pnm.auth.service.auth.TokenService;
-import com.pnm.auth.service.device.DeviceTrustService;
+import com.pnm.auth.service.interfaces.auth.TokenService;
+import com.pnm.auth.service.interfaces.device.DeviceTrustService;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -105,7 +105,7 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
 
         AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
-        // Record login success- Asynchronous
+        // Record login success-Asynchronous
         eventPublisher.publishEvent(
                 new LoginSuccessEvent(
                         user.getId(),

@@ -8,6 +8,5 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 @Repository
 public interface LoginActivityRepository extends JpaRepository<LoginActivity, Long> , JpaSpecificationExecutor<LoginActivity> {
-    List<LoginActivity> findByUserId(Long userId);
     void deleteByUserId(Long userId);
 }

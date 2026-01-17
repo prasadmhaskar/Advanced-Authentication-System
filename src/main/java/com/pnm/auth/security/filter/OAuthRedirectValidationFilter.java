@@ -24,7 +24,6 @@ public class OAuthRedirectValidationFilter extends OncePerRequestFilter {
 
     private final List<String> allowedRedirects;
 
-    // ⭐ KEEP ONLY THIS CONSTRUCTOR
     public OAuthRedirectValidationFilter(
             @Value("${security.oauth.allowed-redirect-uris}") String allowed
     ) {

@@ -14,15 +14,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     Optional<RefreshToken> findByToken(String token);
 
-    void deleteByToken(String token);
-
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE RefreshToken rt SET rt.invalidated = true WHERE rt.user.id = :userId")
     void invalidateAllForUser(@Param("userId") Long userId);
-
-    // 1. Count active sessions for a user
-    @Query("SELECT COUNT(t) FROM RefreshToken t WHERE t.user.id = :userId")
-    long countByUserId(@Param("userId") Long userId);
 
     void deleteByUserId(@Param("userId") Long userId);
 

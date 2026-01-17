@@ -9,13 +9,13 @@ import lombok.Data;
 @Builder
 public class AccountLinkResult {
 
-    private AuthOutcome outcome;          // SUCCESS
+    private AuthOutcome outcome;
     private String email;
 
     private String accessToken;
     private String refreshToken;
 
-    private NextAction nextAction;         // RESET_PASSWORD | LOGIN
+    private NextAction nextAction;
 
     private String message;
 }

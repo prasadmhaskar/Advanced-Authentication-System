@@ -14,8 +14,6 @@ public interface TrustedDeviceRepository extends JpaRepository<TrustedDevice, Lo
 
     List<TrustedDevice> findByUserIdAndActiveTrue(Long userId);
 
-    void deleteByUserIdAndDeviceSignatureNot(Long userId, String deviceSignature);
-
     @Modifying
     @Query("DELETE FROM TrustedDevice d WHERE d.userId = :userId AND d.deviceSignature <> :deviceSignature")
     void deleteAllExceptCurrent(@Param("userId") Long userId, @Param("deviceSignature") String deviceSignature);

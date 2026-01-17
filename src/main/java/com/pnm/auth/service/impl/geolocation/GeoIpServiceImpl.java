@@ -5,7 +5,7 @@ import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.CityResponse;
 import com.pnm.auth.dto.response.GeoLocationResponse;
 import com.pnm.auth.integration.geoip.GeoIpDatabase;
-import com.pnm.auth.service.geolocation.GeoIpService;
+import com.pnm.auth.service.interfaces.geolocation.GeoIpService;
 import com.pnm.auth.util.IpUtils;
 
 import lombok.RequiredArgsConstructor;

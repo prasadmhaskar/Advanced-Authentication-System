@@ -53,10 +53,10 @@ public class UserIpLog {
     private String deviceSignature;
 
     @Column(name = "device_type", length = 50)
-    private String deviceType; // e.g. DESKTOP, MOBILE, TABLET, BOT
+    private String deviceType;
 
     @Column(name = "device_name", length = 100)
-    private String deviceName; // e.g. "Chrome on Windows", "Mobile Chrome on Android"
+    private String deviceName;
 
 }
 

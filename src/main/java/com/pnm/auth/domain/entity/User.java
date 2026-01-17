@@ -71,7 +71,6 @@ public class User {
         this.updatedAt = LocalDateTime.now();
     }
 
-    // --------- helper methods ----------
     public void linkProvider(AuthProviderType type, String providerId) {
 
         if (hasProvider(type)) {

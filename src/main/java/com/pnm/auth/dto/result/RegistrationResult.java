@@ -14,7 +14,7 @@ public class RegistrationResult {
 
     private AuthOutcome outcome;
 
-    private String email; // useful for frontend
+    private String email;
 
     private String linkToken;
 

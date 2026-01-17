@@ -26,7 +26,7 @@ public class AuditLogResponse {
                 .id(log.getId())
                 .actorUserId(log.getActorUserId())
                 .targetUserId(log.getTargetUserId())
-                .action(log.getAction().name())     // enum → string
+                .action(log.getAction().name())
                 .description(log.getDescription())
                 .ip(log.getIp())
                 .userAgent(log.getUserAgent())

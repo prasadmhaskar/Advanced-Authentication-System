@@ -8,10 +8,10 @@ import com.pnm.auth.exception.custom.TooManyRequestsException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.orchestrator.auth.ResendVerificationOrchestrator;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.auth.VerificationService;
-import com.pnm.auth.service.email.EmailService;
-import com.pnm.auth.service.login.LoginActivityService;
-import com.pnm.auth.service.redis.RedisRateLimiterService;
+import com.pnm.auth.service.interfaces.auth.VerificationService;
+import com.pnm.auth.service.interfaces.email.EmailService;
+import com.pnm.auth.service.interfaces.login.LoginActivityService;
+import com.pnm.auth.service.interfaces.redis.RedisRateLimiterService;
 import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +29,6 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
     private final EmailService emailService;
     private final LoginActivityService loginActivityService;
     private final RedisRateLimiterService redisRateLimiterService;
-
 
     @Override
     public ResendVerificationResult resend(String email, RequestContext ctx) {

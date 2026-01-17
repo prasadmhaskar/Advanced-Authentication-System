@@ -11,8 +11,8 @@ import com.pnm.auth.exception.custom.ResourceNotFoundException;
 import com.pnm.auth.repository.TrustedDeviceRepository;
 import com.pnm.auth.repository.UserIpLogRepository;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.geolocation.GeoIpService;
-import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
+import com.pnm.auth.service.interfaces.geolocation.GeoIpService;
+import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.util.UserAgentParser;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -30,7 +30,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -48,149 +47,12 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
     @Value("${auth.risk.threshold.medium}")
     private int mediumRiskScore;
 
-
-    // -------------------------------------------------------
-    // Record Login with Risk Analysis (Option B)
-    // -------------------------------------------------------
-//    @Override
-//    @Transactional(propagation = Propagation.REQUIRES_NEW)
-//    @Retry(name = "ipMonitoringRetry")
-//    @CircuitBreaker(name = "ipMonitoringCB", fallbackMethod = "fallbackRiskScore")
-//    public UserIpLogResponse recordLogin(Long userId, String ip, String userAgent) {
-//
-//        log.info("IpMonitoringService.recordLogin(): started userId={} ip={}", userId, ip);
-//
-//        if (userId == null || ip == null) {
-//            log.warn("IpMonitoringService.recordLogin(): invalid parameters userId={} ip={}", userId, ip);
-//            return null;
-//        }
-//
-//        String userEmail = userRepository.findById(userId)
-//                .map(User::getEmail)
-//                .orElse("UNKNOWN_OR_DELETED");
-//
-//        // ---------------------------
-//        // 1) Known IP / Device checks
-//        // ---------------------------
-//        boolean knownIp = repo.existsByUserIdAndIpAddress(userId, ip);
-//
-//        // Parse device info from user-agent
-//        DeviceInfoResult deviceInfoResult = UserAgentParser.parse(userAgent);
-//        String deviceSignature = deviceInfoResult.getSignature();
-//
-//        boolean trustedDevice = trustedDeviceRepository
-//                .existsByUserIdAndDeviceSignatureAndActiveTrue(userId, deviceSignature);
-//
-//        // ---------------------------
-//        // 2) Previous login for impossible travel
-//        // ---------------------------
-//        UserIpLog lastLogin = repo.findTop1ByUserIdOrderByLoginTimeDesc(userId);
-//
-//        // ---------------------------
-//        // 3) Multi-account intelligence
-//        // ---------------------------
-//        int accountsUsingIp = repo.countDistinctUsersByIp(ip);
-//        int accountsUsingDevice = deviceSignature != null
-//                ? repo.countDistinctUsersByDevice(deviceSignature)
-//                : 0;
-//
-//        // ---------------------------
-//        // 4) Geo IP lookup
-//        // ---------------------------
-//        GeoLocationResponse geo = geoIpService.lookup(ip);
-//        String countryCode = geo != null ? geo.getCountryCode() : null;
-//        String city = geo != null ? geo.getCity() : null;
-//
-//        // ---------------------------
-//        // 5) Risk scoring
-//        // ---------------------------
-//        int riskScore = 0;
-//        List<String> reasons = new ArrayList<>();
-//
-//// Trusted/untrusted device
-//        if (trustedDevice) {
-//            riskScore -= 15;
-//            reasons.add("TRUSTED_DEVICE");
-//        } else {
-//            riskScore += 20;
-//            reasons.add("UNTRUSTED_DEVICE");
-//        }
-//
-//// New IP
-//        if (!knownIp) {
-//            riskScore += 20;
-//            reasons.add("NEW_IP_FOR_USER");
-//        }
-//
-//// IP used by many accounts
-//        if (accountsUsingIp >= 3) {
-//            riskScore += 30;
-//            reasons.add("IP_USED_BY_MULTIPLE_ACCOUNTS_" + accountsUsingIp);
-//        }
-//
-//// Device used by many accounts
-//        if (deviceSignature != null && accountsUsingDevice >= 3) {
-//            riskScore += 40;
-//            reasons.add("DEVICE_USED_BY_MULTIPLE_ACCOUNTS_" + accountsUsingDevice);
-//        }
-//
-//// Impossible travel
-//        if (lastLogin != null && lastLogin.getCountryCode() != null && countryCode != null
-//                && !lastLogin.getCountryCode().equalsIgnoreCase(countryCode)) {
-//
-//            Duration diff = Duration.between(lastLogin.getLoginTime(), LocalDateTime.now());
-//            long minutes = Math.abs(diff.toMinutes());
-//
-//            if (minutes <= 60) {
-//                riskScore += 50;
-//                reasons.add("IMPOSSIBLE_TRAVEL_FROM_" + lastLogin.getCountryCode() + "_TO_" + countryCode);
-//            }
-//        }
-//
-//        riskScore = Math.max(riskScore, 0);
-//
-//        boolean suspicious = riskScore >= mediumRiskScore;
-//
-//        // ---------------------------
-//        // 6) Build and save entity
-//        // ---------------------------
-//        UserIpLog entity = UserIpLog.builder()
-//                .userId(userId)
-//                .ipAddress(ip)
-//                .userAgent(userAgent)
-//                .countryCode(countryCode)
-//                .city(city)
-//                .isSuspicious(suspicious)
-//                .riskScore(riskScore)
-//                .riskReason(String.join(",", reasons))
-//                .deviceSignature(deviceSignature)
-//                .deviceType(deviceInfoResult.getDeviceType())
-//                .deviceName(deviceInfoResult.getDeviceName())
-//                .loginTime(LocalDateTime.now())
-//                .build();
-//
-//        UserIpLog saved = repo.save(entity);
-//
-//        if (suspicious) {
-//            log.warn("IpMonitoringService.recordLogin(): suspicious login userId={} ip={} device={} riskScore={} reasons={}",
-//                    userId, ip, deviceInfoResult.getDeviceName(), riskScore, entity.getRiskReason());
-//        } else {
-//            log.info("IpMonitoringService.recordLogin(): normal login userId={} ip={} device={}",
-//                    userId, ip, deviceInfoResult.getDeviceName());
-//        }
-//
-//        log.info("IpMonitoringService.recordLogin(): completed userId={} ip={}", userId, ip);
-//
-//        return UserIpLogResponse.fromEntity(saved, userEmail);
-//    }
-
-
     @Override
     @Transactional(readOnly = true)
     public void checkRegistrationEligibility(String ip, String userAgent) {
         if (ip == null) return;
 
-        // 2. Check Device Limit
+        // Check Device Limit
 //    DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
 //    String signature = deviceInfo.getSignature();
 //
@@ -205,7 +67,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
 //        }
 //    }
 
-        // 1. Check IP Limit
+        // Check IP Limit
         // CRITICAL: This query must only count DISTINCT emails that were SUCCESSFUL.
         // Ensure your repository query handles this correctly.
         int accountsUsingIp = repo.countDistinctUsersByIp(ip);
@@ -219,11 +81,11 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
     }
 
 
+    // This runs ONLY after the user is successfully created.
     @Override
     @Async("loggingExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void recordRegistrationSuccess(Long userId, String ip, String userAgent) {
-        // This runs ONLY after the user is successfully created.
 
         DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
         GeoLocationResponse geo = geoIpService.lookup(ip); // Acceptable latency here, or move to @Async
@@ -260,10 +122,6 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
     }
 
 
-
-    // -------------------------------------------------------
-    // Recent IPs
-    // -------------------------------------------------------
     @Override
     @Transactional(readOnly = true)
     public List<UserIpLogResponse> getRecentIpsForUser(Long userId) {
@@ -285,9 +143,6 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         return result;
     }
 
-    // -------------------------------------------------------
-    // Single entry
-    // -------------------------------------------------------
     @Override
     @Transactional(readOnly = true)
     public UserIpLogResponse getById(Long id) {
@@ -312,9 +167,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         return UserIpLogResponse.fromEntity(entity, userEmail);
     }
 
-    // -------------------------------------------------------
-    // IP usage
-    // -------------------------------------------------------
+
     @Override
     @Transactional(readOnly = true)
     public IpUsageResponse countIpUsage(String ip) {
@@ -348,11 +201,11 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
 
             if (userId == null || ip == null) return null;
 
-            // 1. Initial Parsing (Fast)
+            // Initial Parsing (Fast)
             DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
             String signature = deviceInfo.getSignature();
 
-            // 2. Fire All Expensive Calls in Parallel
+            // Fire All Expensive Calls in Parallel
             CompletableFuture<Boolean> knownIpFuture = CompletableFuture.supplyAsync(() ->
                     repo.existsByUserIdAndIpAddress(userId, ip));
 
@@ -371,13 +224,13 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
             CompletableFuture<GeoLocationResponse> geoFuture = CompletableFuture.supplyAsync(() ->
                     geoIpService.lookup(ip));
 
-            // 3. Wait for all threads to complete
+            // Wait for all threads to complete
             CompletableFuture.allOf(
                     knownIpFuture, trustedDeviceFuture, lastLoginFuture,
                     accountsIpFuture, accountsDeviceFuture, geoFuture
             ).join();
 
-            // 4. Gather Results & Calculate Risk with Reasons
+            // Gather Results & Calculate Risk with Reasons
             RiskCalculationResult riskResult = calculateRisk(
                     knownIpFuture.join(),
                     trustedDeviceFuture.join(),
@@ -391,7 +244,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
             String riskReason = String.join(",", riskResult.reasons());
             boolean suspicious = riskScore >= mediumRiskScore;
 
-            // 5. Build and Save Log
+            // Build and Save Log
             UserIpLog entity = UserIpLog.builder()
                     .userId(userId)
                     .ipAddress(ip)
@@ -415,9 +268,6 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
             return UserIpLogResponse.fromEntity(saved, userEmail);
         }
 
-        /**
-         * Helper to encapsulate the scoring logic and reason collection.
-         */
         private RiskCalculationResult calculateRisk(
                 boolean knownIp,
                 boolean trustedDevice,

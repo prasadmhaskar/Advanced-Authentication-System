@@ -20,7 +20,7 @@ public class AuthenticationResult {
     private String accessToken;
     private String refreshToken;
 
-    private Long otpTokenId; // used for MFA or risk OTP
+    private Long otpTokenId;
 
     private String message;
     private String linkToken;

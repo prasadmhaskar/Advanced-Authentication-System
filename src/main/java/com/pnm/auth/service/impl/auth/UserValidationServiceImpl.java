@@ -2,11 +2,10 @@ package com.pnm.auth.service.impl.auth;
 
 
 import com.pnm.auth.domain.entity.User;
-import com.pnm.auth.domain.enums.AuthProviderType;
 import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.login.LoginActivityService;
-import com.pnm.auth.service.auth.UserValidationService;
+import com.pnm.auth.service.interfaces.login.LoginActivityService;
+import com.pnm.auth.service.interfaces.auth.UserValidationService;
 import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,8 +22,6 @@ import java.util.Optional;
 public class UserValidationServiceImpl implements UserValidationService {
 
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final LoginActivityService loginActivityService;
 
     @Override
     public User validateUserForLogin(String email) {
@@ -64,10 +61,6 @@ public class UserValidationServiceImpl implements UserValidationService {
         return userOpt;
     }
 
-    /**
-     * Validates account status.
-     * ONLY call this AFTER password verification to prevent enumeration.
-     */
     @Override
     public void validateUserStatus(User user) {
         if (!user.isActive()) {

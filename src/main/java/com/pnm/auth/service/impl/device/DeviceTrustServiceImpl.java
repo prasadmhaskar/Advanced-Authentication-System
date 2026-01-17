@@ -6,7 +6,7 @@ import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.TrustedDeviceRepository;
-import com.pnm.auth.service.device.DeviceTrustService;
+import com.pnm.auth.service.interfaces.device.DeviceTrustService;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;

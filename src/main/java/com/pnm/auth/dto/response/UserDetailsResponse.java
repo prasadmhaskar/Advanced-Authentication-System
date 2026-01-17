@@ -26,10 +26,8 @@ public class UserDetailsResponse {
     private String email;
     private List<String> roles;
 
-    // ⭐ MULTI PROVIDER
     private List<AuthProviderType> authProviders;
 
-    // Optional but useful for frontend
     private boolean emailLoginEnabled;
 
     @JsonSerialize(using = LocalDateTimeSerializer.class)

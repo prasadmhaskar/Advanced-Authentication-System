@@ -4,9 +4,9 @@ import com.pnm.auth.dto.result.MfaResult;
 import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
-import com.pnm.auth.service.auth.MfaPersistenceService;
-import com.pnm.auth.service.email.EmailService;
-import com.pnm.auth.service.auth.MfaService;
+import com.pnm.auth.service.interfaces.auth.MfaPersistenceService;
+import com.pnm.auth.service.interfaces.email.EmailService;
+import com.pnm.auth.service.interfaces.auth.MfaService;
 import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +21,7 @@ public class MfaServiceImpl implements MfaService {
     private final MfaPersistenceService mfaPersistenceService;
     private final EmailService emailService;
 
-    // MFA FOR USERS WHO HAVE MFA ENABLED
+    // MFA for users who have enabled mfa
     @Override
     public MfaResult handleMfaLogin(User user) {
 
@@ -40,14 +40,13 @@ public class MfaServiceImpl implements MfaService {
                 .build();
     }
 
-    // MEDIUM RISK → OTP REQUIRED (RISK-BASED MFA)
+    // Medium risk -> otp required for login
 
     @Override
     public MfaResult handleMediumRiskOtp(User user) {
 
         log.warn("MfaService: handling RISK OTP for email={}", MaskingUtil.maskEmail(user.getEmail()));
 
-        // 1. DB Transaction
         MfaToken token = mfaPersistenceService.createMfaToken(user, true);
 
         emailService.sendMfaOtpEmail(user.getEmail(), token.getOtp());

@@ -1,8 +1,15 @@
+
+
 package com.pnm.auth.security.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.DeserializationFeature; // <--- Import this
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,37 +19,46 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.security.jackson2.SecurityJackson2Modules;
 
 import java.time.Duration;
 
 @Configuration
 @EnableCaching
-@RequiredArgsConstructor
 @Slf4j
+@RequiredArgsConstructor
 public class CacheConfig {
 
-    private final RedisConnectionFactory redisConnectionFactory;
-
-    @Value("${spring.cache.redis.time-to-live:600000}")
-    private long ttlMillis;
-
     @Bean
-    public RedisCacheConfiguration redisCacheConfiguration() {
-        log.info("CacheConfig: configuring redis cache with ttlMillis={}", ttlMillis);
+    public CacheManager cacheManager(RedisConnectionFactory redisConnectionFactory) {
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        // 1. Register Modules
+        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.registerModules(SecurityJackson2Modules.getModules(getClass().getClassLoader()));
+
+        // 2. CRITICAL FIX: Ignore Unknown Properties
+        // This prevents the "UnrecognizedPropertyException" crash if Redis has old fields
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        // 3. Type Info (Security)
+        objectMapper.activateDefaultTyping(
+                LaissezFaireSubTypeValidator.instance,
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY
+        );
+
+        GenericJackson2JsonRedisSerializer redisSerializer = new GenericJackson2JsonRedisSerializer(objectMapper);
+
         RedisCacheConfiguration config = RedisCacheConfiguration.defaultCacheConfig()
-                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
-                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer()))
+                .entryTtl(Duration.ofMinutes(15))
                 .disableCachingNullValues()
-                .entryTtl(Duration.ofMillis(ttlMillis));
-        return config;
-    }
+                .serializeKeysWith(RedisSerializationContext.SerializationPair.fromSerializer(new StringRedisSerializer()))
+                .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(redisSerializer));
 
-    @Bean
-    public RedisCacheManager cacheManager() {
         return RedisCacheManager.builder(redisConnectionFactory)
-                .cacheDefaults(redisCacheConfiguration())
-                .transactionAware()
+                .cacheDefaults(config)
+                .withCacheConfiguration("user_details", config.entryTtl(Duration.ofMinutes(30)))
                 .build();
     }
 }
-

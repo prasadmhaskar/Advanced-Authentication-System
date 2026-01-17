@@ -32,9 +32,6 @@ import org.springframework.context.annotation.Configuration;
         }
 )
 public class OpenApiConfig {
-    // ---------------------------------------------------------
-    // 1. GLOBAL IGNORE FOR SWAGGER
-    // ---------------------------------------------------------
     static {
         // This hides RequestContext from Swagger UI globally
         SpringDocUtils.getConfig().addRequestWrapperToIgnore(RequestContext.class);
