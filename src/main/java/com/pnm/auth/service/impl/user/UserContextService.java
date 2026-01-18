@@ -44,5 +44,4 @@ public class UserContextService {
 
         return UserDetailsResponse.fromEntity(user);
     }
-
 }

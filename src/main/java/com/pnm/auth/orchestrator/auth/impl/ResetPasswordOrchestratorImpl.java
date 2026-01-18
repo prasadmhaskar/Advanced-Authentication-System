@@ -7,6 +7,7 @@ import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.PasswordResetException;
 import com.pnm.auth.orchestrator.auth.ResetPasswordOrchestrator;
+import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
@@ -26,6 +27,7 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final CacheManagementService cacheManagementService;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Override
     @Transactional
@@ -65,10 +67,14 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
         try {
             // Update password
             user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+            user.incrementTokenVersion();
             userRepository.save(user);
 
             // Delete token after use
             verificationTokenRepository.delete(token);
+
+            // Invalidate all refresh tokens of user
+            refreshTokenRepository.invalidateAllForUser(user.getId());
 
             // Delete user details from cache
             cacheManagementService.evictUserFromCache(user.getEmail());

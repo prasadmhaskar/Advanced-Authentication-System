@@ -6,6 +6,7 @@ import com.pnm.auth.dto.result.*;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.domain.enums.AuthProviderType;
+import com.pnm.auth.event.LoginSuccessEvent;
 import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.service.interfaces.email.EmailService;
 import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
@@ -21,6 +22,7 @@ import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
@@ -41,6 +43,7 @@ import org.springframework.stereotype.Service;
         private final TokenService tokenService;
         private final DeviceTrustService deviceTrustService;
         private final EmailService emailService;
+        private final ApplicationEventPublisher eventPublisher;
 
         @Value("${auth.risk.threshold.high}")
         private int highRiskScore;
@@ -83,6 +86,12 @@ import org.springframework.stereotype.Service;
 
             User user = resolveResult.getUser();
 
+            // Check Blocked Status
+            if (!user.isActive()) {
+                loginActivityService.recordFailure(user.getEmail(), "Blocked OAuth login", ip, userAgent);
+                throw new AccountBlockedException("Your account has been blocked.");
+            }
+
             // Record success only if it's a new registration
             if (resolveResult.isNewUser()) {
                 try {
@@ -92,39 +101,36 @@ import org.springframework.stereotype.Service;
                 }
             }
 
-            // Check Blocked Status
-            if (!user.isActive()) {
-                loginActivityService.recordFailure(user.getEmail(), "Blocked OAuth login", ip, userAgent);
-                throw new AccountBlockedException("Your account has been blocked.");
+            if (!resolveResult.isNewUser()) {
+                // Risk Engine
+                RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
+
+                if (risk.getScore() >= highRiskScore) {
+                    log.warn("OAuth2Service: HIGH RISK → login blocked for ip={} and security email sent to email={}", ip, MaskingUtil.maskEmail(user.getEmail()));
+                    emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
+                    loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login", ip, userAgent);
+                    throw new HighRiskLoginException("Login blocked due to high risk activity.");
+                }
+
+                if (risk.getScore() >= mediumRiskScore) {
+                    log.warn("OAuth2Service: MEDIUM RISK → OTP required for ip={} and email={}", ip, MaskingUtil.maskEmail(user.getEmail()));
+                    MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
+
+                    return AuthenticationResult.builder()
+                            .outcome(mfaResult.getOutcome())
+                            .otpTokenId(mfaResult.getTokenId())
+                            .message("Suspicious login detected, verification needed. OTP has been sent to your email.")
+                            .build();
+                }
             }
 
-            // Risk Engine
-            RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
-
-            if (risk.getScore() >= highRiskScore) {
-                log.warn("OAuth2Service: HIGH RISK → login blocked for ip={} and security email sent to email={}",ip, MaskingUtil.maskEmail(user.getEmail()));
-                emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
-                loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login", ip, userAgent);
-                throw new HighRiskLoginException("Login blocked due to high risk activity.");
-            }
-
-            if (risk.getScore() >= mediumRiskScore) {
-                log.warn("OAuth2Service: MEDIUM RISK → OTP required for ip={} and email={}", ip, MaskingUtil.maskEmail(user.getEmail()));
-                MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
-
-                return AuthenticationResult.builder()
-                        .outcome(mfaResult.getOutcome())
-                        .otpTokenId(mfaResult.getTokenId())
-                        .message("Suspicious login detected, verification needed. OTP has been sent to your email.")
-                        .build();
-            }
-
-            // 5️⃣ Success → Generate Tokens
+            // Generate tokens
             AuthenticationResult tokenResult = tokenService.generateTokens(user, ctx);
 
-            // 6️⃣ Post-Login Logging (Best Effort)
+            eventPublisher.publishEvent(new LoginSuccessEvent(user.getId(), user.getEmail(), ip, userAgent));
+
+            //
             try {
-                ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
                 var device = UserAgentParser.parse(userAgent);
                 deviceTrustService.trustDevice(user.getId(), device.getSignature(), device.getDeviceName());
             } catch (Exception ex) {

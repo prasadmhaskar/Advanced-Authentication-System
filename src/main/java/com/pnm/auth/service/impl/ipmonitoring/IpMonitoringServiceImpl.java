@@ -88,7 +88,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
     public void recordRegistrationSuccess(Long userId, String ip, String userAgent) {
 
         DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
-        GeoLocationResponse geo = geoIpService.lookup(ip); // Acceptable latency here, or move to @Async
+        GeoLocationResponse geo = geoIpService.lookup(ip);
 
         UserIpLog entity = UserIpLog.builder()
                 .userId(userId)

@@ -77,7 +77,7 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
             // Delete user details from cache
             cacheManagementService.evictUserFromCache(user.getEmail());
 
-            refreshTokenRepository.deleteByUserId(user.getId());
+            refreshTokenRepository.invalidateAllForUser(user.getId());
 
         }
         log.info("LogoutOrchestrator: finished for email={}", email);

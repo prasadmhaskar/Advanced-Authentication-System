@@ -50,7 +50,7 @@ public class OAuthPersistenceService {
                     .build();
         }
 
-        // Email exists but provider NOT linked? -> LINK_REQUIRED
+        // Email exists but provider not linked? -> LINK_REQUIRED
         Optional<User> emailUser = userRepository.findByEmail(email);
 
         if (emailUser.isPresent()) {
