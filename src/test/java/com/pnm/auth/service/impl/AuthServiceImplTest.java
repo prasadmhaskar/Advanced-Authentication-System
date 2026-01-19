@@ -19,7 +19,7 @@
 //import com.pnm.auth.service.email.EmailService;
 //import com.pnm.auth.service.impl.auth.AuthServiceImpl;
 //import com.pnm.auth.service.ipmonitoring.IpMonitoringService;
-//import com.pnm.auth.service.login.LoginActivityService;
+//import com.pnm.auth.service.login.ActivityService;
 //import com.pnm.auth.service.login.SuspiciousLoginAlertService;
 //import com.pnm.auth.util.UserAgentParser;
 //import org.junit.jupiter.api.AfterEach;
@@ -53,7 +53,7 @@
 //    @Mock private RefreshTokenRepository refreshTokenRepository;
 //    @Mock private com.pnm.auth.util.BlacklistedTokenStore blacklistedTokenStore;
 //    @Mock private MfaTokenRepository mfaTokenRepository;
-//    @Mock private LoginActivityService loginActivityService;
+//    @Mock private ActivityService loginActivityService;
 //    @Mock private IpMonitoringService ipMonitoringService;
 //    @Mock private SuspiciousLoginAlertService suspiciousLoginAlertService;
 //    @Mock private AuditService auditService;

@@ -6,6 +6,7 @@ import com.pnm.auth.domain.entity.UserOAuthProvider;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.domain.enums.AuthProviderType;
 import com.pnm.auth.dto.result.ResolveOAuthResult;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.OAuth2LoginFailedException;
 import com.pnm.auth.repository.UserOAuthProviderRepository;
 import com.pnm.auth.repository.UserRepository;
@@ -13,6 +14,7 @@ import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.util.OAuth2Util;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,7 @@ public class OAuthPersistenceService {
     private final AccountLinkTokenService accountLinkTokenService;
     private final OAuth2Util oAuth2Util;
     private final IpMonitoringService ipMonitoringService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public ResolveOAuthResult resolveOrCreateUser(OAuth2User oAuth2User, AuthProviderType providerType, String providerId, String ip, String userAgent) {
@@ -92,6 +95,8 @@ public class OAuthPersistenceService {
         user.linkProvider(providerType, providerId);
 
         userRepository.save(user);
+
+        eventPublisher.publishEvent(new SuccessEvent(user.getId(), user.getEmail(), ip, userAgent, "User registered successfully using OAuth: "+providerType));
 
         log.info("OAuthPersistence: New user created for email={}", email);
 

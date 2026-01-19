@@ -1,8 +1,9 @@
 package com.pnm.auth.event;
 
-public record LoginSuccessEvent(
+public record FailureEvent(
         Long userId,
         String email,
         String ip,
-        String userAgent)
-{}
+        String userAgent,
+        String message
+) {}

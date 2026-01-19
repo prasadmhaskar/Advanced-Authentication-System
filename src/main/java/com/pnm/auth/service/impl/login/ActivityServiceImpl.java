@@ -1,12 +1,8 @@
 package com.pnm.auth.service.impl.login;
 
 import com.pnm.auth.domain.entity.LoginActivity;
-import com.pnm.auth.domain.entity.User;
-import com.pnm.auth.exception.custom.ResourceNotFoundException;
 import com.pnm.auth.repository.LoginActivityRepository;
-import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
-import com.pnm.auth.service.interfaces.login.LoginActivityService;
+import com.pnm.auth.service.interfaces.login.ActivityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,46 +15,40 @@ import java.time.LocalDateTime;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class LoginActivityServiceImpl implements LoginActivityService {
+public class ActivityServiceImpl implements ActivityService {
 
-    private final UserRepository userRepository;
     private final LoginActivityRepository loginActivityRepository;
-    private final IpMonitoringService ipMonitoringService;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
-    public void recordSuccess(Long userId, String email, String ip, String userAgent) {
+    public void recordSuccess(Long userId, String email, String ip, String userAgent, String message) {
 
-        log.info("LoginActivityService.recordSuccess(): started userId={} email={}", userId, email);
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found for id=" + userId));
+        log.info("ActivityService.recordSuccess(): started userId={} email={}", userId, email);
 
         LoginActivity activity = LoginActivity.builder()
-                .user(user)
+                .userId(userId)
                 .email(email)
                 .ipAddress(ip)
                 .userAgent(userAgent)
                 .status("SUCCESS")
-                .message("Login successful")
+                .message(message)
                 .createdAt(LocalDateTime.now())
                 .build();
 
         loginActivityRepository.save(activity);
 
-        // ip-monitoring
-        ipMonitoringService.recordLogin(userId, ip, userAgent);
 
-        log.info("LoginActivityService.recordSuccess(): completed userId={} email={}", userId, email);
+        log.info("ActivityService.recordSuccess(): completed userId={} email={}", userId, email);
     }
 
     @Transactional
     @Override
-    public void recordFailure(String email, String message, String ip, String userAgent) {
+    public void recordFailure(Long userId, String email, String message, String ip, String userAgent) {
 
-        log.warn("LoginActivityService.recordFailure(): email={} ip={} reason={}", email, ip, message);
+        log.warn("ActivityService.recordFailure(): started email={} ip={} reason={}", email, ip, message);
 
         LoginActivity activity = LoginActivity.builder()
+                .userId(userId)
                 .email(email)
                 .ipAddress(ip)
                 .userAgent(userAgent)
@@ -69,6 +59,9 @@ public class LoginActivityServiceImpl implements LoginActivityService {
 
         loginActivityRepository.save(activity);
 
+        log.warn("ActivityService.recordFailure(): completed email={} ip={} reason={}", email, ip, message);
+
     }
+
 }
 

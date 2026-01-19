@@ -6,6 +6,7 @@ import com.pnm.auth.domain.entity.UserOAuthProvider;
 import com.pnm.auth.dto.request.LinkOAuthRequest;
 import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.dto.result.LinkingResult;
+import com.pnm.auth.event.FailureEvent;
 import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.HighRiskLoginException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
@@ -13,12 +14,13 @@ import com.pnm.auth.repository.AccountLinkTokenRepository;
 import com.pnm.auth.repository.UserOAuthProviderRepository;
 import com.pnm.auth.service.interfaces.auth.AccountLinkingService;
 import com.pnm.auth.service.interfaces.auth.TokenService;
-import com.pnm.auth.service.interfaces.login.LoginActivityService;
+import com.pnm.auth.service.interfaces.login.ActivityService;
 import com.pnm.auth.service.interfaces.risk.RiskEngineService;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,7 +35,7 @@ public class AccountLinkingServiceImpl implements AccountLinkingService {
     private final UserOAuthProviderRepository providerRepository;
     private final TokenService tokenService;
     private final RiskEngineService riskEngineService;
-    private final LoginActivityService loginActivityService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${auth.risk.threshold.high}")
     private int highRiskScore;
@@ -70,7 +72,7 @@ public class AccountLinkingServiceImpl implements AccountLinkingService {
 
         if (risk.getScore() >= highRiskScore) {
             log.warn("AccountLinking: HIGH RISK link attempt blocked ip={}", ip);
-            loginActivityService.recordFailure(user.getEmail(), "High risk link attempt", ip, userAgent);
+            eventPublisher.publishEvent(new FailureEvent(user.getId(), user.getEmail(), ip, userAgent, "High risk link attempt"));
             // Burn token to prevent retry spam
             accountLinkTokenRepository.delete(linkToken);
             throw new HighRiskLoginException("Linking blocked due to high risk activity.");

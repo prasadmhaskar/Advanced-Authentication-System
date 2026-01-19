@@ -4,7 +4,7 @@ import com.pnm.auth.dto.response.UserIpLogResponse;
 import com.pnm.auth.dto.result.RiskResult;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
-import com.pnm.auth.service.interfaces.login.LoginActivityService;
+import com.pnm.auth.service.interfaces.login.ActivityService;
 import com.pnm.auth.service.interfaces.risk.RiskEngineService;
 import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ import java.util.List;
 public class RiskEngineServiceImpl implements RiskEngineService {
 
     private final IpMonitoringService ipMonitoringService;
-    private final LoginActivityService loginActivityService;
+    private final ActivityService activityService;
 
     @Value("${auth.risk.threshold.high}")
     private int highRiskScore;
@@ -35,7 +35,7 @@ public class RiskEngineServiceImpl implements RiskEngineService {
         log.info("Evaluating risk for email={} ip={}", MaskingUtil.maskEmail(user.getEmail()), ip);
 
         try {
-            UserIpLogResponse response = ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
+            UserIpLogResponse response = ipMonitoringService.recordIpDetails(user.getId(), ip, userAgent);
 
             int score = response.getRiskScore();
             List<String> reasons = response.getRiskReason() != null

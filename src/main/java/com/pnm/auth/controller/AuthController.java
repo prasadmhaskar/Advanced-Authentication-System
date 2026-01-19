@@ -212,7 +212,7 @@ public class AuthController {
 
         log.info("AuthController.forgotPassword(): started for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
-        ForgotPasswordResult result = forgotPasswordOrchestrator.requestReset(request.getEmail());
+        ForgotPasswordResult result = forgotPasswordOrchestrator.requestReset(request.getEmail(), ctx);
 
         log.info("AuthController.forgotPassword(): finished for email={}", MaskingUtil.maskEmail(request.getEmail()));
 
@@ -302,7 +302,7 @@ public class AuthController {
 
         log.info("AuthController.logout(): started");
 
-        logoutOrchestrator.logout(request, httpServletRequest);
+        logoutOrchestrator.logout(request, httpServletRequest, ctx);
 
         log.info("AuthController.logout(): finished");
 
@@ -410,7 +410,7 @@ public class AuthController {
 
         log.info("AuthController.removeDevice(): started");
 
-        deviceTrustService.removeDevice(id);
+        deviceTrustService.removeDevice(id, ctx);
 
         log.info("AuthController.removeDevice(): finished");
 
@@ -452,7 +452,7 @@ public class AuthController {
 
         log.info("AuthController.deleteMyAccount(): started");
 
-        deleteAccountOrchestrator.deleteMyAccount(request,httpServletRequest);
+        deleteAccountOrchestrator.deleteMyAccount(request, httpServletRequest, ctx);
 
         log.info("AuthController.deleteMyAccount(): finished");
 

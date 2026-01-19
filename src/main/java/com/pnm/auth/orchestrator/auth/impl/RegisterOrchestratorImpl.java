@@ -5,6 +5,8 @@ import com.pnm.auth.dto.request.RegisterRequest;
 import com.pnm.auth.dto.result.RegistrationResult;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.event.FailureEvent;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.orchestrator.auth.RegisterOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.interfaces.auth.UserPersistenceService;
@@ -15,6 +17,7 @@ import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +34,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
     private final UserPersistenceService userPersistenceService;
     private final IpMonitoringService ipMonitoringService;
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationEventPublisher eventPublisher;
 
 
     @Override
@@ -58,6 +62,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
 
             // for matching response time with normal registration, we are adding this block for adding time
             passwordEncoder.encode(request.getPassword());
+            eventPublisher.publishEvent(new FailureEvent(null, email, ip, ua, "Existing user trying to register"));
 
             return RegistrationResult.builder()
                     .outcome(AuthOutcome.REGISTERED)
@@ -70,13 +75,15 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         UserPersistenceServiceImpl.UserCreationResult result = userPersistenceService.saveUserAndCreateToken(request);
 
         try {
-            ipMonitoringService.recordRegistrationSuccess(result.user().getId(), ip, ua);
+            ipMonitoringService.recordRegistrationIpDetails(result.user().getId(), ip, ua);
         } catch (Exception e) {
             log.error("Failed to log IP for new user={}", MaskingUtil.maskEmail(email), e);
         }
 
         // Send Verification Email (Async Bridge)
         emailService.sendVerificationEmail(email, result.token());
+
+        eventPublisher.publishEvent(new SuccessEvent(result.user().getId(), result.user().getEmail(), ip, ua, "User registered successfully using Email"));
 
         log.info("RegisterOrchestrator: finished for email={}", MaskingUtil.maskEmail(email));
 

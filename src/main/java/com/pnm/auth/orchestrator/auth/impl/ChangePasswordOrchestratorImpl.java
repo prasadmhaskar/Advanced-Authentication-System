@@ -6,6 +6,8 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.dto.request.ChangePasswordRequest;
 import com.pnm.auth.dto.response.UserResponse;
 import com.pnm.auth.dto.result.AuthenticationResult;
+import com.pnm.auth.event.FailureEvent;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.PasswordChangeException;
@@ -15,7 +17,6 @@ import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.interfaces.auth.TokenService;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
-import com.pnm.auth.service.interfaces.login.LoginActivityService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.web.context.RequestContext;
@@ -23,6 +24,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,14 +37,13 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenRepository refreshTokenRepository;
     private final TokenService tokenService;
-    private final LoginActivityService loginActivityService;
     private final CacheManagementService cacheManagementService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
     @Caching(evict = {@CacheEvict(value = "users", key = "#accessToken"),
             @CacheEvict(value = "users.list", allEntries = true)})
-    @Audit(action = AuditAction.CHANGE_PASSWORD, description = "User password change")
     public AuthenticationResult changePassword(ChangePasswordRequest request, RequestContext ctx)
     {
         String ip = ctx.ip();
@@ -90,7 +91,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
             log.error("ChangePasswordOrchestrator: failed to update password email={} msg={}",
                     email, ex.getMessage(), ex);
 
-            loginActivityService.recordFailure(email, "Password change failed", ip, userAgent);
+            eventPublisher.publishEvent(new FailureEvent(user.getId(), user.getEmail(), ip, userAgent, "Password change failed"));
             throw new PasswordChangeException("Unable to change password. Please try again later.");
         }
 
@@ -98,11 +99,7 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
         AuthenticationResult tokens = tokenService.generateTokens(user, ctx);
 
         // Record success
-        try {
-            loginActivityService.recordSuccess(user.getId(), email, ip, userAgent);
-        } catch (Exception ex) {
-            log.warn("ChangePasswordOrchestrator: failed to record success email={}", email);
-        }
+        eventPublisher.publishEvent(new SuccessEvent(user.getId(), user.getEmail(), ip, userAgent, "Password changed successfully"));
 
         // Delete user details from cache
         cacheManagementService.evictUserFromCache(user.getEmail());

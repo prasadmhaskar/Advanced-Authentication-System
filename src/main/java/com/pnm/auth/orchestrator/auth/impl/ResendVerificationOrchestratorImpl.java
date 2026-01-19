@@ -4,18 +4,20 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.domain.enums.ResendVerificationOutcome;
 import com.pnm.auth.dto.result.ResendVerificationResult;
+import com.pnm.auth.event.FailureEvent;
 import com.pnm.auth.exception.custom.TooManyRequestsException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.orchestrator.auth.ResendVerificationOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.interfaces.auth.VerificationService;
 import com.pnm.auth.service.interfaces.email.EmailService;
-import com.pnm.auth.service.interfaces.login.LoginActivityService;
+import com.pnm.auth.service.interfaces.login.ActivityService;
 import com.pnm.auth.service.interfaces.redis.RedisRateLimiterService;
 import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 
@@ -27,7 +29,6 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
     private final UserRepository userRepository;
     private final VerificationService verificationService;
     private final EmailService emailService;
-    private final LoginActivityService loginActivityService;
     private final RedisRateLimiterService redisRateLimiterService;
 
     @Override
@@ -39,7 +40,6 @@ public class ResendVerificationOrchestratorImpl implements ResendVerificationOrc
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     log.warn("ResendVerificationOrchestrator: user not found email={}", MaskingUtil.maskEmail(email));
-                    loginActivityService.recordFailure(email, "User not found", ctx.ip(), ctx.userAgent());
                     return new UserNotFoundException("User not found with email: " + MaskingUtil.maskEmail(email));
                 });
 

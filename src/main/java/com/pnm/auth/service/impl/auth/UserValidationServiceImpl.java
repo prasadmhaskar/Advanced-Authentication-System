@@ -4,13 +4,11 @@ package com.pnm.auth.service.impl.auth;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.repository.UserRepository;
-import com.pnm.auth.service.interfaces.login.LoginActivityService;
 import com.pnm.auth.service.interfaces.auth.UserValidationService;
 import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.Hibernate;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

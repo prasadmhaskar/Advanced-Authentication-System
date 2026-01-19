@@ -3,6 +3,7 @@ package com.pnm.auth.orchestrator.auth.impl;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.dto.request.DeleteAccountRequest;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
 import com.pnm.auth.orchestrator.auth.DeleteAccountOrchestrator;
@@ -13,9 +14,11 @@ import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.BlacklistedTokenStore;
 import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.web.context.RequestContext;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +38,7 @@ public class DeleteAccountOrchestratorImpl implements DeleteAccountOrchestrator 
     @Transactional
     @Audit(action = AuditAction.SELF_DELETE, description = "User deleted his account", targetUserArgIndex = 0)
     @Override
-    public void deleteMyAccount(DeleteAccountRequest request, HttpServletRequest httpServletRequest) {
+    public void deleteMyAccount(DeleteAccountRequest request, HttpServletRequest httpServletRequest, RequestContext ctx) {
 
         log.info("DeleteAccountOrchestrator: started");
 

@@ -6,13 +6,15 @@ import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
+import com.pnm.auth.event.FailureEvent;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.orchestrator.auth.VerifyOtpOrchestrator;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
-import com.pnm.auth.service.interfaces.login.LoginActivityService;
+import com.pnm.auth.service.interfaces.login.ActivityService;
 import com.pnm.auth.service.interfaces.auth.TokenService;
 import com.pnm.auth.service.interfaces.device.DeviceTrustService;
 import com.pnm.auth.util.MaskingUtil;
@@ -20,6 +22,7 @@ import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,8 +36,8 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
     private final MfaTokenRepository mfaTokenRepository;
     private final TokenService tokenService;
     private final DeviceTrustService deviceTrustService;
-    private final LoginActivityService loginActivityService;
     private final IpMonitoringService ipMonitoringService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -58,32 +61,28 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
         // Validate user status
         if (!user.isActive()) {
             log.warn("VerifyOtpOrchestrator: blocked user tried to verify OTP email={}", MaskingUtil.maskEmail(user.getEmail()));
+            eventPublisher.publishEvent(new FailureEvent(user.getId(), user.getEmail(), ip, userAgent, "Blocked user tried to verify OTP"));
             throw new AccountBlockedException("Your account has been blocked.");
         }
 
         // Validate otp expiry
         if (token.getExpiresAt().isBefore(LocalDateTime.now())) {
-            loginActivityService.recordFailure(user.getEmail(), "OTP expired", ip, userAgent);
             log.warn("VerifyOtpOrchestrator: token expired id={}", request.getTokenId());
             throw new InvalidTokenException("OTP expired");
         }
 
         // Validate otp
         if (!token.getOtp().equals(request.getOtp().trim())) {
-            loginActivityService.recordFailure(user.getEmail(), "Wrong OTP", ip, userAgent);
             log.warn("VerifyOtpOrchestrator: wrong OTP for id={}", request.getTokenId());
             throw new InvalidCredentialsException("Invalid OTP");
         }
 
         // Mark otp as used
         int rowsUpdated = mfaTokenRepository.markAsUsed(token.getId());
-        if (rowsUpdated == 0){
+        if (rowsUpdated == 0) {
             log.warn("VerifyOtpOrchestrator: OTP already user for id={}", request.getTokenId());
             throw new InvalidTokenException("OTP already used");
         }
-
-        // Record success
-        loginActivityService.recordSuccess(user.getId(), user.getEmail(), ip, userAgent);
 
         // Trust device
         try {
@@ -99,10 +98,12 @@ public class VerifyOtpOrchestratorImpl implements VerifyOtpOrchestrator {
 
         // Record ip risk
         try {
-            ipMonitoringService.recordLogin(user.getId(), ip, userAgent);
+            ipMonitoringService.recordIpDetails(user.getId(), ip, userAgent);
         } catch (Exception ex) {
             log.warn("VerifyOtpOrchestrator: ipMonitoring failed userId={} msg={}", user.getId(), ex.getMessage());
         }
+
+        eventPublisher.publishEvent(new SuccessEvent(user.getId(), user.getEmail(), ip, userAgent, "OTP verified successfully"));
 
         // Generate tokens
         AuthenticationResult tokens = tokenService.generateTokens(user, ctx);

@@ -81,11 +81,11 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
     }
 
 
-    // This runs ONLY after the user is successfully created.
+    // This runs only after the user is successfully created.
     @Override
     @Async("loggingExecutor")
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void recordRegistrationSuccess(Long userId, String ip, String userAgent) {
+    public void recordRegistrationIpDetails(Long userId, String ip, String userAgent) {
 
         DeviceInfoResult deviceInfo = UserAgentParser.parse(userAgent);
         GeoLocationResponse geo = geoIpService.lookup(ip);
@@ -195,7 +195,7 @@ public class IpMonitoringServiceImpl implements IpMonitoringService {
         @Transactional(propagation = Propagation.REQUIRES_NEW)
         @Retry(name = "ipMonitoringRetry")
         @CircuitBreaker(name = "ipMonitoringCB", fallbackMethod = "fallbackRiskScore")
-        public UserIpLogResponse recordLogin(Long userId, String ip, String userAgent) {
+        public UserIpLogResponse recordIpDetails(Long userId, String ip, String userAgent) {
 
             log.info("IpMonitoringService: Starting parallel risk analysis for userId={} ip={}", userId, ip);
 

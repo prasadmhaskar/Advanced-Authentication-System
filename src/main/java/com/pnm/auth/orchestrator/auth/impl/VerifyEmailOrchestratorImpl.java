@@ -6,7 +6,7 @@ import com.pnm.auth.dto.result.EmailVerificationResult;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.entity.VerificationToken;
 import com.pnm.auth.domain.enums.AuthOutcome;
-import com.pnm.auth.event.LoginSuccessEvent;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.orchestrator.auth.VerifyEmailOrchestrator;
@@ -14,6 +14,7 @@ import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;
 import com.pnm.auth.service.interfaces.auth.TokenService;
 import com.pnm.auth.service.interfaces.device.DeviceTrustService;
+import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +35,7 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
     private final TokenService tokenService;
     private final ApplicationEventPublisher eventPublisher;
     private final DeviceTrustService deviceTrustService;
+    private final IpMonitoringService ipMonitoringService;
 
     @Override
     @Transactional
@@ -105,13 +107,20 @@ public class VerifyEmailOrchestratorImpl implements VerifyEmailOrchestrator {
 
         AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
-        // Record login success-Asynchronous
+        // Record login success @Async
         eventPublisher.publishEvent(
-                new LoginSuccessEvent(
+                new SuccessEvent(
                         user.getId(),
                         user.getEmail(),
                         ctx.ip(),
-                        ctx.userAgent()));
+                        ctx.userAgent(),
+                        "Email verified"));
+
+        try {
+            ipMonitoringService.recordIpDetails(user.getId(), ctx.ip(), ctx.userAgent());
+        } catch (Exception ex) {
+            log.warn("VerifyOtpOrchestrator: ipMonitoring failed userId={} msg={}", user.getId(), ex.getMessage());
+        }
 
         // Save this device as trustedDevice
         try {

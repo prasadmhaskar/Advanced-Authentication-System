@@ -7,7 +7,7 @@ import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.dto.request.LinkOAuthRequest;
 import com.pnm.auth.dto.result.AccountLinkResult;
 import com.pnm.auth.dto.result.LinkingResult;
-import com.pnm.auth.event.LoginSuccessEvent;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.orchestrator.auth.LinkOAuthOrchestrator;
 import com.pnm.auth.service.interfaces.auth.AccountLinkingService;
 import com.pnm.auth.util.Audit;
@@ -40,7 +40,7 @@ public class LinkOAuthOrchestratorImpl implements LinkOAuthOrchestrator {
         String accessToken = internalResult.getAuthTokens().getAccessToken();
         String refreshToken = internalResult.getAuthTokens().getRefreshToken();
 
-        eventPublisher.publishEvent(new LoginSuccessEvent(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent()));
+        eventPublisher.publishEvent(new SuccessEvent(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent(), "Account linked successfully to Oauth: "+request.getProvider()));
 
         log.info("LinkOAuthOrchestrator: finished for email={} and provider={}",
                 user.getEmail(), request.getProvider());

@@ -3,6 +3,8 @@ package com.pnm.auth.orchestrator.auth.impl;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.entity.VerificationToken;
 import com.pnm.auth.dto.request.ResetPasswordRequest;
+import com.pnm.auth.event.FailureEvent;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.PasswordResetException;
@@ -14,6 +16,7 @@ import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,7 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
     private final PasswordEncoder passwordEncoder;
     private final CacheManagementService cacheManagementService;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -61,6 +65,7 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
         // Blocked user check
         if (!user.isActive()) {
             log.warn("ResetPasswordOrchestrator: blocked user tried reset email={}", user.getEmail());
+            eventPublisher.publishEvent(new FailureEvent(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent(), "Blocked user trying to reset password"));
             throw new AccountBlockedException("Your account has been blocked.");
         }
 
@@ -78,6 +83,8 @@ public class ResetPasswordOrchestratorImpl implements ResetPasswordOrchestrator 
 
             // Delete user details from cache
             cacheManagementService.evictUserFromCache(user.getEmail());
+
+            eventPublisher.publishEvent(new SuccessEvent(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent(), "Password reset successfully"));
 
             log.info("ResetPasswordOrchestrator: finished for email={}", user.getEmail());
 

@@ -6,11 +6,11 @@ import com.pnm.auth.dto.result.*;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.domain.enums.AuthProviderType;
-import com.pnm.auth.event.LoginSuccessEvent;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.*;
 import com.pnm.auth.service.interfaces.email.EmailService;
 import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
-import com.pnm.auth.service.interfaces.login.LoginActivityService;
+import com.pnm.auth.service.interfaces.login.ActivityService;
 import com.pnm.auth.service.interfaces.device.DeviceTrustService;
 import com.pnm.auth.service.interfaces.auth.MfaService;
 import com.pnm.auth.service.interfaces.risk.RiskEngineService;
@@ -36,7 +36,7 @@ import org.springframework.stereotype.Service;
 
         private final OAuth2Util oAuth2Util;
         private final OAuthPersistenceService oAuthPersistenceService;
-        private final LoginActivityService loginActivityService;
+        private final ActivityService activityService;
         private final IpMonitoringService ipMonitoringService;
         private final RiskEngineService riskEngineService;
         private final MfaService mfaService;
@@ -88,14 +88,14 @@ import org.springframework.stereotype.Service;
 
             // Check Blocked Status
             if (!user.isActive()) {
-                loginActivityService.recordFailure(user.getEmail(), "Blocked OAuth login", ip, userAgent);
+                activityService.recordFailure(user.getId(), user.getEmail(), ip, userAgent, "Blocked user trying OAuth login");
                 throw new AccountBlockedException("Your account has been blocked.");
             }
 
             // Record success only if it's a new registration
             if (resolveResult.isNewUser()) {
                 try {
-                    ipMonitoringService.recordRegistrationSuccess(user.getId(), ip, userAgent);
+                    ipMonitoringService.recordRegistrationIpDetails(user.getId(), ip, userAgent);
                 } catch (Exception ex) {
                     log.warn("OAuth2Service: Failed to audit OAuth registration userId={}", user.getId());
                 }
@@ -108,7 +108,7 @@ import org.springframework.stereotype.Service;
                 if (risk.getScore() >= highRiskScore) {
                     log.warn("OAuth2Service: HIGH RISK → login blocked for ip={} and security email sent to email={}", ip, MaskingUtil.maskEmail(user.getEmail()));
                     emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
-                    loginActivityService.recordFailure(user.getEmail(), "High risk OAuth login", ip, userAgent);
+                    activityService.recordFailure(user.getId(), user.getEmail(), ip, userAgent, "High risk OAuth login");
                     throw new HighRiskLoginException("Login blocked due to high risk activity.");
                 }
 
@@ -122,12 +122,12 @@ import org.springframework.stereotype.Service;
                             .message("Suspicious login detected, verification needed. OTP has been sent to your email.")
                             .build();
                 }
+
+                eventPublisher.publishEvent(new SuccessEvent(user.getId(), user.getEmail(), ip, userAgent, "OAuth login successful"));
             }
 
             // Generate tokens
             AuthenticationResult tokenResult = tokenService.generateTokens(user, ctx);
-
-            eventPublisher.publishEvent(new LoginSuccessEvent(user.getId(), user.getEmail(), ip, userAgent));
 
             //
             try {

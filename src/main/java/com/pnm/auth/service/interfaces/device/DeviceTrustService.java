@@ -12,7 +12,7 @@ public interface DeviceTrustService {
 
     List<DeviceTrustResponse> getTrustedDevices();
 
-    void removeDevice(Long deviceId);
+    void removeDevice(Long deviceId, RequestContext ctx);
 
     void trustDevice(Long userId, String deviceSignature, String deviceName);
 

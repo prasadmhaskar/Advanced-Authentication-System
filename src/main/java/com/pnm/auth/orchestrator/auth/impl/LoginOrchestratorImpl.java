@@ -7,7 +7,8 @@ import com.pnm.auth.dto.result.AuthenticationResult;
 import com.pnm.auth.dto.result.MfaResult;
 import com.pnm.auth.dto.result.RiskResult;
 import com.pnm.auth.domain.entity.User;
-import com.pnm.auth.event.LoginSuccessEvent;
+import com.pnm.auth.event.FailureEvent;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.HighRiskLoginException;
 import com.pnm.auth.orchestrator.auth.LoginOrchestrator;
 import com.pnm.auth.service.interfaces.auth.MfaService;
@@ -16,7 +17,6 @@ import com.pnm.auth.service.interfaces.auth.TokenService;
 import com.pnm.auth.service.interfaces.auth.UserValidationService;
 import com.pnm.auth.service.interfaces.device.DeviceTrustService;
 import com.pnm.auth.service.interfaces.email.EmailService;
-import com.pnm.auth.service.interfaces.login.LoginActivityService;
 import com.pnm.auth.service.interfaces.risk.RiskEngineService;
 import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.util.UserAgentParser;
@@ -41,7 +41,6 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
     private final TokenService tokenService;
     private final DeviceTrustService deviceTrustService;
     private final ApplicationEventPublisher eventPublisher;
-    private final LoginActivityService loginActivityService;
     private final EmailService emailService;
 
     @Value("${auth.risk.threshold.high}")
@@ -63,11 +62,13 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         Optional<User> userOpt = userValidationService.findUserByEmail(email);
         User user = userOpt.orElse(null);
 
+        String message = user == null ? "Non-registered user trying to login" : "Invalid password entered";
+
         // Password verification
         try {
             passwordAuthService.verifyPassword(user, request.getPassword());
         } catch (RuntimeException ex) {
-            loginActivityService.recordFailure(email, "Invalid email or password", ip, userAgent);
+            eventPublisher.publishEvent(new FailureEvent(user == null ? null : user.getId(), email, ip, userAgent, message));
             throw ex;
         }
 
@@ -75,7 +76,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         try {
             userValidationService.validateUserStatus(user);
         } catch (RuntimeException ex) {
-            loginActivityService.recordFailure(email, ex.getMessage(), ip, userAgent);
+            eventPublisher.publishEvent(new FailureEvent(user == null ? null : user.getId(), email, ip, userAgent, "Blocked / Non-verified user trying to login"));
             throw ex;
         }
 
@@ -95,13 +96,13 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
                     .build();
         }
 
-        // 5. Risk engine - only for non-Mfa users
+        // Risk engine - only for non-mfa users
         RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
 
         if (risk.getScore() >= highRiskScore) {
             log.warn("LoginOrchestrator: HIGH RISK → login blocked for ip={} and security email sent to email={}",ip, MaskingUtil.maskEmail(user.getEmail()));
             emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
-            loginActivityService.recordFailure(user.getEmail(), "High risk email login", ip, userAgent);
+            eventPublisher.publishEvent(new FailureEvent(user.getId(), user.getEmail(), ip, userAgent, "High risk Email login"));
             throw new HighRiskLoginException("Login blocked due to high risk activity.");
         }
 
@@ -119,7 +120,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         // Successful login: generate tokens
         AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
-        eventPublisher.publishEvent(new LoginSuccessEvent(user.getId(), user.getEmail(), ip, userAgent));
+        eventPublisher.publishEvent(new SuccessEvent(user.getId(), user.getEmail(), ip, userAgent, "Email login successful"));
 
         try {
             var agent = UserAgentParser.parse(userAgent);

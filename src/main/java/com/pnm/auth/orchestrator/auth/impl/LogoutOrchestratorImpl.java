@@ -3,6 +3,7 @@ package com.pnm.auth.orchestrator.auth.impl;
 import com.pnm.auth.domain.entity.RefreshToken;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.dto.request.LogoutRequest;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
@@ -16,6 +17,7 @@ import com.pnm.auth.web.context.RequestContext;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,12 +31,10 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
     private final UserRepository userRepository;
     private final CacheManagementService cacheManagementService;
     private final BlacklistedTokenStore blacklistedTokenStore;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
-    public void logout(
-            LogoutRequest request,
-            HttpServletRequest httpServletRequest
-    ) {
+    public void logout(LogoutRequest request, HttpServletRequest httpServletRequest, RequestContext ctx) {
 
         log.info("LogoutOrchestrator: started");
 
@@ -79,6 +79,7 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
 
             refreshTokenRepository.invalidateAllForUser(user.getId());
 
+            eventPublisher.publishEvent(new SuccessEvent(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent(), "Logout successful"));
         }
         log.info("LogoutOrchestrator: finished for email={}", email);
     }

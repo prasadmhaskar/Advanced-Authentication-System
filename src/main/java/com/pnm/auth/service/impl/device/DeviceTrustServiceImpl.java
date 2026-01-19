@@ -2,6 +2,7 @@ package com.pnm.auth.service.impl.device;
 
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.domain.entity.TrustedDevice;
+import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
 import com.pnm.auth.repository.RefreshTokenRepository;
@@ -12,6 +13,7 @@ import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,7 @@ import java.util.List;
 public class DeviceTrustServiceImpl implements DeviceTrustService {
     private final TrustedDeviceRepository trustedDeviceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public List<DeviceTrustResponse> getTrustedDevices() {
@@ -39,7 +42,7 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     }
 
     @Override
-    public void removeDevice(Long deviceId) {
+    public void removeDevice(Long deviceId, RequestContext ctx) {
 
         log.info("DeviceTrustService.removeDevice(): started");
 
@@ -53,6 +56,8 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
 
         device.setActive(false);
         trustedDeviceRepository.save(device);
+
+        eventPublisher.publishEvent(new SuccessEvent(userId, null, ctx.ip(), ctx.userAgent(), "User removed device with deviceId: "+deviceId));
 
         log.info("DeviceTrustService.removeDevice(): finished");
     }
@@ -109,6 +114,8 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
         trustedDeviceRepository.deleteAllExceptCurrent(userId, currentDeviceSignature);
 
         refreshTokenRepository.invalidateAllExceptCurrentDevice(userId, currentDeviceSignature);
+
+        eventPublisher.publishEvent(new SuccessEvent(userId, null, ctx.ip(), ctx.userAgent(), "User removed all devices except current"));
 
         log.info("DeviceTrustService.removeAllExceptCurrent(): finished and removed old devices for userId={} except={}",
                 userId, currentDeviceSignature);
