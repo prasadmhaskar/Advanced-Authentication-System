@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateTimeDeserializer;
 import com.fasterxml.jackson.datatype.jsr310.ser.LocalDateTimeSerializer;
-import com.pnm.auth.domain.entity.LoginActivity;
+import com.pnm.auth.domain.entity.UserActivity;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,9 +17,10 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginActivityResponse {
+public class UserActivityResponse {
 
     private Long id;
+    private Long userId;
     private String email;
     private String ipAddress;
     private String userAgent;
@@ -31,9 +32,10 @@ public class LoginActivityResponse {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private LocalDateTime createdAt;
 
-    public static LoginActivityResponse fromEntity(LoginActivity activity) {
-        return LoginActivityResponse.builder()
+    public static UserActivityResponse fromEntity(UserActivity activity) {
+        return UserActivityResponse.builder()
                 .id(activity.getId())
+                .userId(activity.getUserId())
                 .email(activity.getEmail())
                 .ipAddress(activity.getIpAddress())
                 .userAgent(activity.getUserAgent())

@@ -37,6 +37,18 @@ AND r.deviceSignature <> :deviceSignature
     );
 
     @Modifying
+    @Query("""
+            Update RefreshToken r
+            SET r.invalidated = true
+            WHERE r.user.id = :userId
+            AND r.deviceSignature = :deviceSignature
+            """
+    )
+    void invalidateByDeviceSignature(@Param("userId") Long userId,
+                                     @Param("deviceSignature") String deviceSignature);
+
+
+    @Modifying
     @Query(value = """
         DELETE FROM user_refresh_tokens
         WHERE user_id = :userId

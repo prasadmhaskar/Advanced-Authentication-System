@@ -10,7 +10,7 @@ import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.TokenGenerationException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
-import com.pnm.auth.orchestrator.auth.RefreshTokenOrchestrator;
+import com.pnm.auth.orchestrator.auth.interfaces.RefreshTokenOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.impl.cache.CacheManagementService;

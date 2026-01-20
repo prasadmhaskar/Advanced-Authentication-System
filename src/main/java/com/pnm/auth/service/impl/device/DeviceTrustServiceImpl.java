@@ -7,8 +7,10 @@ import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.TrustedDeviceRepository;
+import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.service.interfaces.device.DeviceTrustService;
 import com.pnm.auth.util.AuthUtil;
+import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     private final TrustedDeviceRepository trustedDeviceRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final CacheManagementService cacheManagementService;
 
     @Override
     public List<DeviceTrustResponse> getTrustedDevices() {
@@ -42,6 +45,7 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
     }
 
     @Override
+    @Transactional
     public void removeDevice(Long deviceId, RequestContext ctx) {
 
         log.info("DeviceTrustService.removeDevice(): started");
@@ -56,6 +60,11 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
 
         device.setActive(false);
         trustedDeviceRepository.save(device);
+
+        refreshTokenRepository.invalidateByDeviceSignature(userId, device.getDeviceSignature());
+
+        String email = AuthUtil.getCurrentEmail();
+        cacheManagementService.evictUserFromCache(email);
 
         eventPublisher.publishEvent(new SuccessEvent(userId, null, ctx.ip(), ctx.userAgent(), "User removed device with deviceId: "+deviceId));
 
@@ -114,6 +123,9 @@ public class DeviceTrustServiceImpl implements DeviceTrustService {
         trustedDeviceRepository.deleteAllExceptCurrent(userId, currentDeviceSignature);
 
         refreshTokenRepository.invalidateAllExceptCurrentDevice(userId, currentDeviceSignature);
+
+        String email = AuthUtil.getCurrentEmail();
+        cacheManagementService.evictUserFromCache(email);
 
         eventPublisher.publishEvent(new SuccessEvent(userId, null, ctx.ip(), ctx.userAgent(), "User removed all devices except current"));
 

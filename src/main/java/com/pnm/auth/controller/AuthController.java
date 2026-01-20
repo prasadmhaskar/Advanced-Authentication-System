@@ -6,20 +6,20 @@ import com.pnm.auth.dto.request.*;
 import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
-import com.pnm.auth.orchestrator.auth.*;
+import com.pnm.auth.orchestrator.auth.interfaces.*;
 import com.pnm.auth.service.impl.user.UserContextService;
 import com.pnm.auth.service.interfaces.device.DeviceTrustService;
 import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import com.pnm.auth.web.filter.RequestContextFilter;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -252,7 +252,7 @@ public class AuthController {
 
     //When user is logged-in. In profile settings user can change his password after entering old-Password and new-password.
     @PostMapping("/change-password")
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+//    @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<AuthenticationResult>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request,
             RequestContext ctx

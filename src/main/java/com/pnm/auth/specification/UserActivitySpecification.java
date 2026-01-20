@@ -1,10 +1,7 @@
 package com.pnm.auth.specification;
 
-import com.pnm.auth.domain.entity.LoginActivity;
-import com.pnm.auth.domain.entity.User;
+import com.pnm.auth.domain.entity.UserActivity;
 import com.pnm.auth.dto.request.LoginActivityFilterRequest;
-import jakarta.persistence.criteria.Join;
-import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.StringUtils;
@@ -12,20 +9,19 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 
-public class LoginActivitySpecification {
+public class UserActivitySpecification {
 
-    private LoginActivitySpecification() {
+    private UserActivitySpecification() {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");
     }
 
-    public static Specification<LoginActivity> getFilter(LoginActivityFilterRequest request) {
+    public static Specification<UserActivity> getFilter(LoginActivityFilterRequest request) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             // User if filter
             if (request.getUserId() != null) {
-                Join<LoginActivity, User> userJoin = root.join("user", JoinType.LEFT);
-                predicates.add(cb.equal(userJoin.get("id"), request.getUserId()));
+                predicates.add(cb.equal(root.get("userId"), request.getUserId()));
             }
 
             // Search (Email or IP)

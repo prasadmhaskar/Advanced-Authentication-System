@@ -5,7 +5,7 @@ import com.pnm.auth.domain.entity.MfaToken;
 import com.pnm.auth.dto.response.ResendOtpResponse;
 import com.pnm.auth.exception.custom.CooldownActiveException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
-import com.pnm.auth.orchestrator.auth.ResendOtpOrchestrator;
+import com.pnm.auth.orchestrator.auth.interfaces.ResendOtpOrchestrator;
 import com.pnm.auth.repository.MfaTokenRepository;
 import com.pnm.auth.service.interfaces.auth.MfaPersistenceService;
 import com.pnm.auth.service.interfaces.email.EmailService;
@@ -13,7 +13,6 @@ import com.pnm.auth.service.impl.redis.RedisCooldownService;
 import com.pnm.auth.util.MaskingUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import java.time.Duration;
 

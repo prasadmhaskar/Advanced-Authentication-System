@@ -115,9 +115,9 @@ public class AdminController {
         return ResponseEntity.ok(body);
     }
 
-    @GetMapping("/users/login-activity")
-    @Operation(summary = "Get Login Activities", description = "Fetch login logs with filtering and pagination")
-    public ResponseEntity<ApiResponse<PagedResponse<LoginActivityResponse>>> getLoginActivities(
+    @GetMapping("/users/user-activity")
+    @Operation(summary = "Get User Activities", description = "Fetch user activities with filtering and pagination")
+    public ResponseEntity<ApiResponse<PagedResponse<UserActivityResponse>>> getUserActivities(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @ParameterObject LoginActivityFilterRequest filter,
@@ -126,33 +126,33 @@ public class AdminController {
 
         log.info("AdminController.getLoginActivities(): started for page={} size={}", page, size);
 
-        PagedResponse<LoginActivityResponse> response = adminService.getLoginActivities(page, size, filter);
+        PagedResponse<UserActivityResponse> response = adminService.getUserActivities(page, size, filter);
 
         log.info("AdminController.getLoginActivities(): finished for page={} size={}", page, size);
 
         return ResponseEntity.ok(ApiResponse.success(
-                "LOGIN_ACTIVITIES_FETCHED",
-                "Login activities fetched successfully",
+                "USER_ACTIVITIES_FETCHED",
+                "User activities fetched successfully",
                 response,
                 ctx.path()
         ));
     }
 
-    @GetMapping("/users/login-activity/{id}")
-    @Operation(summary = "Get Login Activity By ID", description = "Fetch a single login activity detail")
-    public ResponseEntity<ApiResponse<LoginActivityResponse>> getActivityById(
+    @GetMapping("/users/user-activity/{id}")
+    @Operation(summary = "Get User Activity By ID", description = "Fetch a single user activity detail by activity id")
+    public ResponseEntity<ApiResponse<UserActivityResponse>> getActivityById(
             @PathVariable Long id,
             RequestContext ctx
     ) {
         log.info("AdminController.getActivityById(): started for id={}", id);
 
-        LoginActivityResponse activityById = adminService.getActivityById(id);
+        UserActivityResponse activityById = adminService.getActivityById(id);
 
         log.info("AdminController.getActivityById(): finished for id={}", id);
 
         return ResponseEntity.ok(ApiResponse.success(
-                "LOGIN_ACTIVITY_FETCHED",
-                "Login activity fetched for id=" + id,
+                "USER_ACTIVITY_FETCHED",
+                "User activity fetched for id=" + id,
                 activityById,
                 ctx.path()
         ));

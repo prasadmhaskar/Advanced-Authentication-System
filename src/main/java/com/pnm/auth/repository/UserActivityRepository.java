@@ -1,12 +1,11 @@
 package com.pnm.auth.repository;
 
-import com.pnm.auth.domain.entity.LoginActivity;
+import com.pnm.auth.domain.entity.UserActivity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 @Repository
-public interface LoginActivityRepository extends JpaRepository<LoginActivity, Long> , JpaSpecificationExecutor<LoginActivity> {
+public interface UserActivityRepository extends JpaRepository<UserActivity, Long> , JpaSpecificationExecutor<UserActivity> {
     void deleteByUserId(Long userId);
 }

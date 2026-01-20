@@ -8,7 +8,7 @@ import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidTokenException;
 import com.pnm.auth.exception.custom.PasswordResetException;
-import com.pnm.auth.orchestrator.auth.ResetPasswordOrchestrator;
+import com.pnm.auth.orchestrator.auth.interfaces.ResetPasswordOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.repository.VerificationTokenRepository;

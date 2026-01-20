@@ -4,20 +4,17 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.NextAction;
 import com.pnm.auth.domain.enums.ResendVerificationOutcome;
 import com.pnm.auth.dto.result.ResendVerificationResult;
-import com.pnm.auth.event.FailureEvent;
 import com.pnm.auth.exception.custom.TooManyRequestsException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
-import com.pnm.auth.orchestrator.auth.ResendVerificationOrchestrator;
+import com.pnm.auth.orchestrator.auth.interfaces.ResendVerificationOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.interfaces.auth.VerificationService;
 import com.pnm.auth.service.interfaces.email.EmailService;
-import com.pnm.auth.service.interfaces.login.ActivityService;
 import com.pnm.auth.service.interfaces.redis.RedisRateLimiterService;
 import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 

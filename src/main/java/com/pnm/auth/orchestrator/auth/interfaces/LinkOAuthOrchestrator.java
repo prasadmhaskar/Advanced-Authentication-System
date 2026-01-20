@@ -1,4 +1,4 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.interfaces;
 
 import com.pnm.auth.dto.request.LinkOAuthRequest;
 import com.pnm.auth.dto.result.AccountLinkResult;

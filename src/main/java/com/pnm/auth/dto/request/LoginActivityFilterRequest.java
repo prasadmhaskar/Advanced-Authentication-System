@@ -24,11 +24,11 @@ public class LoginActivityFilterRequest {
     @Schema(description = "Filter by Success/Failure status", example = "false")
     private Boolean success;
 
-    @Schema(description = "Filter records after this date (YYYY-MM-DDTHH:mm:ss)", example = "2024-01-01T00:00:00")
+    @Schema(description = "Filter records after this date (YYYY-MM-DDTHH:mm:ss)", example = "2026-01-01T00:00:00")
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     private LocalDateTime startDate;
 
-    @Schema(description = "Filter records before this date (YYYY-MM-DDTHH:mm:ss)", example = "2024-12-31T23:59:59")
+    @Schema(description = "Filter records before this date (YYYY-MM-DDTHH:mm:ss)", example = "2026-12-31T23:59:59")
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
     private LocalDateTime endDate;
 }

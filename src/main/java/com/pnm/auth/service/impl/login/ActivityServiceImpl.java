@@ -1,7 +1,7 @@
 package com.pnm.auth.service.impl.login;
 
-import com.pnm.auth.domain.entity.LoginActivity;
-import com.pnm.auth.repository.LoginActivityRepository;
+import com.pnm.auth.domain.entity.UserActivity;
+import com.pnm.auth.repository.UserActivityRepository;
 import com.pnm.auth.service.interfaces.login.ActivityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,7 +17,7 @@ import java.time.LocalDateTime;
 @Slf4j
 public class ActivityServiceImpl implements ActivityService {
 
-    private final LoginActivityRepository loginActivityRepository;
+    private final UserActivityRepository userActivityRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     @Override
@@ -25,7 +25,7 @@ public class ActivityServiceImpl implements ActivityService {
 
         log.info("ActivityService.recordSuccess(): started userId={} email={}", userId, email);
 
-        LoginActivity activity = LoginActivity.builder()
+        UserActivity activity = UserActivity.builder()
                 .userId(userId)
                 .email(email)
                 .ipAddress(ip)
@@ -35,7 +35,7 @@ public class ActivityServiceImpl implements ActivityService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        loginActivityRepository.save(activity);
+        userActivityRepository.save(activity);
 
 
         log.info("ActivityService.recordSuccess(): completed userId={} email={}", userId, email);
@@ -47,7 +47,7 @@ public class ActivityServiceImpl implements ActivityService {
 
         log.warn("ActivityService.recordFailure(): started email={} ip={} reason={}", email, ip, message);
 
-        LoginActivity activity = LoginActivity.builder()
+        UserActivity activity = UserActivity.builder()
                 .userId(userId)
                 .email(email)
                 .ipAddress(ip)
@@ -57,7 +57,7 @@ public class ActivityServiceImpl implements ActivityService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        loginActivityRepository.save(activity);
+        userActivityRepository.save(activity);
 
         log.warn("ActivityService.recordFailure(): completed email={} ip={} reason={}", email, ip, message);
 

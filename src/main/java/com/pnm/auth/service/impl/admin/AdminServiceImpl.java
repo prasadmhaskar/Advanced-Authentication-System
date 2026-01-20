@@ -2,10 +2,10 @@ package com.pnm.auth.service.impl.admin;
 
 import com.pnm.auth.dto.request.LoginActivityFilterRequest;
 import com.pnm.auth.dto.request.UserFilterRequest;
-import com.pnm.auth.dto.response.LoginActivityResponse;
+import com.pnm.auth.dto.response.UserActivityResponse;
 import com.pnm.auth.dto.response.PagedResponse;
 import com.pnm.auth.dto.response.UserAdminResponse;
-import com.pnm.auth.domain.entity.LoginActivity;
+import com.pnm.auth.domain.entity.UserActivity;
 import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.exception.custom.ResourceNotFoundException;
@@ -15,7 +15,7 @@ import com.pnm.auth.service.interfaces.admin.AdminService;
 import com.pnm.auth.service.interfaces.auth.UserPersistenceService;
 import com.pnm.auth.service.interfaces.auth.UserValidationService;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
-import com.pnm.auth.specification.LoginActivitySpecification;
+import com.pnm.auth.specification.UserActivitySpecification;
 import com.pnm.auth.specification.UserSpecification;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.MaskingUtil;
@@ -42,7 +42,7 @@ public class AdminServiceImpl implements AdminService {
 
 
     private final UserRepository userRepository;
-    private final LoginActivityRepository loginActivityRepository;
+    private final UserActivityRepository userActivityRepository;
     private final UserPersistenceService userPersistenceService;
     private final CacheManagementService cacheManagementService;
     private final UserValidationService userValidationService;
@@ -54,7 +54,7 @@ public class AdminServiceImpl implements AdminService {
 
     public record CreateAdminResult(String code, String message) {}
 
-    //  1. GET USERS WITH FILTERS + PAGINATION
+    // Get all users with filters + pagination
     @Override
     @Transactional(readOnly = true)
     @Cacheable(value = "users.list", key = "#page + '-' + #size + '-' + #filter")
@@ -72,7 +72,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
 
-    //  2. DELETE USER
+    // Delete user
     @Override
     @Transactional
     @CacheEvict(value = {"users.list", "users"}, allEntries = true)
@@ -81,10 +81,12 @@ public class AdminServiceImpl implements AdminService {
 
         log.info("AdminService.deleteUser(): started for id={}", id);
 
-        userRepository.findById(id).orElseThrow(() -> {
-                    log.warn("AdminService.deleteUser(): user not found id={}", id);
-                    return new UserNotFoundException(USER_NOT_FOUND + id);
-                });
+        User user = userRepository.findById(id).orElseThrow(() -> {
+            log.warn("AdminService.deleteUser(): user not found id={}", id);
+            return new UserNotFoundException(USER_NOT_FOUND + id);
+        });
+
+        cacheManagementService.evictUserFromCache(user.getEmail());
 
         userPersistenceService.deleteUserPermanently(id);
 
@@ -92,7 +94,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
 
-    //  3. BLOCK USER
+    // Block user
     @Override
     @Transactional
     @Caching(evict = {
@@ -128,7 +130,7 @@ public class AdminServiceImpl implements AdminService {
     }
 
 
-    //  4. UNBLOCK USER
+    // Unblock user
     @Override
     @Transactional
     @Caching(evict = {
@@ -160,30 +162,30 @@ public class AdminServiceImpl implements AdminService {
     }
 
 
-    //  5. LOGIN ACTIVITY LIST
+    // User activity list
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "loginActivities", key = "#page + '-' + #size + '-' + #filter.hashCode()")
-    public PagedResponse<LoginActivityResponse> getLoginActivities(
+    @Cacheable(value = "userActivities", key = "#page + '-' + #size + '-' + #filter.hashCode()")
+    public PagedResponse<UserActivityResponse> getUserActivities(
             int page,
             int size,
             LoginActivityFilterRequest filter
     ) {
-        log.info("AdminService.getLoginActivities(): page={} size={} filter={}", page, size, filter);
+        log.info("AdminService.getUserActivities(): page={} size={} filter={}", page, size, filter);
 
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
 
-        Page<LoginActivity> activityPage = loginActivityRepository.findAll(
-                LoginActivitySpecification.getFilter(filter), // Ensure Spec class name matches
+        Page<UserActivity> activityPage = userActivityRepository.findAll(
+                UserActivitySpecification.getFilter(filter), // Ensure Spec class name matches
                 pageable
         );
 
-        List<LoginActivityResponse> content = activityPage.getContent()
+        List<UserActivityResponse> content = activityPage.getContent()
                 .stream()
-                .map(LoginActivityResponse::fromEntity)
+                .map(UserActivityResponse::fromEntity)
                 .toList();
 
-        return PagedResponse.<LoginActivityResponse>builder()
+        return PagedResponse.<UserActivityResponse>builder()
                 .content(content)
                 .page(activityPage.getNumber())
                 .size(activityPage.getSize())
@@ -193,21 +195,23 @@ public class AdminServiceImpl implements AdminService {
                 .build();
     }
 
+    // Get user activity by activity id
     @Override
     @Transactional(readOnly = true)
-    @Cacheable(value = "loginActivity", key = "#id")
-    public LoginActivityResponse getActivityById(Long id) {
+    @Cacheable(value = "userActivity", key = "#id")
+    public UserActivityResponse getActivityById(Long id) {
         log.info("AdminService.getActivityById(): fetching id={}", id);
 
-        LoginActivity activity = loginActivityRepository.findById(id)
+        UserActivity activity = userActivityRepository.findById(id)
                 .orElseThrow(() -> {
                     log.warn("AdminService.getActivityById(): not found id={}", id);
-                    return new ResourceNotFoundException("Login activity not found with id=" + id);
+                    return new ResourceNotFoundException("User activity not found with activity id=" + id);
                 });
 
-        return LoginActivityResponse.fromEntity(activity);
+        return UserActivityResponse.fromEntity(activity);
     }
 
+    // Promote normal user to admin
     @Override
     @Transactional
     public CreateAdminResult createAdmin(String rawEmail){

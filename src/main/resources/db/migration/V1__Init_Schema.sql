@@ -91,20 +91,20 @@ CREATE TABLE mfa_tokens (
 );
 
 -- 7. LOGIN ACTIVITY
-CREATE TABLE login_activity (
+CREATE TABLE user_activity (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT, -- Nullable
+    user_id BIGSERIAL, -- Nullable
     email VARCHAR(255),
     ip_address VARCHAR(100),
     user_agent VARCHAR(255),
     status VARCHAR(50),
     message VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_login_activity_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+--    CONSTRAINT fk_login_activity_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_login_activity_ip ON login_activity(ip_address);
-CREATE INDEX idx_login_activity_email ON login_activity(email);
+CREATE INDEX idx_user_activity_ip ON user_activity(ip_address);
+CREATE INDEX idx_user_activity_email ON user_activity(email);
 
 -- 8. TRUSTED DEVICES
 CREATE TABLE trusted_devices (

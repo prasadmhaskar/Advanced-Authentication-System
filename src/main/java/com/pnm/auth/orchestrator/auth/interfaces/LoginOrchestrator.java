@@ -1,4 +1,4 @@
-package com.pnm.auth.orchestrator.auth;
+package com.pnm.auth.orchestrator.auth.interfaces;
 
 import com.pnm.auth.dto.request.LoginRequest;
 import com.pnm.auth.dto.result.AuthenticationResult;

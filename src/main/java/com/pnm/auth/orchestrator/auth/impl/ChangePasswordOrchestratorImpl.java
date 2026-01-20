@@ -1,7 +1,6 @@
 package com.pnm.auth.orchestrator.auth.impl;
 
 import com.pnm.auth.domain.entity.User;
-import com.pnm.auth.domain.enums.AuditAction;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.dto.request.ChangePasswordRequest;
 import com.pnm.auth.dto.response.UserResponse;
@@ -12,12 +11,11 @@ import com.pnm.auth.exception.custom.AccountBlockedException;
 import com.pnm.auth.exception.custom.InvalidCredentialsException;
 import com.pnm.auth.exception.custom.PasswordChangeException;
 import com.pnm.auth.exception.custom.UserNotFoundException;
-import com.pnm.auth.orchestrator.auth.ChangePasswordOrchestrator;
+import com.pnm.auth.orchestrator.auth.interfaces.ChangePasswordOrchestrator;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.interfaces.auth.TokenService;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
-import com.pnm.auth.util.Audit;
 import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -42,8 +40,6 @@ public class ChangePasswordOrchestratorImpl implements ChangePasswordOrchestrato
 
     @Override
     @Transactional
-    @Caching(evict = {@CacheEvict(value = "users", key = "#accessToken"),
-            @CacheEvict(value = "users.list", allEntries = true)})
     public AuthenticationResult changePassword(ChangePasswordRequest request, RequestContext ctx)
     {
         String ip = ctx.ip();

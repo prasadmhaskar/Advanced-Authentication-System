@@ -38,7 +38,7 @@ import java.io.IOException;
 @EnableWebSecurity
 @RequiredArgsConstructor
 @Slf4j
-@EnableMethodSecurity
+@EnableMethodSecurity(securedEnabled = true, jsr250Enabled = true, prePostEnabled = true)
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;

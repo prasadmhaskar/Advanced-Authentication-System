@@ -10,9 +10,10 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
+import java.util.stream.Collectors;
 
 @Getter
-@NoArgsConstructor // Required for Redis/Jackson deserialization
+@NoArgsConstructor
 @AllArgsConstructor
 public class UserDetailsImpl implements UserDetails {
 
@@ -33,8 +34,16 @@ public class UserDetailsImpl implements UserDetails {
         this.active = user.isActive();
         this.tokenVersion = user.getTokenVersion();
 
+        // FIX: Directly map the role. Do NOT append "ROLE_" if DB already has it.
         this.authorities = user.getRoles().stream()
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                .map(role -> {
+                    // Safety check: Ensure it starts with ROLE_ to satisfy Spring standards
+                    if (role.startsWith("ROLE_")) {
+                        return new SimpleGrantedAuthority(role);
+                    } else {
+                        return new SimpleGrantedAuthority("ROLE_" + role);
+                    }
+                })
                 .toList();
     }
 
@@ -46,4 +55,5 @@ public class UserDetailsImpl implements UserDetails {
     @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return active; }
     @Override public boolean isCredentialsNonExpired() { return true; }
+    @Override public boolean isEnabled() { return active; }
 }

@@ -2,7 +2,7 @@ package com.pnm.auth.service.interfaces.admin;
 
 import com.pnm.auth.dto.request.LoginActivityFilterRequest;
 import com.pnm.auth.dto.request.UserFilterRequest;
-import com.pnm.auth.dto.response.LoginActivityResponse;
+import com.pnm.auth.dto.response.UserActivityResponse;
 import com.pnm.auth.dto.response.PagedResponse;
 import com.pnm.auth.dto.response.UserAdminResponse;
 import com.pnm.auth.service.impl.admin.AdminServiceImpl;
@@ -14,7 +14,7 @@ public interface AdminService {
     void deleteUser(Long id);
     AdminServiceImpl.BlockUserResult blockUser(Long id);
     AdminServiceImpl.UnblockUserResult unblockUser(Long id);
-    PagedResponse<LoginActivityResponse> getLoginActivities(int page, int size, LoginActivityFilterRequest filter);
-    LoginActivityResponse getActivityById(Long id);
+    PagedResponse<UserActivityResponse> getUserActivities(int page, int size, LoginActivityFilterRequest filter);
+    UserActivityResponse getActivityById(Long id);
     AdminServiceImpl.CreateAdminResult createAdmin(String email);
 }

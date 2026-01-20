@@ -10,7 +10,7 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.event.FailureEvent;
 import com.pnm.auth.event.SuccessEvent;
 import com.pnm.auth.exception.custom.HighRiskLoginException;
-import com.pnm.auth.orchestrator.auth.LoginOrchestrator;
+import com.pnm.auth.orchestrator.auth.interfaces.LoginOrchestrator;
 import com.pnm.auth.service.interfaces.auth.MfaService;
 import com.pnm.auth.service.interfaces.auth.PasswordAuthService;
 import com.pnm.auth.service.interfaces.auth.TokenService;

@@ -8,7 +8,7 @@ import com.pnm.auth.dto.request.LinkOAuthRequest;
 import com.pnm.auth.dto.result.AccountLinkResult;
 import com.pnm.auth.dto.result.LinkingResult;
 import com.pnm.auth.event.SuccessEvent;
-import com.pnm.auth.orchestrator.auth.LinkOAuthOrchestrator;
+import com.pnm.auth.orchestrator.auth.interfaces.LinkOAuthOrchestrator;
 import com.pnm.auth.service.interfaces.auth.AccountLinkingService;
 import com.pnm.auth.util.Audit;
 import com.pnm.auth.web.context.RequestContext;

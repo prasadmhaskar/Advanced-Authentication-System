@@ -21,7 +21,7 @@ public class UserPersistenceServiceImpl implements UserPersistenceService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final VerificationService verificationService;
-    private final LoginActivityRepository loginActivityRepository;
+    private final UserActivityRepository userActivityRepository;
     private final AccountLinkTokenRepository accountLinkTokenRepository;
     private final AuditLogRepository auditLogRepository;
     private final MfaTokenRepository mfaTokenRepository;
@@ -44,6 +44,7 @@ public class UserPersistenceServiceImpl implements UserPersistenceService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRoles(List.of("ROLE_USER"));
         user.linkProvider(AuthProviderType.EMAIL, email);
+        user.incrementTokenVersion();
         userRepository.save(user);
 
         // Create tokens
@@ -58,7 +59,7 @@ public class UserPersistenceServiceImpl implements UserPersistenceService {
     public void deleteUserPermanently(Long userId) {
         log.warn("UserPersistence: Executing HARD DELETE for userId={}", userId);
 
-        loginActivityRepository.deleteByUserId(userId);
+        userActivityRepository.deleteByUserId(userId);
         accountLinkTokenRepository.deleteByUserId(userId);
         auditLogRepository.deleteByTargetUserId(userId);
         mfaTokenRepository.deleteByUserId(userId);

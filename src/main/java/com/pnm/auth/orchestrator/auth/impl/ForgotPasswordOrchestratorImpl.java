@@ -5,7 +5,7 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.event.FailureEvent;
 import com.pnm.auth.event.SuccessEvent;
-import com.pnm.auth.orchestrator.auth.ForgotPasswordOrchestrator;
+import com.pnm.auth.orchestrator.auth.interfaces.ForgotPasswordOrchestrator;
 import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.interfaces.email.EmailService;
 import com.pnm.auth.service.interfaces.auth.VerificationService;
