@@ -115,9 +115,7 @@ public class EmailServiceImpl implements EmailService {
         sendEmail(user.getEmail(), subject, body);
     }
 
-    // -----------------------------
-    // INTERNAL SEND
-    // -----------------------------
+    // Main method for sending email
     public void sendEmail(String toEmail, String subject, String body) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(toEmail);
