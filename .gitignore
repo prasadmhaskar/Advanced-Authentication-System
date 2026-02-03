@@ -44,3 +44,6 @@ build/
 # OS files
 .DS_Store
 Thumbs.db
+
+### Local Development Config ###
+src/main/resources/application-dev.properties
