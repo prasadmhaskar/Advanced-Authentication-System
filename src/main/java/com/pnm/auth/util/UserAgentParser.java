@@ -38,11 +38,14 @@ public class UserAgentParser {
     }
 
     private static String detectBrowser(String ua) {
-        if (ua.contains("chrome") && !ua.contains("edg")) {
-            return "Chrome";
+        if (ua.contains("headless") || ua.contains("phantomjs")) {
+            return "Headless";
         }
         if (ua.contains("edg")) {
             return "Edge";
+        }
+        if (ua.contains("chrome") && !ua.contains("edg")) {
+            return "Chrome";
         }
         if (ua.contains("firefox")) {
             return "Firefox";
@@ -52,9 +55,6 @@ public class UserAgentParser {
         }
         if (ua.contains("opera") || ua.contains("opr")) {
             return "Opera";
-        }
-        if (ua.contains("headless") || ua.contains("phantomjs")) {
-            return "Headless";
         }
         return "Other";
     }

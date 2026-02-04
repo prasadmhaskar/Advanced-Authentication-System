@@ -142,7 +142,7 @@ public class EmailServiceImpl implements EmailService {
                 email, ex.getMessage(), ex);
     }
 
-    public void fallbackHighRiskAlert(User user, List<String> reasons, Throwable ex) {
+    public void fallbackHighRiskAlert(User user, String ip, String userAgent, List<String> reasons, Throwable ex) {
         log.error("SuspiciousLoginAlertService: Failed to send alert email={} reason={}", user.getEmail(),reasons, ex);
     }
 }

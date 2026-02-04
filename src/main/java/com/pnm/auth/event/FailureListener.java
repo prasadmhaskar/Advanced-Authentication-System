@@ -21,7 +21,7 @@ public class FailureListener {
     )
     public void handle(FailureEvent event) {
 
-        log.info("FailureListener: handling registration success userId={}", event.userId());
+        log.info("FailureListener: handling registration failure userId={}", event.userId());
 
         activityService.recordFailure(
                 event.userId(),
