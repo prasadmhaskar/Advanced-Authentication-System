@@ -47,3 +47,5 @@ Thumbs.db
 
 ### Local Development Config ###
 src/main/resources/application-dev.properties
+
+src/test/resources/application-test-docker.properties
