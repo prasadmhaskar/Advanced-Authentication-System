@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 
 @Component
 @Slf4j
@@ -53,6 +54,7 @@ public class JwtUtil {
                 .claim("userId", user.getId())
                 .claim("roles", user.getRoles())
                 .claim("tv", user.getTokenVersion())
+                .id(UUID.randomUUID().toString())
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtAccessExpiration))
                 .signWith(getSigningKey())
@@ -67,6 +69,7 @@ public class JwtUtil {
         String token = Jwts.builder()
                 .subject(user.getEmail())
                 .issuedAt(new Date())
+                .id(UUID.randomUUID().toString())
                 .expiration(new Date(System.currentTimeMillis() + jwtRefreshExpiration))
                 .signWith(getSigningKey())
                 .compact();
