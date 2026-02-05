@@ -102,14 +102,29 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
 
         // Check a grace period
         String graceKey = REFRESH_GRACE_KEY_PREFIX + rawToken;
-        String cachedTokens = redisTemplate.opsForValue().get(graceKey);
 
-        if (cachedTokens != null) {
-            log.info("RefreshTokenOrchestrator: Grace period hit. Returning cached tokens.");
+        // --- FIX START: Retry Mechanism (Poller) ---
+        // We poll Redis 3 times with 150ms delays.
+        // This gives the parallel "Winner" thread ~450ms to finish generating tokens and populate Redis.
+        for (int i = 0; i < 3; i++) {
+            String cachedTokens = redisTemplate.opsForValue().get(graceKey);
+
+            if (cachedTokens != null) {
+                log.info("RefreshTokenOrchestrator: Grace period hit on attempt {}. Returning cached tokens.", i + 1);
+                try {
+                    return objectMapper.readValue(cachedTokens, AuthenticationResult.class);
+                } catch (Exception e) {
+                    log.error("Failed to parse cached tokens", e);
+                    break; // Fall through to lockout
+                }
+            }
+
             try {
-                return objectMapper.readValue(cachedTokens, AuthenticationResult.class);
-            } catch (Exception e) {
-                log.error("Failed to parse cached tokens, proceeding to lockout", e);
+                // Sleep briefly to let the other thread finish
+                TimeUnit.MILLISECONDS.sleep(150);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
             }
         }
 

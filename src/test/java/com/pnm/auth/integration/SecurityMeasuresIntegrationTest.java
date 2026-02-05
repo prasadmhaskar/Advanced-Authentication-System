@@ -98,8 +98,8 @@ class SecurityMeasuresIntegrationTest extends AbstractIntegrationTest {
         otpRequest.setTokenId(mfaToken.getId());
         otpRequest.setOtp(mfaToken.getOtp());
 
-        // Note: Ensure /api/auth/verify-otp is permitted in SecurityConfig
-        mockMvc.perform(post("/api/auth/verify-otp")
+        // FIXED: Changed "/api/auth/verify-otp" to "/api/auth/otp/verify"
+        mockMvc.perform(post("/api/auth/otp/verify")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(otpRequest)))
                 .andExpect(status().isOk())
@@ -138,7 +138,7 @@ class SecurityMeasuresIntegrationTest extends AbstractIntegrationTest {
         DeleteAccountRequest deleteRequest = new DeleteAccountRequest();
         deleteRequest.setPassword("Pass123!");
 
-        mockMvc.perform(delete("/api/auth/account")
+        mockMvc.perform(delete("/api/auth/me/delete-account")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(deleteRequest)))

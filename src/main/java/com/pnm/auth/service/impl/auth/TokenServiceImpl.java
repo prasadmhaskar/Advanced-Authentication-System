@@ -15,8 +15,10 @@ import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.pnm.auth.event.SessionCleanupListener.SessionCleanupEvent;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -28,7 +30,7 @@ public class TokenServiceImpl implements TokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
-
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final int MAX_SESSIONS = 5;
 
@@ -42,7 +44,7 @@ public class TokenServiceImpl implements TokenService {
         log.info("TokenService: generating tokens for email={}", MaskingUtil.maskEmail(user.getEmail()));
 
         try {
-            refreshTokenRepository.deleteOldestSessions(user.getId(), MAX_SESSIONS - 1);
+            eventPublisher.publishEvent(new SessionCleanupEvent(user.getId(), MAX_SESSIONS - 1));
 
             String deviceSignature = UserAgentParser
                     .parse(ctx.userAgent())

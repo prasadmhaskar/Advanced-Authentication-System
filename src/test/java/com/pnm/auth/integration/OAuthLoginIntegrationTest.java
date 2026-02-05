@@ -72,6 +72,7 @@ class OAuthLoginIntegrationTest extends AbstractIntegrationTest {
         User user = new User();
         user.setEmail(email);
         user.setFullName("Existing User");
+        user.linkProvider(AuthProviderType.EMAIL, email);
         user.setPassword(passwordEncoder.encode("Password123!"));
         user.setEmailVerified(true);
         user.setMfaEnabled(false);

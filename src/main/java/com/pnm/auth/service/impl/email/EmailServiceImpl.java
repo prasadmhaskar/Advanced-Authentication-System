@@ -117,29 +117,32 @@ public class EmailServiceImpl implements EmailService {
 
     // Main method for sending email
     public void sendEmail(String toEmail, String subject, String body) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(toEmail);
-        message.setSubject(subject);
-        message.setText(body);
-        message.setFrom("noreply@project1.com");
-
-        mailSender.send(message);
-        log.info("EmailService: email sent to={}", toEmail);
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(toEmail);
+            message.setSubject(subject);
+            message.setText(body);
+            message.setFrom("noreply@project1.com");
+            mailSender.send(message);
+            log.info("EmailService: email sent to={}", toEmail);
+        }
+        catch (Exception e){
+            log.error("Failed to send email", e);
+            throw e;
+        }
     }
 
     // FALLBACKS - no throwing
-    public void fallbackVerificationEmail(String email, Throwable ex) {
-        log.error("EmailService FALLBACK: verification email failed email={} reason={}", email, ex.getMessage(), ex);
+    public void fallbackVerificationEmail(String email, String token, Throwable ex) {
+        log.error("EmailService FALLBACK: verification email failed email={} token={} reason={}", email, token, ex.getMessage());
     }
 
-    public void fallbackPasswordEmail(String email, Throwable ex) {
-        log.error("EmailService FALLBACK: password email failed email={} reason={}",
-                email, ex.getMessage(), ex);
+    public void fallbackPasswordEmail(String email, String token, Throwable ex) {
+        log.error("EmailService FALLBACK: password email failed email={} token={} reason={}", email, token, ex.getMessage());
     }
 
-    public void fallbackOtpEmail(String email, Throwable ex) {
-        log.error("EmailService FALLBACK: OTP email failed email={} reason={}",
-                email, ex.getMessage(), ex);
+    public void fallbackOtpEmail(String email, String otp, Throwable ex) {
+        log.error("EmailService FALLBACK: OTP email failed email={} otp=REDACTED reason={}", email, ex.getMessage());
     }
 
     public void fallbackHighRiskAlert(User user, String ip, String userAgent, List<String> reasons, Throwable ex) {
