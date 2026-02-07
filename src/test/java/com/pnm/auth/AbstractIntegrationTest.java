@@ -7,7 +7,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -18,49 +17,60 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
 import java.util.Objects;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Testcontainers
-@ActiveProfiles("test") // Forces use of application-test.properties for non-overridden values
+@ActiveProfiles("test")
+// REMOVED: @Testcontainers annotation (Critical change!)
 public abstract class AbstractIntegrationTest {
 
-    // --- INFRASTRUCTURE (The "Hardcore" Part) ---
+    // --- INFRASTRUCTURE (Singleton Pattern) ---
 
-    @Container
-    @ServiceConnection // Spring Boot 3.1+ magic: auto-configures datasource properties
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15-alpine");
+    // Define as static final so they are shared across all test classes
+    static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
+            .withDatabaseName("testdb")
+            .withUsername("test")
+            .withPassword("test")
+            .waitingFor(Wait.forLogMessage(".*database system is ready to accept connections.*\\s", 2));
 
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
-            .withExposedPorts(6379);
+    static final GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7"))
+            .withExposedPorts(6379)
+            .waitingFor(Wait.forLogMessage(".*Ready to accept connections.*\\s", 1));
+
+    static {
+        // Manually start containers ONCE. They will remain running for the entire JVM lifetime.
+        postgres.start();
+        redis.start();
+    }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        // Manually map Redis properties since @ServiceConnection for Redis can sometimes be finicky with specific clients
+        // --- POSTGRES CONFIG (Force IPv4 for Linux stability) ---
+        registry.add("spring.datasource.url", () -> postgres.getJdbcUrl().replace("localhost", "127.0.0.1"));
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
+
+        // --- FLYWAY CONFIG ---
+        registry.add("spring.flyway.enabled", () -> "true");
+        registry.add("spring.flyway.url", () -> postgres.getJdbcUrl().replace("localhost", "127.0.0.1"));
+        registry.add("spring.flyway.user", postgres::getUsername);
+        registry.add("spring.flyway.password", postgres::getPassword);
+
+        // --- REDIS CONFIG ---
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", redis::getFirstMappedPort);
-
-        // Force Flyway to run against the container
-        registry.add("spring.flyway.enabled", () -> "true");
-        // Overwrite H2 driver from application-test.properties
-        registry.add("spring.datasource.driver-class-name", () -> "org.postgresql.Driver");
     }
 
-    // --- TOOLS FOR TESTS ---
+    // --- TOOLS ---
+    @Autowired protected MockMvc mockMvc;
+    @Autowired protected ObjectMapper objectMapper;
 
-    @Autowired
-    protected MockMvc mockMvc;
-
-    @Autowired
-    protected ObjectMapper objectMapper;
-
-    // --- REPOSITORIES (For asserting state directly in DB) ---
+    // --- REPOSITORIES ---
     @Autowired protected UserRepository userRepository;
     @Autowired protected VerificationTokenRepository verificationTokenRepository;
     @Autowired protected RefreshTokenRepository refreshTokenRepository;
@@ -71,27 +81,18 @@ public abstract class AbstractIntegrationTest {
     @Autowired protected UserActivityRepository userActivityRepository;
     @Autowired protected UserIpLogRepository userIpLogRepository;
 
-    // --- REDIS/CACHE HELPERS ---
+    // --- HELPERS ---
     @Autowired protected RedisTemplate<String, Object> redisTemplate;
     @Autowired protected CacheManager cacheManager;
 
-    // --- EXTERNAL MOCKS ---
-    // We mock the sender, not the service, so we can verify EmailService built the correct message
-    @MockitoBean
-    protected JavaMailSender javaMailSender;
-
-    // If you have external GeoIP calls or similar that require internet, Mock them here too.
-    // @MockBean protected GeoIpService geoIpService;
+    @MockitoBean protected JavaMailSender javaMailSender;
 
     @BeforeEach
-    void setUp() {
-        // Any setup required before EVERY test
-    }
+    void setUp() { }
 
     @AfterEach
     void tearDown() {
-        // BRUTAL CLEANUP: Ensure no state leaks between tests
-        // Order matters due to foreign keys
+        // Cleanup strictly ordered by Foreign Keys
         mfaTokenRepository.deleteAll();
         refreshTokenRepository.deleteAll();
         verificationTokenRepository.deleteAll();
@@ -100,13 +101,18 @@ public abstract class AbstractIntegrationTest {
         userActivityRepository.deleteAll();
         userIpLogRepository.deleteAll();
         auditLogRepository.deleteAll();
-        userRepository.deleteAll();
+        userRepository.deleteAll(); // Parent table last
 
-        // Clear Redis
-        Objects.requireNonNull(redisTemplate.getConnectionFactory()).getConnection().serverCommands().flushAll();
-        // Clear Spring Caches
-        cacheManager.getCacheNames().forEach(cacheName ->
-                Objects.requireNonNull(cacheManager.getCache(cacheName)).clear()
-        );
+        // Flush Redis
+        if (redisTemplate.getConnectionFactory() != null) {
+            Objects.requireNonNull(redisTemplate.getConnectionFactory()).getConnection().serverCommands().flushAll();
+        }
+
+        // Clear Caches
+        if (cacheManager != null) {
+            cacheManager.getCacheNames().forEach(name ->
+                    Objects.requireNonNull(cacheManager.getCache(name)).clear()
+            );
+        }
     }
 }
