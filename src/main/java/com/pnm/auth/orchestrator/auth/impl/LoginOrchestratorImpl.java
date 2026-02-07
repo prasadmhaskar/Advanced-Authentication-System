@@ -28,6 +28,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +49,9 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
 
     @Value("${auth.risk.threshold.medium}")
     private int mediumRiskScore;
+
+    // Hardcoded whitelist for demo accounts to prevent Risk Blocking during testing
+    private static final Set<String> DEMO_ACCOUNTS = Set.of("admin@demo.com", "user@demo.com");
 
     @Override
     public AuthenticationResult login(LoginRequest request, RequestContext ctx) {
@@ -96,26 +100,36 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
                     .build();
         }
 
-        // Risk engine - only for non-mfa users
-        RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
-
-        if (risk.getScore() >= highRiskScore) {
-            log.warn("LoginOrchestrator: HIGH RISK → login blocked for ip={} and security email sent to email={}",ip, MaskingUtil.maskEmail(user.getEmail()));
-            emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
-            eventPublisher.publishEvent(new FailureEvent(user.getId(), user.getEmail(), ip, userAgent, "High risk Email login"));
-            throw new HighRiskLoginException("Login blocked due to high risk activity.");
-        }
-
-        if (risk.getScore() >= mediumRiskScore) {
-            log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", MaskingUtil.maskEmail(email));
-            MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
-
-            return AuthenticationResult.builder()
-                    .outcome(mfaResult.getOutcome())
-                    .otpTokenId(mfaResult.getTokenId())
-                    .message("Suspicious login detected, verification required. OTP has been sent to your email address.")
+        RiskResult risk;
+        if (DEMO_ACCOUNTS.contains(email)) {
+            log.info("LoginOrchestrator: Skipping Risk Engine for DEMO account: {}", email);
+            // Force 0 risk score so they never get blocked or asked for OTP
+            risk = RiskResult.builder()
+                    .score(0)
+                    .blocked(false)
+                    .otpRequired(false)
                     .build();
+        } else {
+            // Risk engine - only for non-mfa users
+            risk = riskEngineService.evaluateRisk(user, ip, userAgent);
         }
+            if (risk.getScore() >= highRiskScore) {
+                log.warn("LoginOrchestrator: HIGH RISK → login blocked for ip={} and security email sent to email={}", ip, MaskingUtil.maskEmail(user.getEmail()));
+                emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
+                eventPublisher.publishEvent(new FailureEvent(user.getId(), user.getEmail(), ip, userAgent, "High risk Email login"));
+                throw new HighRiskLoginException("Login blocked due to high risk activity.");
+            }
+
+            if (risk.getScore() >= mediumRiskScore) {
+                log.warn("LoginOrchestrator: MEDIUM RISK → OTP required email={}", MaskingUtil.maskEmail(email));
+                MfaResult mfaResult = mfaService.handleMediumRiskOtp(user);
+
+                return AuthenticationResult.builder()
+                        .outcome(mfaResult.getOutcome())
+                        .otpTokenId(mfaResult.getTokenId())
+                        .message("Suspicious login detected, verification required. OTP has been sent to your email address.")
+                        .build();
+            }
 
         // Successful login: generate tokens
         AuthenticationResult result = tokenService.generateTokens(user, ctx);

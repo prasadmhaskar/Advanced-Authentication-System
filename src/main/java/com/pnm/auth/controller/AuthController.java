@@ -13,6 +13,8 @@ import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import com.pnm.auth.web.filter.RequestContextFilter;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Tag(name = "Authentication", description = "Public endpoints for Login, Register, and Token Management")
 @Slf4j
 public class AuthController {
 
@@ -48,6 +51,15 @@ public class AuthController {
 
 
     @PostMapping("/register")
+    @Operation(
+            summary = "Register a new User",
+            description = "Creates a new user account and sends a verification email. Checks for existing email/username."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Registration Successful. Verification email sent."),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Email already in use."),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid input data.")
+    })
     public ResponseEntity<ApiResponse<RegistrationResult>> register(@Valid @RequestBody RegisterRequest request,
                                                    RequestContext ctx) {
 
@@ -68,6 +80,14 @@ public class AuthController {
 
 
     @GetMapping("/verify")
+    @Operation(
+            summary = "Verify Email Address",
+            description = "Validates the token sent via email to activate the user account."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Email Verified Successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid or Expired Token")
+    })
     public ResponseEntity<ApiResponse<EmailVerificationResult>> verifyEmail(@RequestParam("token") String token, RequestContext ctx) {
 
         log.info("AuthController.verifyEmail(): started");
@@ -88,6 +108,15 @@ public class AuthController {
 
 
     @PostMapping("/verify/resend")
+    @Operation(
+            summary = "Resend Verification Email",
+            description = "Re-generates a new verification token and sends it via email in link."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Verification Email Resent"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "User not found"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "409", description = "Email already verified")
+    })
     public ResponseEntity<ApiResponse<ResendVerificationResult>> resendVerificationEmail(
             @Valid @RequestBody ResendVerificationRequest request,
             RequestContext ctx) {
@@ -117,6 +146,16 @@ public class AuthController {
 
 
     @PostMapping("/login")
+    @Operation(
+            summary = "User Login",
+            description = "Authenticates a user and returns Access/Refresh tokens. Supports Rate Limiting and Risk Analysis."
+    )
+            @ApiResponses(value = {
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Login Successful"),
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid Credentials"),
+                    @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "Too Many Requests")
+            })
+
     public ResponseEntity<ApiResponse<AuthenticationResult>> login(
             @Valid @RequestBody LoginRequest request,
             RequestContext ctx) {
@@ -181,6 +220,15 @@ public class AuthController {
 
 
     @PostMapping("/refresh")
+    @Operation(
+            summary = "Refresh Access Token",
+            description = "Uses a valid Refresh Token to issue a new Access Token. Implements Token Rotation and Reuse Detection."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Token Refreshed Successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid or Expired Refresh Token"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Token Reuse Detected (Security Alert)")
+    })
     public ResponseEntity<ApiResponse<AuthenticationResult>> refreshToken(
             @Valid @RequestBody RefreshTokenRequest request,
             RequestContext ctx) {
@@ -205,6 +253,14 @@ public class AuthController {
     //When user is not logged-in. Uses email for getting reset-email link for setting new password.
     //Just sends password reset email on users email
     @PostMapping("/forgot-password")
+    @Operation(
+            summary = "Forgot Password Request",
+            description = "Initiates password reset flow by sending a reset link to the user's email. Copy token you got in email and add it in /api/auth/reset-password API in token place and add newPassword"
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Reset Email Sent (if account exists)"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "Too Many Requests (Cooldown active)")
+    })
     public ResponseEntity<ApiResponse<ForgotPasswordResult>> forgotPassword(
             @Valid @RequestBody ForgotPasswordRequest request,
             RequestContext ctx) {
@@ -227,6 +283,14 @@ public class AuthController {
 
     //forgotPassword sends this controller link with token, and in this controller actual password change is done.
     @PostMapping("/reset-password")
+    @Operation(
+            summary = "Reset Password",
+            description = "Sets a new password using a valid reset token."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Password Reset Successful"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid or Expired Token")
+    })
     public ResponseEntity<ApiResponse<Void>> resetPassword(
             @Valid @RequestBody ResetPasswordRequest request,
             RequestContext ctx
@@ -251,7 +315,6 @@ public class AuthController {
 
     //When user is logged-in. In profile settings user can change his password after entering old-Password and new-password.
     @PostMapping("/change-password")
-//    @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_ADMIN')")
     public ResponseEntity<ApiResponse<AuthenticationResult>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request,
             RequestContext ctx
@@ -317,6 +380,14 @@ public class AuthController {
 
 
     @PostMapping("/link-oauth")
+    @Operation(
+            summary = "Link OAuth Account",
+            description = "Links a social account (Google/GitHub) to an existing email account if the user authenticates successfully."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Accounts Linked Successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Invalid Link Token")
+    })
     public ResponseEntity<ApiResponse<AccountLinkResult>> linkOAuth(
             @RequestBody @Valid LinkOAuthRequest request,
             RequestContext ctx
@@ -338,6 +409,14 @@ public class AuthController {
 
 
     @PostMapping("/otp/verify")
+    @Operation(
+            summary = "Verify OTP (Multi Factor Authentication)",
+            description = "Verifies the OTP sent during MFA flow or Medium risk login. Returns tokens if successful."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OTP Verified, Login Successful"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Invalid OTP")
+    })
     public ResponseEntity<ApiResponse<AuthenticationResult>> verifyOtp(
             @Valid @RequestBody OtpVerifyRequest request,
             RequestContext ctx
@@ -361,6 +440,14 @@ public class AuthController {
 
 
     @PostMapping("/otp/resend")
+    @Operation(
+            summary = "Resend OTP",
+            description = "Resends the OTP required for verification. Enforces cooldown periods to prevent abuse."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OTP Resent"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "Cooldown Active (Wait before retrying)")
+    })
     public ResponseEntity<ApiResponse<ResendOtpResponse>> resendOtp(
             @Valid @RequestBody OtpResendRequest request,
             RequestContext ctx

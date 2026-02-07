@@ -12,6 +12,7 @@ import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,7 +38,11 @@ public class AdminController {
     private final AdminAnalyticsService adminAnalyticsService;
 
     @GetMapping("/users")
-    @Operation(summary = "Get Users List", description = "Fetch users with pagination, sorting, and filtering.")
+    @Operation(summary = "Get All Users", description = "Retrieves a paginated list of all users with optional filtering.")
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "List retrieved successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Access Denied (Not Admin)")
+    })
     public ResponseEntity<ApiResponse<PagedResponse<UserAdminResponse>>> getAllUsers(
             @ParameterObject UserFilterRequest filter,
             @ParameterObject Pageable pageable,
@@ -60,6 +65,7 @@ public class AdminController {
 
 
     @DeleteMapping("/users/{id}")
+    @Operation(summary = "Delete User", description = "Admin can permanently remove a user and their all data using user id.")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id, RequestContext ctx) {
 
         log.info("AdminController.deleteUser(): started for id={}", id);
@@ -78,6 +84,7 @@ public class AdminController {
     }
 
     @PatchMapping("/users/{id}/block")
+    @Operation(summary = "Block User Account", description = "Disables a user account, preventing login.")
     public ResponseEntity<ApiResponse<AdminServiceImpl.BlockUserResult>> blockUser(@PathVariable Long id,
                                                                                    RequestContext ctx) {
 
@@ -97,6 +104,7 @@ public class AdminController {
     }
 
     @PatchMapping("/users/{id}/unblock")
+    @Operation(summary = "Unblock User Account", description = "Re-enables a locked user account.")
     public ResponseEntity<ApiResponse<AdminServiceImpl.UnblockUserResult>> unblockUser(@PathVariable Long id,
                                                                                        RequestContext ctx) {
 
@@ -245,6 +253,7 @@ public class AdminController {
     }
 
     @GetMapping("/analytics")
+    @Operation(summary = "Get System Analytics", description = "Retrieves high-level system stats (Total users, active sessions, risk stats).")
     public ResponseEntity<ApiResponse<AdminAnalyticsResponse>> getAnalytics(RequestContext ctx) {
 
         log.info("AdminController.getAnalytics(): started");
