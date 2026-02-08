@@ -315,6 +315,15 @@ public class AuthController {
 
     //When user is logged-in. In profile settings user can change his password after entering old-Password and new-password.
     @PostMapping("/change-password")
+    @Operation(
+            summary = "Change Password",
+            description = "Allows a logged-in user to change their password by providing the old password and a new one."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Password Changed Successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid Password Format"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Incorrect Old Password")
+    })
     public ResponseEntity<ApiResponse<AuthenticationResult>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request,
             RequestContext ctx
@@ -338,6 +347,14 @@ public class AuthController {
 
 
     @GetMapping("/me")
+    @Operation(
+            summary = "Get Current User Profile",
+            description = "Retrieves details of the currently authenticated user."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "User Details Retrieved"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
     public ResponseEntity<ApiResponse<UserDetailsResponse>> fetchUserDetails(RequestContext ctx) {
 
         log.info("AuthController.fetchUserDetails(): started");
@@ -358,6 +375,14 @@ public class AuthController {
 
 
     @PostMapping("/logout")
+    @Operation(
+            summary = "Logout",
+            description = "Logs out the user, invalidates their session/refresh tokens, and clears security context. If 'logoutFromAllDevices'= 'true' then, logs out from all active sessions/devices. If 'logoutFromAllDevices'= 'false' then, logs out only the current device."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Logout Successful"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized")
+    })
     public ResponseEntity<ApiResponse<Void>> logout( @RequestBody(required = false) LogoutRequest request,
                                                      HttpServletRequest httpServletRequest,
                                                      RequestContext ctx) {
@@ -472,6 +497,13 @@ public class AuthController {
 
 
     @GetMapping("/me/devices")
+    @Operation(
+            summary = "Get Trusted Devices",
+            description = "List all devices that are currently trusted and logged in for this user."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Devices Fetched Successfully")
+    })
     public ResponseEntity<ApiResponse<List<DeviceTrustResponse>>> getMyTrustedDevices(RequestContext ctx) {
 
         log.info("AuthController.getMyTrustedDevices(): started");
@@ -490,6 +522,14 @@ public class AuthController {
 
 
     @DeleteMapping("/me/devices/{id}")
+    @Operation(
+            summary = "Remove Trusted Device",
+            description = "Revokes trust for a specific device by ID, effectively logging it out."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Device Removed Successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Device Not Found")
+    })
     public ResponseEntity<ApiResponse<Void>> removeDevice(@PathVariable Long id, HttpServletRequest httpServletRequest) {
 
         RequestContext ctx = (RequestContext) httpServletRequest.getAttribute(RequestContextFilter.REQUEST_CONTEXT_ATTR);
@@ -510,6 +550,13 @@ public class AuthController {
 
 
     @PostMapping("/me/devices/keep-current")
+    @Operation(
+            summary = "Revoke All Other Devices",
+            description = "Logs out all devices except the one currently making this request."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Other Devices Removed Successfully")
+    })
     public ResponseEntity<ApiResponse<Void>> removeOtherDevices(RequestContext ctx) {
 
         log.info("AuthController.removeOtherDevices(): started");

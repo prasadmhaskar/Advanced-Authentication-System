@@ -168,6 +168,14 @@ public class AdminController {
 
 
     @GetMapping("/security/ip/user/{userId}/recent")
+    @Operation(
+            summary = "Get User Recent IPs",
+            description = "Retrieves the most recent IP addresses used by a specific user."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "IPs Fetched Successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "User Not Found")
+    })
     public ResponseEntity<ApiResponse<List<UserIpLogResponse>>> getRecentIpsForUser(
             @PathVariable Long userId, RequestContext ctx
     ) {
@@ -189,6 +197,13 @@ public class AdminController {
 
 
     @GetMapping("/security/ip/usage")
+    @Operation(
+            summary = "Check IP Usage",
+            description = "Analyzes usage stats for a specific IP address to detect potential abuse."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Usage Stats Fetched")
+    })
     public ResponseEntity<ApiResponse<IpUsageResponse>> getIpUsage(
             @RequestParam String ip, RequestContext ctx
     ) {
@@ -210,6 +225,14 @@ public class AdminController {
 
 
     @GetMapping("/security/ip/log/{id}")
+    @Operation(
+            summary = "Get IP Log Detail",
+            description = "Retrieves detailed information for a specific IP access log entry."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Log Fetched Successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Log Entry Not Found")
+    })
     public ResponseEntity<ApiResponse<UserIpLogResponse>> getSingleIpLog(
             @PathVariable Long id, RequestContext ctx
     ) {
@@ -230,6 +253,13 @@ public class AdminController {
     }
 
     @GetMapping
+    @Operation(
+            summary = "Get Audit Logs",
+            description = "Retrieves system-wide audit logs for security monitoring and compliance."
+    )
+    @ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Audit Logs Fetched")
+    })
     public ResponseEntity<ApiResponse<PagedResponse<AuditLogResponse>>> getAuditLogs(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,

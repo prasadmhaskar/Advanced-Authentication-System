@@ -147,13 +147,21 @@ import org.springframework.context.annotation.Configuration;
         info = @Info(
                 contact = @Contact(
                         name = "Prasad Mhaskar",
-                        email = "your.real.email@example.com",
-                        url = "https://www.linkedin.com/in/your-profile"
+                        email = "prasadmhaskar33@gmail.com"
                 ),
                 description = """
                         ## 🚀 Advanced Authentication System
                         
                         **Enterprise-grade Identity Provider** demonstrating high-concurrency handling, distributed security, and resilience patterns.
+                        
+                        ---
+                        
+                        
+                        ### 🏗️ Architecture Highlights
+                        * **Security:** JWT (RS256/HS512), OAuth2 (Google/GitHub), Role-Based Access Control (RBAC).
+                        * **Resilience:** `Resilience4j` Circuit Breakers & Retries for external services (Email, IP Risk).
+                        * **Concurrency:** Redis-based locking and polling for Race Condition handling.
+                        * **Performance:** Async Event-Driven Architecture for non-blocking audits and notifications.
                         
                         ---
                         
@@ -170,17 +178,15 @@ import org.springframework.context.annotation.Configuration;
                         
                         ---
                         
-                        ### 🏗️ Architecture Highlights
-                        * **Security:** JWT (RS256/HS512), OAuth2 (Google/GitHub), Role-Based Access Control (RBAC).
-                        * **Resilience:** `Resilience4j` Circuit Breakers & Retries for external services (Email, IP Risk).
-                        * **Concurrency:** Redis-based locking and polling for Race Condition handling.
-                        * **Performance:** Async Event-Driven Architecture for non-blocking audits and notifications.
+                        ### 🔐 Quick Login (OAuth2)
+                        * <a href="/oauth2/authorization/google" target="_blank">Register/Login with Google</a>
+                        * <a href="/oauth2/authorization/github" target="_blank">Register/Login with GitHub</a>
                         
                         ---
                         
-                        ### 🔐 Quick Login (OAuth2)
-                        * <a href="/oauth2/authorization/google" target="_blank">Login with Google</a>
-                        * <a href="/oauth2/authorization/github" target="_blank">Login with GitHub</a>
+                        ### 📩 Contact & Socials
+                        * <a href="https://www.linkedin.com/in/prasad-mhaskar/" target="_blank">LinkedIn Profile</a>
+                        * <a href="https://github.com/prasadmhaskar/Advanced-Authentication-System" target="_blank">GitHub Repository</a>
                         """,
                 title = "Advanced Auth System API",
                 version = "1.0"

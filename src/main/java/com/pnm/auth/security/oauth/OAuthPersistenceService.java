@@ -49,6 +49,7 @@ public class OAuthPersistenceService {
         if (provider.isPresent()) {
             return ResolveOAuthResult.builder()
                     .outcome(AuthOutcome.SUCCESS)
+                    .isNewUser(false)
                     .user(provider.get().getUser())
                     .build();
         }

@@ -25,13 +25,13 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 
-
-
-    @Service
+@Service
     @RequiredArgsConstructor
     @Slf4j
+    @Transactional
     public class OAuth2ServiceImpl implements OAuth2Service {
 
         private final OAuth2Util oAuth2Util;
