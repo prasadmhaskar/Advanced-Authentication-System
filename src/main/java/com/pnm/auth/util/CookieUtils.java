@@ -26,14 +26,12 @@ public final class CookieUtils {
         return Optional.empty();
     }
 
-    public static void addCookie(HttpServletResponse response, String name, String value, int maxAge) {
+    public static void addCookie(HttpServletRequest request, HttpServletResponse response, String name, String value, int maxAge) {
         Cookie cookie = new Cookie(name, value);
         cookie.setPath("/");
         cookie.setHttpOnly(true);
         cookie.setMaxAge(maxAge);
-        // setSecure(false) allows cookies to be sent over HTTP (localhost).
-        // In Production (HTTPS), this should be changed to true or handled dynamically.
-//        cookie.setSecure(false);
+        cookie.setSecure(request.isSecure());
 
         response.addCookie(cookie);
     }

@@ -6,7 +6,6 @@ import com.pnm.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,8 +17,6 @@ import java.util.List;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-// Remove @Profile("dev") if you want this in Production (AWS) too.
-// For a resume demo, it is HIGHLY recommended to keep this active in Prod.
 public class DataSeeder implements CommandLineRunner {
 
     private final UserRepository userRepository;
@@ -38,7 +35,7 @@ public class DataSeeder implements CommandLineRunner {
             admin.setFullName("Demo Admin");
             String email = "admin@demo.com";
             admin.setEmail(email);
-            admin.setPassword(passwordEncoder.encode("Admin@123")); // Weak password for Demo only
+            admin.setPassword(passwordEncoder.encode("Admin@123"));
             admin.setRoles(List.of("ROLE_USER", "ROLE_ADMIN"));
             admin.setEmailVerified(true);
             admin.setMfaEnabled(false);

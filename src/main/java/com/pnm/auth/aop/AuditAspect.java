@@ -31,7 +31,7 @@ public class AuditAspect {
         try {
             actorUserId = AuthUtil.getCurrentUserId();
         } catch (Exception ignored) {
-            // actor may be null only in rare cases, acceptable
+
         }
 
         String ip = UNKNOWN_VALUE;

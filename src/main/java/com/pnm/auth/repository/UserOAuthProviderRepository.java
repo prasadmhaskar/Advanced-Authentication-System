@@ -13,7 +13,6 @@ public interface UserOAuthProviderRepository extends JpaRepository<UserOAuthProv
 
     void deleteByUserId(Long userId);
 
-    // Correct method to find providers by User ID
     List<UserOAuthProvider> findByUser_Id(Long userId);
 }
 

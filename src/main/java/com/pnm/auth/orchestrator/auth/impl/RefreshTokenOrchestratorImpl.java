@@ -78,7 +78,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
             return handlePotentialReuse(rawToken, user, ctx);
         }
 
-        // Generate New Tokens (Happy Path)
+        // Generate New Tokens
         try {
             AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
@@ -103,7 +103,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
         // Check a grace period
         String graceKey = REFRESH_GRACE_KEY_PREFIX + rawToken;
 
-        // --- FIX START: Retry Mechanism (Poller) ---
+        // Retry Mechanism
         // We poll Redis 3 times with 150ms delays.
         // This gives the parallel "Winner" thread ~450ms to finish generating tokens and populate Redis.
         for (int i = 0; i < 3; i++) {

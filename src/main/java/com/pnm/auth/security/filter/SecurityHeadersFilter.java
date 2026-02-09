@@ -33,7 +33,10 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
     private boolean hstsPreload;
 
     private static final String FRONTEND_DEV = "http://localhost:5173";
-    private static final String FRONTEND_PROD = "https://yourfrontend.com";
+//    private static final String FRONTEND_PROD = "https://yourfrontend.com";
+
+    @Value("${app.frontend.url}")
+    private String frontendUrl;
 
     private static final String CSP_HEADER = "Content-Security-Policy";
 
@@ -114,11 +117,11 @@ public class SecurityHeadersFilter extends OncePerRequestFilter {
         // FUTURE FRONTEND INTEGRATION (React)
         response.setHeader(CSP_HEADER,
                 "default-src 'self'; " +
-                        "script-src 'self' 'unsafe-inline' " + FRONTEND_DEV + " " + FRONTEND_PROD + "; " +
+                        "script-src 'self' 'unsafe-inline' " + FRONTEND_DEV + " " + frontendUrl + "; " +
                         "style-src 'self' 'unsafe-inline'; " +
                         "img-src 'self' data:; " +
                         "font-src 'self'; " +
-                        "connect-src 'self' " + FRONTEND_DEV + " " + FRONTEND_PROD + "; " +
+                        "connect-src 'self' " + FRONTEND_DEV + " " + frontendUrl + "; " +
                         "object-src 'none';");
     }
 
