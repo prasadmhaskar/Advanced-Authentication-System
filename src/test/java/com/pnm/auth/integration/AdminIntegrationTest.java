@@ -32,7 +32,7 @@ class AdminIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should allow admin to list and block/unblock users")
     void shouldAllowAdminActions() throws Exception {
-        // 1. SETUP: Create Admin User
+        // Create Admin User
         User admin = new User();
         admin.setEmail("admin@test.com");
         admin.setFullName("Admin User");
@@ -42,7 +42,7 @@ class AdminIntegrationTest extends AbstractIntegrationTest {
         admin.setActive(true);
         admin = userRepository.save(admin);
 
-        // 2. SETUP: Create Normal User
+        // Create Normal User
         User normalUser = new User();
         normalUser.setEmail("user@test.com");
         normalUser.setFullName("Normal User");
@@ -52,7 +52,7 @@ class AdminIntegrationTest extends AbstractIntegrationTest {
         normalUser.setActive(true);
         normalUser = userRepository.save(normalUser);
 
-        // 3. LOGIN AS ADMIN (With Trust Bypass)
+        // LOGIN AS ADMIN (With Trust Bypass)
         UserIpLog ipLog = new UserIpLog();
         ipLog.setUserId(admin.getId());
         ipLog.setIpAddress("127.0.0.1");
@@ -80,7 +80,7 @@ class AdminIntegrationTest extends AbstractIntegrationTest {
 
         String adminToken = com.jayway.jsonpath.JsonPath.read(loginResponse, "$.data.accessToken");
 
-        // 4. LIST USERS
+        // LIST USERS
         mockMvc.perform(get("/api/admin/users")
                         .header("Authorization", "Bearer " + adminToken)
                         .param("page", "0")
@@ -88,7 +88,7 @@ class AdminIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        // 5. BLOCK USER (USING PATCH)
+        // BLOCK USER
         mockMvc.perform(patch("/api/admin/users/" + normalUser.getId() + "/block") // CHANGED
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
@@ -98,7 +98,7 @@ class AdminIntegrationTest extends AbstractIntegrationTest {
         User blockedUser = userRepository.findById(normalUser.getId()).orElseThrow();
         assertThat(blockedUser.isActive()).as("User should be blocked (active=false)").isFalse();
 
-        // 6. UNBLOCK USER (USING PATCH)
+        // UNBLOCK USER
         mockMvc.perform(patch("/api/admin/users/" + normalUser.getId() + "/unblock") // CHANGED
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
@@ -112,9 +112,6 @@ class AdminIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should deny non-admin access to admin endpoints")
     void shouldDenyNonAdmin() throws Exception {
-        // ... (Same as previous, just trust seeding is needed if login logic enforces it)
-        // Ensure you copy the Trust Seeding logic here too if your Login Orchestrator requires it.
-        // For brevity, assuming you add it:
 
         User user = new User();
         user.setEmail("hacker@test.com");
@@ -153,7 +150,7 @@ class AdminIntegrationTest extends AbstractIntegrationTest {
 
         String userToken = com.jayway.jsonpath.JsonPath.read(response, "$.data.accessToken");
 
-        // 2. ATTEMPT ADMIN ACTION
+        // ATTEMPT ADMIN ACTION
         mockMvc.perform(get("/api/admin/users")
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isForbidden()); // 403

@@ -20,9 +20,7 @@ class AuthFlowIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Full Cycle: Register -> Verify Email -> Login")
     void shouldRegisterVerifyAndLoginSuccessfully() throws Exception {
-        // ==========================================
-        // STEP 1: REGISTER
-        // ==========================================
+        // REGISTER
         String email = "integration.test@example.com";
         String password = "StrongPassword123!";
 
@@ -39,7 +37,7 @@ class AuthFlowIntegrationTest extends AbstractIntegrationTest {
 
         // DB CHECK
         User user = userRepository.findByEmail(email).orElseThrow();
-        // FIXED: Use getEmailVerified() based on your entity structure
+
         assertThat(user.getEmailVerified()).as("User should not be verified initially").isFalse();
 
         // Retrieve the token
@@ -48,9 +46,7 @@ class AuthFlowIntegrationTest extends AbstractIntegrationTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Verification token not found in DB"));
 
-        // ==========================================
-        // STEP 2: VERIFY EMAIL
-        // ==========================================
+        // VERIFY EMAIL
         mockMvc.perform(get("/api/auth/verify") // Double check this endpoint path in your Controller
                         .param("token", tokenEntity.getToken()))
                 .andExpect(status().isOk())
@@ -60,9 +56,7 @@ class AuthFlowIntegrationTest extends AbstractIntegrationTest {
         User verifiedUser = userRepository.findById(user.getId()).orElseThrow();
         assertThat(verifiedUser.getEmailVerified()).as("User should be verified now").isTrue();
 
-        // ==========================================
-        // STEP 3: LOGIN
-        // ==========================================
+        // LOGIN
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setEmail(email);
         loginRequest.setPassword(password);

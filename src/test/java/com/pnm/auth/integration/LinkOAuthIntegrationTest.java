@@ -27,7 +27,7 @@ class LinkOAuthIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should successfully link OAuth account with valid token")
     void shouldLinkAccountSuccessfully() throws Exception {
-        // 1. SETUP: User
+        // User
         String email = "link@test.com";
         User user = new User();
         user.setEmail(email);
@@ -37,7 +37,7 @@ class LinkOAuthIntegrationTest extends AbstractIntegrationTest {
         user.setMfaEnabled(false);
         user = userRepository.save(user);
 
-        // 2. SETUP: Create Link Token (Simulate "LINK_REQUIRED" state from OAuth Service)
+        // Create Link Token (Simulate "LINK_REQUIRED" state from OAuth Service)
         String linkTokenString = UUID.randomUUID().toString();
         AccountLinkToken linkToken = new AccountLinkToken();
         linkToken.setToken(linkTokenString);
@@ -47,10 +47,10 @@ class LinkOAuthIntegrationTest extends AbstractIntegrationTest {
         linkToken.setExpiresAt(LocalDateTime.now().plusMinutes(10));
         accountLinkTokenRepository.save(linkToken);
 
-        // 3. EXECUTE: Call /link-oauth
+        // Call /link-oauth
         LinkOAuthRequest request = new LinkOAuthRequest();
         request.setLinkToken(linkTokenString);
-        request.setProvider(AuthProviderType.GOOGLE); // FIXED: Use Enum
+        request.setProvider(AuthProviderType.GOOGLE);
 
         mockMvc.perform(post("/api/auth/link-oauth")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -60,20 +60,19 @@ class LinkOAuthIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.message").value("Account linked successfully"))
                 .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
 
-        // 4. ASSERT
+        // ASSERT
         // Check Provider Linked in DB using correct repository method
         boolean providerLinked = userOAuthProviderRepository.findByUser_Id(user.getId()).stream()
                 .anyMatch(p -> p.getProviderType() == AuthProviderType.GOOGLE && p.getProviderId().equals("google-999"));
         assertThat(providerLinked).as("Google provider should be linked to user").isTrue();
 
-        // Check Token Consumed (Deleted)
         assertThat(accountLinkTokenRepository.findByToken(linkTokenString)).isEmpty();
     }
 
     @Test
     @DisplayName("Should fail linking when provider does not match token")
     void shouldFailLinkingWithProviderMismatch() throws Exception {
-        // 1. SETUP
+        // SETUP
         User user = new User();
         user.setEmail("fail@test.com");
         user.setFullName("Fail User"); // <--- FIX: Add this
@@ -91,7 +90,7 @@ class LinkOAuthIntegrationTest extends AbstractIntegrationTest {
         linkToken.setExpiresAt(LocalDateTime.now().plusMinutes(10));
         accountLinkTokenRepository.save(linkToken);
 
-        // 2. EXECUTE with WRONG Provider (Google)
+        // EXECUTE with WRONG Provider (Google)
         LinkOAuthRequest request = new LinkOAuthRequest();
         request.setLinkToken(linkTokenString);
         request.setProvider(AuthProviderType.GOOGLE); // Mismatch!

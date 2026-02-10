@@ -155,7 +155,12 @@ import org.springframework.context.annotation.Configuration;
                         **Enterprise-grade Identity Provider** demonstrating high-concurrency handling, distributed security, and resilience patterns.
                         
                         ---
+                        ### 🛠️ Architectural Decision: Backend-First Visualization
+                        * This project intentionally utilizes Swagger UI to provide absolute transparency into the authentication architecture.
+                        * A traditional frontend abstracts critical security mechanisms hiding HttpOnly cookies, JWT payloads, and Security Headers.
+                        * Swagger exposes the raw API contract, allowing reviewers to directly validate the rigorous security implementation without UI obfuscation.
                         
+                        ---
                         
                         ### 🏗️ Architecture Highlights
                         * **Security:** JWT (RS256/HS512), OAuth2 (Google/GitHub), Role-Based Access Control (RBAC).

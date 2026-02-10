@@ -31,7 +31,7 @@ class DeviceTrustIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should list and remove trusted devices")
     void shouldListAndRemoveTrustedDevices() throws Exception {
-        // 1. SETUP: User
+        // User
         User user = new User();
         user.setEmail("device@test.com");
         user.setFullName("Device User");
@@ -40,8 +40,8 @@ class DeviceTrustIntegrationTest extends AbstractIntegrationTest {
         user.setMfaEnabled(false);
         user = userRepository.save(user);
 
-        // 2. SETUP: Force Trust for Test Environment (Bypass Risk Engine)
-        // A. IP Trust
+        // Force Trust for Test Environment (Bypass Risk Engine)
+        // IP Trust
         UserIpLog ipLog = new UserIpLog();
         ipLog.setUserId(user.getId());
         ipLog.setIpAddress("127.0.0.1"); // Matches MockMvc
@@ -50,7 +50,7 @@ class DeviceTrustIntegrationTest extends AbstractIntegrationTest {
         ipLog.setIsSuspicious(false);
         userIpLogRepository.save(ipLog);
 
-        // B. Device Trust (The device we are logging in from)
+        // Device Trust
         TrustedDevice currentDevice = new TrustedDevice();
         currentDevice.setUserId(user.getId());
         currentDevice.setDeviceSignature("UNKNOWN");
@@ -59,7 +59,7 @@ class DeviceTrustIntegrationTest extends AbstractIntegrationTest {
         currentDevice.setActive(true);
         trustedDeviceRepository.save(currentDevice);
 
-        // 3. SETUP: Add EXTRA dummy devices (The ones we want to list/delete)
+        // Add EXTRA dummy devices
         TrustedDevice device1 = new TrustedDevice();
         device1.setUserId(user.getId());
         device1.setDeviceName("Chrome on Mac");
@@ -76,7 +76,7 @@ class DeviceTrustIntegrationTest extends AbstractIntegrationTest {
         device2.setActive(true);
         device2 = trustedDeviceRepository.save(device2); // Keep ref for delete
 
-        // 4. LOGIN (Now should be SUCCESS)
+        // LOGIN
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setEmail("device@test.com");
         loginRequest.setPassword("Password123!");
@@ -91,7 +91,7 @@ class DeviceTrustIntegrationTest extends AbstractIntegrationTest {
         String accessToken = com.jayway.jsonpath.JsonPath.read(loginResponse, "$.data.accessToken");
         assertThat(accessToken).as("Access token must not be null").isNotNull();
 
-        // 5. LIST DEVICES
+        // LIST DEVICES
         mockMvc.perform(get("/api/auth/me/devices")
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
@@ -99,13 +99,13 @@ class DeviceTrustIntegrationTest extends AbstractIntegrationTest {
                 // Should see at least 3: Current(UNKNOWN) + Device1 + Device2
                 .andExpect(jsonPath("$.data.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)));
 
-        // 6. REMOVE DEVICE 2
+        // REMOVE DEVICE 2
         mockMvc.perform(delete("/api/auth/me/devices/" + device2.getId())
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        // 7. VERIFY REMOVAL
+        // VERIFY REMOVAL
         // Check if it's gone OR if active=false
         boolean exists = trustedDeviceRepository.existsById(device2.getId());
         if (exists) {

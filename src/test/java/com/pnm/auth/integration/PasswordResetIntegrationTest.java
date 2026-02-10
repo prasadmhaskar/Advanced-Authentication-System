@@ -25,9 +25,7 @@ class PasswordResetIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should successfully request password reset and change password")
     void shouldResetPasswordSuccessfully() throws Exception {
-        // ==========================================
-        // 1. SETUP: Create active user with OLD password
-        // ==========================================
+        // Create active user with OLD password
         String email = "reset.test@example.com";
         String oldPassword = "OldPassword123!";
         String newPassword = "NewStrongPassword123!";
@@ -35,17 +33,14 @@ class PasswordResetIntegrationTest extends AbstractIntegrationTest {
         User user = new User();
         user.setEmail(email);
         user.setFullName("Reset User");
-        user.setPassword(passwordEncoder.encode(oldPassword)); // Encode it like the app does
+        user.setPassword(passwordEncoder.encode(oldPassword));
         user.setEmailVerified(true);
         user.setMfaEnabled(false);
         user = userRepository.save(user);
 
-        // !!! FIX: Create effectively final variable for lambda !!!
         final Long userId = user.getId();
 
-        // ==========================================
-        // 2. FORGOT PASSWORD REQUEST
-        // ==========================================
+        // FORGOT PASSWORD REQUEST
         ForgotPasswordRequest forgotRequest = new ForgotPasswordRequest();
         forgotRequest.setEmail(email);
 
@@ -56,9 +51,7 @@ class PasswordResetIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("If your email is registered, password reset link has been dispatched to your email address."));
 
-        // ==========================================
-        // 3. RETRIEVE TOKEN (Simulate Email Link)
-        // ==========================================
+        // RETRIEVE TOKEN (Simulate Email Link)
         // Since we saved the user manually, this is the ONLY token they have.
         VerificationToken resetTokenEntity = verificationTokenRepository.findAll().stream()
                 .filter(t -> t.getUser().getId().equals(userId))
@@ -67,9 +60,7 @@ class PasswordResetIntegrationTest extends AbstractIntegrationTest {
 
         assertThat(resetTokenEntity.getUsedAt()).as("Token should be unused initially").isNull();
 
-        // ==========================================
-        // 4. RESET PASSWORD
-        // ==========================================
+        // RESET PASSWORD
         ResetPasswordRequest resetRequest = new ResetPasswordRequest();
         resetRequest.setToken(resetTokenEntity.getToken());
         resetRequest.setNewPassword(newPassword);
@@ -80,8 +71,7 @@ class PasswordResetIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        // DB Verification (FIXED ASSERTION)
-        // Your logic deletes the token, so we expect it to be gone.
+        // DB Verification
         boolean tokenExists = verificationTokenRepository.existsById(resetTokenEntity.getId());
         assertThat(tokenExists).as("Token should be deleted after successful reset").isFalse();
 
@@ -90,9 +80,7 @@ class PasswordResetIntegrationTest extends AbstractIntegrationTest {
         assertThat(passwordEncoder.matches(newPassword, updatedUser.getPassword())).as("DB Password should match new password").isTrue();
         assertThat(passwordEncoder.matches(oldPassword, updatedUser.getPassword())).as("DB Password should NOT match old password").isFalse();
 
-        // ==========================================
-        // 5. LOGIN WITH NEW PASSWORD (Happy Path)
-        // ==========================================
+        // LOGIN WITH NEW PASSWORD
         LoginRequest loginNew = new LoginRequest();
         loginNew.setEmail(email);
         loginNew.setPassword(newPassword);
@@ -103,9 +91,7 @@ class PasswordResetIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true));
 
-        // ==========================================
-        // 6. LOGIN WITH OLD PASSWORD (Negative Path)
-        // ==========================================
+        // LOGIN WITH OLD PASSWORD
         LoginRequest loginOld = new LoginRequest();
         loginOld.setEmail(email);
         loginOld.setPassword(oldPassword);

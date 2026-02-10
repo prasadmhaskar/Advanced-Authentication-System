@@ -30,9 +30,7 @@ class AdminAnalyticsIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should return correct analytics data for admin")
     void shouldReturnCorrectAnalytics() throws Exception {
-        // ==========================================
-        // 1. SETUP: Create Admin
-        // ==========================================
+        // Create admin
         User admin = new User();
         admin.setEmail("admin.stats@test.com");
         admin.setFullName("Admin Stats");
@@ -42,17 +40,12 @@ class AdminAnalyticsIntegrationTest extends AbstractIntegrationTest {
         admin.setActive(true);
         userRepository.save(admin);
 
-        // ==========================================
-        // 2. SETUP: Create Standard Users (for stats)
-        // ==========================================
+        // Create Standard Users (for stats)
         createActiveUser("user1@test.com");
         createActiveUser("user2@test.com");
 
         // Total users = 3 (1 Admin + 2 Users)
-
-        // ==========================================
-        // 3. SETUP: Create Activity Logs
-        // ==========================================
+        // SETUP: Create Activity Logs
         // Simulate 2 logins for user1
         createActivity("user1@test.com", "Login successful", true);
         createActivity("user1@test.com", "Login successful", true);
@@ -60,9 +53,7 @@ class AdminAnalyticsIntegrationTest extends AbstractIntegrationTest {
         // Simulate 1 failed login for user2
         createActivity("user2@test.com", "Invalid credentials", false);
 
-        // ==========================================
-        // 4. LOGIN AS ADMIN
-        // ==========================================
+        // LOGIN AS ADMIN
         // Trust seeding (Skip if your config allows admin to bypass, but safer to add)
         seedTrustForUser(admin);
 
@@ -78,31 +69,24 @@ class AdminAnalyticsIntegrationTest extends AbstractIntegrationTest {
 
         String adminToken = com.jayway.jsonpath.JsonPath.read(loginResponse, "$.data.accessToken");
 
-        // ==========================================
-        // 5. FETCH ANALYTICS
-        // ==========================================
-        // Assuming endpoint is /api/admin/analytics. Adjust if different.
+        // FETCH ANALYTICS
         mockMvc.perform(get("/api/admin/analytics")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                // Verify specific data points based on your DTO structure
-                // Adjust field names (e.g. totalUsers vs total_users) to match your DTO
                 .andExpect(jsonPath("$.data.totalUsers").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
                 .andExpect(jsonPath("$.data.activeUsers").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
-        // If you track 'totalLogins' or 'failedLogins'
-        // .andExpect(jsonPath("$.data.totalLogins").value(org.hamcrest.Matchers.greaterThanOrEqualTo(2)))
         ;
     }
 
     @Test
     @DisplayName("Should deny non-admin access to analytics")
     void shouldDenyNonAdminAccess() throws Exception {
-        // 1. Setup User
+        // Setup User
         User user = createActiveUser("peasant@test.com");
         seedTrustForUser(user);
 
-        // 2. Login
+        // Login
         LoginRequest loginRequest = new LoginRequest();
         loginRequest.setEmail("peasant@test.com");
         loginRequest.setPassword("Password123!");
@@ -115,13 +99,11 @@ class AdminAnalyticsIntegrationTest extends AbstractIntegrationTest {
 
         String userToken = com.jayway.jsonpath.JsonPath.read(loginResponse, "$.data.accessToken");
 
-        // 3. Attempt Access
+        // Attempt Access
         mockMvc.perform(get("/api/admin/analytics")
                         .header("Authorization", "Bearer " + userToken))
                 .andExpect(status().isForbidden());
     }
-
-    // --- Helpers ---
 
     private User createActiveUser(String email) {
         User user = new User();

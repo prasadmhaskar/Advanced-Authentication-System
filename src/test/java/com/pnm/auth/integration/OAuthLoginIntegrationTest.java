@@ -30,7 +30,7 @@ class OAuthLoginIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should create new user on first OAuth login")
     void shouldCreateNewUserOnFirstOAuthLogin() {
-        // 1. SETUP: Mock OAuth2User (Google)
+        // Mock OAuth2User (Google)
         String email = "oauth.new@test.com";
         Map<String, Object> attributes = Map.of(
                 "sub", "google-12345",
@@ -42,11 +42,11 @@ class OAuthLoginIntegrationTest extends AbstractIntegrationTest {
                 Collections.emptySet(), attributes, "sub"
         );
 
-        // 2. EXECUTE
+        // EXECUTE
         RequestContext ctx = new RequestContext("127.0.0.1", "Test-Agent", "/login/oauth2/code/google");
         AuthenticationResult result = oAuth2Service.handleOAuth2LoginRequest(oAuth2User, "google", ctx);
 
-        // 3. ASSERT
+        // ASSERT
         assertThat(result.getOutcome()).isEqualTo(AuthOutcome.SUCCESS);
         assertThat(result.getAccessToken()).isNotNull();
         assertThat(result.getRefreshToken()).isNotNull();
@@ -56,7 +56,6 @@ class OAuthLoginIntegrationTest extends AbstractIntegrationTest {
         assertThat(savedUser.getFullName()).isEqualTo("OAuth User");
         assertThat(savedUser.getEmailVerified()).isTrue();
 
-        // FIXED: Use findByUser_Id and check list size
         var providers = userOAuthProviderRepository.findByUser_Id(savedUser.getId());
 
         assertThat(providers).as("User should have linked OAuth providers").isNotEmpty();
@@ -67,7 +66,7 @@ class OAuthLoginIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Should require linking if email exists with different provider")
     void shouldRequireLinkingForExistingUser() {
-        // 1. SETUP: Existing Password User
+        // SETUP: Existing Password User
         String email = "conflict@test.com";
         User user = new User();
         user.setEmail(email);
@@ -78,7 +77,7 @@ class OAuthLoginIntegrationTest extends AbstractIntegrationTest {
         user.setMfaEnabled(false);
         userRepository.save(user);
 
-        // 2. EXECUTE: Try login with GitHub (same email)
+        // EXECUTE: Try login with GitHub (same email)
         Map<String, Object> attributes = Map.of(
                 "id", 98765,
                 "email", email,
@@ -91,7 +90,7 @@ class OAuthLoginIntegrationTest extends AbstractIntegrationTest {
         RequestContext ctx = new RequestContext("127.0.0.1", "Test-Agent", "/login/oauth2/code/github");
         AuthenticationResult result = oAuth2Service.handleOAuth2LoginRequest(oAuth2User, "github", ctx);
 
-        // 3. ASSERT
+        // ASSERT
         assertThat(result.getOutcome()).isEqualTo(AuthOutcome.LINK_REQUIRED);
         assertThat(result.getLinkToken()).isNotNull();
         assertThat(result.getAttemptedProvider()).isEqualTo(AuthProviderType.GITHUB);
