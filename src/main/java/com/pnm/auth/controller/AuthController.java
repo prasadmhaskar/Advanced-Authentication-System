@@ -53,7 +53,11 @@ public class AuthController {
     @PostMapping("/register")
     @Operation(
             summary = "Register a new User",
-            description = "Creates a new user account and sends a verification email. Checks for existing email/username."
+            description = """
+                            * Creates a new user account and sends a verification email. Checks for existing email/username.
+                            * SECURITY: Whether the user already exists via email or OAuth, we return a fake success.
+                            * This prevents User Enumeration attacks (hackers checking if an email is registered).
+                    """
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Registration Successful. Verification email sent."),
@@ -110,7 +114,10 @@ public class AuthController {
     @PostMapping("/verify/resend")
     @Operation(
             summary = "Resend Verification Email",
-            description = "Re-generates a new verification token and sends it via email in link."
+            description = """
+            * Re-generates a new verification token and sends it via email in link.
+            * User can only request a new verification link after 120 seconds completed for previous request(Redis rate limiter)
+    """
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Verification Email Resent"),
@@ -148,7 +155,10 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(
             summary = "User Login",
-            description = "Authenticates a user and returns Access/Refresh tokens. Supports Rate Limiting and Risk Analysis."
+            description = """
+        * Authenticates a user and returns Access/Refresh tokens. Supports Rate Limiting and Risk Analysis.
+        * Return same response (Invalid email or password) for both if email is incorrect or password is incorrect. This prevents User   Enumeration attacks (hackers checking if an email is registered)
+    """
     )
             @ApiResponses(value = {
                     @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Login Successful"),
@@ -255,7 +265,11 @@ public class AuthController {
     @PostMapping("/forgot-password")
     @Operation(
             summary = "Forgot Password Request",
-            description = "Initiates password reset flow by sending a reset link to the user's email. Copy token you got in email and add it in /api/auth/reset-password API in token place and add newPassword"
+            description = """
+            * Initiates password reset flow by sending a reset link to the user's email. 
+            * Copy token you got in email and add it in /api/auth/reset-password API in token place and add newPassword.
+            * Return a fake successful response if email is not already registered - in case if attacker is trying to find out email is registered or not.
+    """
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Reset Email Sent (if account exists)"),
@@ -377,7 +391,11 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(
             summary = "Logout",
-            description = "Logs out the user, invalidates their session/refresh tokens, and clears security context. If 'logoutFromAllDevices'= 'true' then, logs out from all active sessions/devices. If 'logoutFromAllDevices'= 'false' then, logs out only the current device."
+            description = """
+            * Logs out the user, invalidates their session/refresh tokens, and clears security context.
+            * If 'logoutFromAllDevices'= 'true' then, logs out from all active sessions/devices. 
+            * If 'logoutFromAllDevices'= 'false' then, logs out only the current device."
+        """
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Logout Successful"),
@@ -436,7 +454,10 @@ public class AuthController {
     @PostMapping("/otp/verify")
     @Operation(
             summary = "Verify OTP (Multi Factor Authentication)",
-            description = "Verifies the OTP sent during MFA flow or Medium risk login. Returns tokens if successful."
+            description = """
+            * Verifies the OTP sent during MFA flow or Medium risk login. Returns tokens if successful.
+            * Enter otp token id you received in response when you encountered any between MFA flow or Medium risk.
+            """
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "OTP Verified, Login Successful"),
