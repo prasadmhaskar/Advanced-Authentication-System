@@ -8,6 +8,7 @@ import com.pnm.auth.service.interfaces.auth.UserPersistenceService;
 import com.pnm.auth.service.interfaces.auth.VerificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,7 @@ public class UserPersistenceServiceImpl implements UserPersistenceService {
 
     @Override
     @Transactional
+    @CacheEvict(value = "users.list", allEntries = true)
     public UserCreationResult saveUserAndCreateToken(RegisterRequest request) {
         String email = request.getEmail().trim().toLowerCase();
         User user = new User();

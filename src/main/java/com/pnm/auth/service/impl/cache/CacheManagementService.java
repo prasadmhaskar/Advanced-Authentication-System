@@ -12,4 +12,5 @@ public class CacheManagementService {
     public void evictUserFromCache(String email) {
         log.info("Cache cleared for {}", email);
     }
+
 }

@@ -14,6 +14,7 @@ import com.pnm.auth.service.interfaces.ipmonitoring.IpMonitoringService;
 import com.pnm.auth.util.OAuth2Util;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class OAuthPersistenceService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
+    @CacheEvict(value = "users.list", allEntries = true)
     public ResolveOAuthResult resolveOrCreateUser(OAuth2User oAuth2User, AuthProviderType providerType, String providerId, String ip, String userAgent) {
 
         String email = oAuth2User.getAttribute("email");

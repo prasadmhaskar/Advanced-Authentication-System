@@ -1,13 +1,17 @@
 package com.pnm.auth.security.filter;
 
+import com.pnm.auth.exception.custom.RateLimitExceededException;
 import com.pnm.auth.service.impl.redis.RedisRateLimiterServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.HandlerExceptionResolver;
 
 import java.io.IOException;
 
@@ -16,9 +20,15 @@ import java.io.IOException;
 public class RedisRateLimiterFilter extends OncePerRequestFilter {
 
     private final RedisRateLimiterServiceImpl rateLimiterService;
+    private final HandlerExceptionResolver exceptionResolver;
 
-    public RedisRateLimiterFilter(RedisRateLimiterServiceImpl rateLimiterService) {
+    // INJECT THE RESOLVER
+    public RedisRateLimiterFilter(
+            RedisRateLimiterServiceImpl rateLimiterService,
+            @Qualifier("handlerExceptionResolver") HandlerExceptionResolver exceptionResolver
+    ) {
         this.rateLimiterService = rateLimiterService;
+        this.exceptionResolver = exceptionResolver;
     }
 
     @Override
@@ -82,8 +92,22 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
 
         if (!allowed) {
             log.warn("RateLimiter: BLOCKED key={} path={}", rateLimitKey, path);
-            response.setStatus(429);
-            response.setContentType("application/json");
+//            response.setStatus(429);
+//            response.setContentType("application/json");
+//
+//            String jsonResponse = "{\"status\": 429, \"error\": \"Too Many Requests\", \"message\": \"Rate limit exceeded. Try again later.\"}";
+//
+//            response.getWriter().write(jsonResponse);
+//            return;
+
+            // THIS IS THE FIX:
+            // Instead of throwing, we ask Spring to handle the exception for us.
+            exceptionResolver.resolveException(
+                    request,
+                    response,
+                    null,
+                    new RateLimitExceededException("You have exhausted your API request quota. Please wait a moment.")
+            );
             return;
         }
 

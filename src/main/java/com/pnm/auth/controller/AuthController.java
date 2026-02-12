@@ -266,7 +266,7 @@ public class AuthController {
     @Operation(
             summary = "Forgot Password Request",
             description = """
-            * Initiates password reset flow by sending a reset link to the user's email. 
+            * Initiates password reset flow by sending a reset link to the user's email.
             * Copy token you got in email and add it in /api/auth/reset-password API in token place and add newPassword.
             * Return a fake successful response if email is not already registered - in case if attacker is trying to find out email is registered or not.
     """
@@ -367,7 +367,8 @@ public class AuthController {
     )
     @ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "User Details Retrieved"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "429", description = "Too Many Requests")
     })
     public ResponseEntity<ApiResponse<UserDetailsResponse>> fetchUserDetails(RequestContext ctx) {
 
