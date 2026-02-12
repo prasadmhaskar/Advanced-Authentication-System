@@ -92,16 +92,6 @@ public class RedisRateLimiterFilter extends OncePerRequestFilter {
 
         if (!allowed) {
             log.warn("RateLimiter: BLOCKED key={} path={}", rateLimitKey, path);
-//            response.setStatus(429);
-//            response.setContentType("application/json");
-//
-//            String jsonResponse = "{\"status\": 429, \"error\": \"Too Many Requests\", \"message\": \"Rate limit exceeded. Try again later.\"}";
-//
-//            response.getWriter().write(jsonResponse);
-//            return;
-
-            // THIS IS THE FIX:
-            // Instead of throwing, we ask Spring to handle the exception for us.
             exceptionResolver.resolveException(
                     request,
                     response,

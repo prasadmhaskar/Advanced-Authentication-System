@@ -1,3 +1,37 @@
+# 🛡️ Advanced Authentication & Security System
+
+![Java](https://img.shields.io/badge/Java-17-orange?style=for-the-badge&logo=java)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.2-green?style=for-the-badge&logo=spring)
+![Security](https://img.shields.io/badge/Spring_Security-6.0-red?style=for-the-badge&logo=springsecurity)
+![Redis](https://img.shields.io/badge/Redis-Caching_&_Rate_Limiting-red?style=for-the-badge&logo=redis)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue?style=for-the-badge&logo=postgresql)
+![AWS](https://img.shields.io/badge/Deployment-AWS_EC2-orange?style=for-the-badge&logo=amazon-aws)
+
+> **An enterprise-grade, high-security authentication platform engineered for scale, compliance, and resilience.**
+
+---
+
+## 🚀 Live Demo
+**Swagger UI / API Documentation:**
+👉 **[https://prasad-auth-sys.duckdns.org/swagger-ui/index.html](https://prasad-auth-sys.duckdns.org/swagger-ui/index.html)**
+
+*(Note: Hosted on AWS EC2 t2.micro. First request may have slight latency due to cold start.)*
+
+---
+
+## 📖 Project Overview
+This is not just a login form. This is a **hardened security framework** designed to mitigate OWASP Top 10 vulnerabilities. It features a custom-built stateless architecture using JWTs, aggressive Redis-backed rate limiting, and adaptive risk analysis based on geolocation and device fingerprinting.
+
+### **Core Problem Solved**
+Most auth systems fail under load or succumb to credential stuffing. This system implements **Defense-in-Depth**:
+1.  **Layer 1 (Network):** Nginx & Redis Rate Limiting (DDoS protection).
+2.  **Layer 2 (Identity):** Stateless JWT with rotation & blacklisting.
+3.  **Layer 3 (Behavior):** IP & Device tracking to detect anomalies.
+
+---
+
+## 🏗️ System Architecture
+
 ```mermaid
 graph TD
     %% Client Layer
