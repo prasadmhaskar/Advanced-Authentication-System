@@ -17,6 +17,11 @@
 
 *(Note: Hosted on AWS EC2 t2.micro. First request may have slight latency due to cold start.)*
 
+* This project intentionally utilizes Swagger UI to provide absolute transparency into the authentication architecture.
+* A traditional frontend abstracts critical security mechanisms hiding HttpOnly cookies, JWT payloads, and Security Headers.
+* Swagger exposes the raw API contract, allowing reviewers to directly validate the rigorous security implementation without UI obfuscation.
+
+
 ---
 
 ## 📖 Project Overview
