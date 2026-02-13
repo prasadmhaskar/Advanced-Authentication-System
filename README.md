@@ -2,7 +2,7 @@
 
 ![Java](https://img.shields.io/badge/Java-17-orange?style=for-the-badge&logo=java)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.2-green?style=for-the-badge&logo=spring)
-![Security](https://img.shields.io/badge/Spring_Security-6.0-red?style=for-the-badge&logo=springsecurity)
+![Spring Security](https://img.shields.io/badge/Spring_Security-6.0-red?style=for-the-badge&logo=springsecurity)
 ![Redis](https://img.shields.io/badge/Redis-Caching_&_Rate_Limiting-red?style=for-the-badge&logo=redis)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-blue?style=for-the-badge&logo=postgresql)
 ![AWS](https://img.shields.io/badge/Deployment-AWS_EC2-orange?style=for-the-badge&logo=amazon-aws)
@@ -11,21 +11,20 @@
 
 ---
 
-## 🚀 Live Demo
-**Swagger UI / API Documentation:**
+## 🚀 Live Demo & Documentation
+**Interactive API Docs (Swagger UI):**
 👉 **[https://prasad-auth-sys.duckdns.org/swagger-ui/index.html](https://prasad-auth-sys.duckdns.org/swagger-ui/index.html)**
 
-*(Note: Hosted on AWS EC2 t2.micro. First request may have slight latency due to cold start.)*
-
-* This project intentionally utilizes Swagger UI to provide absolute transparency into the authentication architecture.
-* A traditional frontend abstracts critical security mechanisms hiding HttpOnly cookies, JWT payloads, and Security Headers.
-* Swagger exposes the raw API contract, allowing reviewers to directly validate the rigorous security implementation without UI obfuscation.
-
+### ⚡ Architectural Decision: Headless API
+This system utilizes an **API-First Architecture** via Swagger UI to ensure absolute security transparency.
+* **No UI Obfuscation:** Unlike traditional frontends that hide complexity, this exposes the raw API contract.
+* **Security Validation:** Reviewers can directly inspect critical headers (HSTS, CSP), HttpOnly cookies, and JWT payloads.
+* **Integration Ready:** The provided OpenAPI spec allows for immediate client generation in any language.
 
 ---
 
 ## 📖 Project Overview
-This is not just a login form. This is a **hardened security framework** designed to mitigate OWASP Top 10 vulnerabilities. It features a custom-built stateless architecture using JWTs, aggressive Redis-backed rate limiting, and adaptive risk analysis based on geolocation and device fingerprinting.
+This is **not just a login form**. It is a **hardened security framework** designed to mitigate OWASP Top 10 vulnerabilities. It features a custom-built stateless architecture using JWTs, aggressive Redis-backed rate limiting, and adaptive risk analysis based on geolocation and device fingerprinting.
 
 ### **Core Problem Solved**
 Most auth systems fail under load or succumb to credential stuffing. This system implements **Defense-in-Depth**:

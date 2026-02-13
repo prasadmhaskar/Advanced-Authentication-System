@@ -18,61 +18,57 @@ import org.springframework.context.annotation.Configuration;
         info = @Info(
                 contact = @Contact(
                         name = "Prasad Mhaskar",
-                        email = "prasadmhaskar33@gmail.com"
+                        email = "prasadmhaskar33@gmail.com",
+                        url = "https://www.linkedin.com/in/prasad-mhaskar/"
                 ),
                 description = """
-                        ## 🚀 Advanced Authentication System
+                        ## 🚀 Advanced Authentication & Security Platform
                         
-                        **Enterprise-grade Identity Provider** demonstrating high-concurrency handling, distributed security, and resilience patterns.
-                        
-                        ---
-                        ### 🛠️ Architectural Decision: Backend-First Visualization
-                        * This project intentionally utilizes Swagger UI to provide absolute transparency into the authentication architecture.
-                        * A traditional frontend abstracts critical security mechanisms hiding HttpOnly cookies, JWT payloads, and Security Headers.
-                        * Swagger exposes the raw API contract, allowing reviewers to directly validate the rigorous security implementation without UI obfuscation.
+                        **A Hardened, Zero-Trust Identity Provider (IdP)** engineered for high-concurrency, distributed security, and resilience.
                         
                         ---
                         
-                        ### 🏗️ Architecture Highlights
-                        * **Security:** JWT (RS256/HS512), OAuth2 (Google/GitHub), Role-Based Access Control (RBAC).
-                        * **Resilience:** `Resilience4j` Circuit Breakers & Retries for external services (Email, IP Risk).
-                        * **Concurrency:** Redis-based locking and polling for Race Condition handling.
-                        * **Performance:** Async Event-Driven Architecture for non-blocking audits and notifications.
+                        ### 🛠️ Architectural Design: Headless Security
+                        This system operates on an **API-First** architecture.
+                        * **Transparency:** Provides direct visibility into critical security mechanisms (HttpOnly cookies, JWT payloads, Security Headers) often abstracted by frontends.
+                        * **Validation:** Allows reviewers to validate the raw API contract and strict security implementation directly.
                         
                         ---
                         
-                        ### 🧪 Test Credentials (Live Demo)
-                        Use these accounts to test the API immediately.
-                        But for testing other APIs like (email verification, OTP verification) i recommend you to register using your email or temp email.
+                        ### 🏗️ Core Features
+                        * **🛡️ Defense-in-Depth:** Nginx Rate Limiting (L7) + Redis Bucket4j (App Layer).
+                        * **🔐 Identity:** Stateless JWT (RS256) with Rotation & OAuth2 (Google/GitHub).
+                        * **🤖 Risk Engine:** Adaptive behavioral analysis based on IP reputation & Device Fingerprinting.
+                        * **⚡ Performance:** Async Event-Driven architecture using Virtual Threads.
                         
-                        | Role | Email | Password | Access |
+                        ---
+                        
+                        ### 🧪 Live Testing Credentials
+                        > **Recommendation:** To test **MFA & Email Verification**, please register a new account via the `/api/auth/register` endpoint.
+                        
+                        | Role | Username / Email | Password | Scope |
                         | :--- | :--- | :--- | :--- |
-                        | **Admin** | `admin@demo.com` | `Admin@123` | Full Access + `/api/admin/**` |
-                        | **User** | `user@demo.com` | `User@123` | Standard Access |
-                        
-                        > **Note:** Data in these accounts may be reset periodically.
+                        | **Admin** | `admin@demo.com` | `Admin@123` | User Management & Analytics |
+                        | **User** | `user@demo.com` | `User@123` | Profile & Standard Access |
                         
                         ---
                         
-                        ### 🔐 Quick Login (OAuth2)
-                        * <a href="/oauth2/authorization/google" target="_blank">Register/Login with Google</a>
-                        * <a href="/oauth2/authorization/github" target="_blank">Register/Login with GitHub</a>
-                        
-                        ---
-                        
-                        ### 📩 Contact & Socials
-                        * <a href="https://www.linkedin.com/in/prasad-mhaskar/" target="_blank">LinkedIn Profile</a>
-                        * <a href="https://github.com/prasadmhaskar/Advanced-Authentication-System" target="_blank">GitHub Repository</a>
+                        ### 🔗 Quick Actions (OAuth2)
+                        * [**Login with Google**](/oauth2/authorization/google)
+                        * [**Login with GitHub**](/oauth2/authorization/github)
+                        * [**View Source Code (GitHub)**](https://github.com/prasadmhaskar/Advanced-Authentication-System)
                         """,
                 title = "Advanced Auth System API",
                 version = "1.0"
         ),
         servers = {
-                @Server(description = "Current Environment", url = "/")
+                @Server(description = "Production Environment", url = "/")
         }
 )
 public class OpenApiConfig {
+
     static {
+        // Prevents Swagger from trying to expand the RequestContext object in controller parameters
         SpringDocUtils.getConfig().addRequestWrapperToIgnore(RequestContext.class);
     }
 
@@ -89,6 +85,7 @@ public class OpenApiConfig {
                                         .type(SecurityScheme.Type.HTTP)
                                         .scheme("bearer")
                                         .bearerFormat("JWT")
+                                        .description("Enter JWT token. Example: `eyJhbGciOiJSUzI1NiJ9...`")
                         ));
     }
 }
