@@ -103,11 +103,11 @@ import org.springframework.transaction.annotation.Transactional;
 
             if (!resolveResult.isNewUser()) {
                 // Risk Engine
-                RiskResult risk = riskEngineService.evaluateRisk(user, ip, userAgent);
+                RiskResult risk = riskEngineService.evaluateRisk(user.getId(), ip, userAgent);
 
                 if (risk.getScore() >= highRiskScore) {
                     log.warn("OAuth2Service: HIGH RISK → login blocked for ip={} and security email sent to email={}", ip, MaskingUtil.maskEmail(user.getEmail()));
-                    emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
+                    emailService.sendHighRiskAlert(user.getEmail(), ip, userAgent, risk.getReasons());
                     activityService.recordFailure(user.getId(), user.getEmail(), ip, userAgent, "High risk OAuth login");
                     throw new HighRiskLoginException("Login blocked due to high risk activity.");
                 }

@@ -13,6 +13,7 @@ import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.util.BlacklistedTokenStore;
 import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.util.RefreshTokenUtil;
 import com.pnm.auth.web.context.RequestContext;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
     private final UserRepository userRepository;
     private final CacheManagementService cacheManagementService;
     private final BlacklistedTokenStore blacklistedTokenStore;
+    private final RefreshTokenUtil refreshTokenUtil;
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
@@ -52,7 +54,7 @@ public class LogoutOrchestratorImpl implements LogoutOrchestrator {
         // Refresh token validation
         if (request != null && request.getRefreshToken() != null) {
             RefreshToken refreshToken = refreshTokenRepository
-                    .findByToken(request.getRefreshToken())
+                    .findByTokenHash(refreshTokenUtil.hash(request.getRefreshToken()))
                     .orElseThrow(() -> new InvalidTokenException("Invalid refresh token"));
 
             if (!refreshToken.getUser().getEmail().equals(email)) {

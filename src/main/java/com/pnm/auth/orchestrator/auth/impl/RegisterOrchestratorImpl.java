@@ -47,7 +47,7 @@ public class RegisterOrchestratorImpl implements RegisterOrchestrator {
         log.info("RegisterOrchestrator: started for email={}", MaskingUtil.maskEmail(email));
 
         // Check for restricting multiple accounts registration per device
-        //This is just a basic check code for restricting multiple users per device. We have kept limit to 20 because,
+        //This is just a basic code check for restricting multiple users per device. We have kept limit to 20 because,
         // we have written basic UserAgentParser code. Hence, different clients can have same device signature.
         // In the future, we can replace this with frontEnd fingerprint library which generates unique hash for different users.
         ipMonitoringService.checkRegistrationEligibility(ip, ua);

@@ -10,6 +10,7 @@ import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.service.interfaces.audit.AuditService;
 import com.pnm.auth.service.interfaces.auth.TokenService;
+import com.pnm.auth.util.RefreshTokenUtil;
 import com.pnm.auth.web.context.RequestContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +44,7 @@ class RefreshTokenConcurrencyTest {
     @Mock StringRedisTemplate redisTemplate;
     @Mock ValueOperations<String, String> valueOperations;
     @Mock ObjectMapper objectMapper;
+    @Mock RefreshTokenUtil refreshTokenUtil;
 
     @InjectMocks
     RefreshTokenOrchestratorImpl orchestrator;
@@ -50,6 +52,7 @@ class RefreshTokenConcurrencyTest {
     private User user;
     private RefreshToken validToken;
     private final String RAW_TOKEN = "race-condition-token";
+    private final String TOKEN_HASH = "race-condition-token-hash";
 
     // Use a real User-Agent that resolves to "Chrome_Windows_DESKTOP"
     private final String CHROME_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36";
@@ -62,7 +65,7 @@ class RefreshTokenConcurrencyTest {
         user.setEmail("test@race.com");
 
         validToken = new RefreshToken();
-        validToken.setToken(RAW_TOKEN);
+        validToken.setTokenHash(TOKEN_HASH);
         validToken.setUser(user);
         validToken.setExpiresAt(LocalDateTime.now().plusDays(1));
         validToken.setInvalidated(false);
@@ -70,6 +73,7 @@ class RefreshTokenConcurrencyTest {
         validToken.setDeviceSignature(EXPECTED_SIG);
 
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(refreshTokenUtil.hash(RAW_TOKEN)).thenReturn(TOKEN_HASH);
     }
 
     @Test
@@ -80,12 +84,12 @@ class RefreshTokenConcurrencyTest {
         RequestContext ctx = new RequestContext("1.2.3.4", CHROME_UA, "/api/refresh");
 
         // Mock Repository: Always return the token object
-        when(refreshTokenRepository.findByToken(RAW_TOKEN)).thenReturn(Optional.of(validToken));
+        when(refreshTokenRepository.findByTokenHash(TOKEN_HASH)).thenReturn(Optional.of(validToken));
 
         // CRITICAL: Mock MarkAsUsed
         // First call (Winner Thread) returns 1.
         // Second call (Loser Thread) returns 0.
-        when(refreshTokenRepository.markAsUsed(RAW_TOKEN))
+        when(refreshTokenRepository.markAsUsed(TOKEN_HASH))
                 .thenReturn(1) // T1 wins
                 .thenReturn(0); // T2 loses
 
@@ -98,7 +102,7 @@ class RefreshTokenConcurrencyTest {
         // Call 1 (0ms): returns null (Winner hasn't finished).
         // Call 2 (150ms): returns null (Winner still working).
         // Call 3 (300ms): returns JSON (Winner finished!).
-        when(valueOperations.get("refresh_grace:" + RAW_TOKEN))
+        when(valueOperations.get("refresh_grace:" + TOKEN_HASH))
                 .thenReturn(null)
                 .thenReturn(null)
                 .thenReturn("{\"accessToken\":\"new-access\"}");

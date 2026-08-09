@@ -8,6 +8,7 @@ import com.pnm.auth.domain.enums.AuthOutcome;
 import com.pnm.auth.exception.custom.TokenGenerationException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.util.RefreshTokenUtil;
 import com.pnm.auth.service.interfaces.auth.TokenService;
 import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.util.UserAgentParser;
@@ -30,6 +31,7 @@ public class TokenServiceImpl implements TokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
+    private final RefreshTokenUtil refreshTokenUtil;
     private final ApplicationEventPublisher eventPublisher;
 
     private static final int MAX_SESSIONS = 5;
@@ -53,11 +55,11 @@ public class TokenServiceImpl implements TokenService {
 
             // Create new access and refresh tokens
             String accessToken = jwtUtil.generateAccessToken(user);
-            String refreshToken = jwtUtil.generateRefreshToken(user);
+            String refreshToken = refreshTokenUtil.generateToken();
 
             // Save new refresh token entity
             RefreshToken token = new RefreshToken();
-            token.setToken(refreshToken);
+            token.setTokenHash(refreshTokenUtil.hash(refreshToken));
             token.setUser(user);
             token.setCreatedAt(LocalDateTime.now());
             token.setExpiresAt(LocalDateTime.now().plus(jwtRefreshExpiration, ChronoUnit.MILLIS));

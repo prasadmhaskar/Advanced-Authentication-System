@@ -6,7 +6,7 @@ import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.dto.request.LoginRequest;
 import com.pnm.auth.dto.request.RefreshTokenRequest;
 import com.pnm.auth.repository.TrustedDeviceRepository;
-import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.util.RefreshTokenUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -26,7 +27,7 @@ class RefreshTokenIntegrationTest extends AbstractIntegrationTest {
     private PasswordEncoder passwordEncoder;
 
     @Autowired
-    private JwtUtil jwtUtil;
+    private RefreshTokenUtil refreshTokenUtil;
     @Autowired
     private TrustedDeviceRepository trustedDeviceRepository;
 
@@ -80,6 +81,13 @@ class RefreshTokenIntegrationTest extends AbstractIntegrationTest {
         // Extract Refresh Token
         String refreshTokenString = com.jayway.jsonpath.JsonPath.read(loginResponse, "$.data.refreshToken");
         assertThat(refreshTokenString).isNotNull();
+        assertThat(refreshTokenRepository.findAll())
+                .allSatisfy(token -> assertThat(token.getTokenHash()).isNotEqualTo(refreshTokenString));
+
+        // Opaque refresh tokens cannot be parsed or accepted as API access JWTs.
+        mockMvc.perform(get("/api/auth/me")
+                        .header("Authorization", "Bearer " + refreshTokenString))
+                .andExpect(status().isUnauthorized());
 
         // 4. REFRESH
         RefreshTokenRequest refreshRequest = new RefreshTokenRequest();
@@ -96,14 +104,15 @@ class RefreshTokenIntegrationTest extends AbstractIntegrationTest {
 
         // 5. ASSERTIONS
         // Check old token is handled (Used or Deleted)
-        RefreshToken oldTokenState = refreshTokenRepository.findByToken(refreshTokenString).orElse(null);
+        RefreshToken oldTokenState = refreshTokenRepository.findByTokenHash(refreshTokenUtil.hash(refreshTokenString)).orElse(null);
         if (oldTokenState != null) {
             assertThat(oldTokenState.isUsed()).as("Old token should be marked used").isTrue();
         }
 
         // Check new token exists
         long count = refreshTokenRepository.findAll().stream()
-                .filter(t -> t.getUser().getId().equals(userId) && !t.getToken().equals(refreshTokenString))
+                .filter(t -> t.getUser().getId().equals(userId)
+                        && !t.getTokenHash().equals(refreshTokenUtil.hash(refreshTokenString)))
                 .count();
         assertThat(count).as("A new refresh token should be present in DB").isEqualTo(1);
     }
@@ -119,11 +128,11 @@ class RefreshTokenIntegrationTest extends AbstractIntegrationTest {
         user.setEmailVerified(true);
         userRepository.save(user);
 
-        String tokenString = jwtUtil.generateRefreshToken(user);
+        String tokenString = refreshTokenUtil.generateToken();
 
         RefreshToken usedToken = new RefreshToken();
         usedToken.setUser(user);
-        usedToken.setToken(tokenString);
+        usedToken.setTokenHash(refreshTokenUtil.hash(tokenString));
         usedToken.setExpiresAt(LocalDateTime.now().plusSeconds(3600));
         usedToken.setCreatedAt(LocalDateTime.now());
         usedToken.setUsed(true); // <--- ALREADY USED

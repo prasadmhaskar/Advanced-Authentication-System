@@ -6,7 +6,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.jboss.logging.MDC;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -24,29 +24,36 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
                                     FilterChain filterChain)
             throws ServletException, IOException {
 
+        long startTime = System.currentTimeMillis();
+
         String requestId = Optional.ofNullable(request.getHeader("X-Request-Id"))
                 .filter(h -> !h.isBlank())
                 .orElse(UUID.randomUUID().toString());
 
         String ip = IpUtils.getClientIp(request);
-
-        String userAgent = request.getHeader("User-Agent");
+        String userAgent = Optional.ofNullable(request.getHeader("User-Agent")).orElse("unknown");
 
         String path = request.getRequestURI();
         String method = request.getMethod();
 
         MDC.put("requestId", requestId);
         MDC.put("ip", ip);
-        MDC.put("userAgent", userAgent != null ? userAgent : "unknown");
+        MDC.put("userAgent", userAgent);
         MDC.put("path", path);
         MDC.put("method", method);
 
-        log.info("REQUEST_START");
+        log.info("request_start");
 
         try {
             filterChain.doFilter(request, response);
         } finally {
-            log.info("REQUEST_END status={}", response.getStatus());
+            long duration = System.currentTimeMillis() - startTime;
+
+            MDC.put("status", String.valueOf(response.getStatus()));
+            MDC.put("durationMs", String.valueOf(duration));
+
+            log.info("request_end");
+
             response.setHeader("X-Request-Id", requestId);
             MDC.clear();
         }

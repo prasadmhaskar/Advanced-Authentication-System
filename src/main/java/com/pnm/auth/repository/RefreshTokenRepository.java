@@ -12,7 +12,7 @@ import java.util.Optional;
 @Repository
 public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> {
 
-    Optional<RefreshToken> findByToken(String token);
+    Optional<RefreshToken> findByTokenHash(String tokenHash);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE RefreshToken rt SET rt.invalidated = true WHERE rt.user.id = :userId")
@@ -21,8 +21,8 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     void deleteByUserId(@Param("userId") Long userId);
 
     @Modifying
-    @Query("UPDATE RefreshToken t SET t.used = true WHERE t.token = :token AND t.used = false")
-    int markAsUsed(@Param("token") String token);
+    @Query("UPDATE RefreshToken t SET t.used = true WHERE t.tokenHash = :tokenHash AND t.used = false")
+    int markAsUsed(@Param("tokenHash") String tokenHash);
 
     @Modifying
     @Query("""

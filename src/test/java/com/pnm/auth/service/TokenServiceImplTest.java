@@ -9,6 +9,7 @@ import com.pnm.auth.exception.custom.TokenGenerationException;
 import com.pnm.auth.repository.RefreshTokenRepository;
 import com.pnm.auth.service.impl.auth.TokenServiceImpl;
 import com.pnm.auth.util.JwtUtil;
+import com.pnm.auth.util.RefreshTokenUtil;
 import com.pnm.auth.web.context.RequestContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,9 @@ class TokenServiceImplTest {
     private JwtUtil jwtUtil;
 
     @Mock
+    private RefreshTokenUtil refreshTokenUtil;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
@@ -69,7 +73,8 @@ class TokenServiceImplTest {
         );
 
         when(jwtUtil.generateAccessToken(user)).thenReturn("access-token");
-        when(jwtUtil.generateRefreshToken(user)).thenReturn("refresh-token");
+        when(refreshTokenUtil.generateToken()).thenReturn("refresh-token");
+        when(refreshTokenUtil.hash("refresh-token")).thenReturn("refresh-token-hash");
 
         AuthenticationResult result = tokenService.generateTokens(user, context);
 
@@ -77,7 +82,8 @@ class TokenServiceImplTest {
         verify(refreshTokenRepository).save(refreshTokenCaptor.capture());
 
         RefreshToken savedToken = refreshTokenCaptor.getValue();
-        assertThat(savedToken.getToken()).isEqualTo("refresh-token");
+        assertThat(savedToken.getTokenHash()).isEqualTo("refresh-token-hash");
+        assertThat(savedToken.getTokenHash()).isNotEqualTo(result.getRefreshToken());
         assertThat(savedToken.getUser()).isSameAs(user);
         assertThat(savedToken.getDeviceSignature()).isEqualTo("Chrome_Windows_DESKTOP");
         assertThat(savedToken.isUsed()).isFalse();
@@ -91,6 +97,7 @@ class TokenServiceImplTest {
 
         assertThat(result.getOutcome()).isEqualTo(AuthOutcome.SUCCESS);
         assertThat(result.getAccessToken()).isEqualTo("access-token");
+        assertThat(result.getRefreshToken()).isEqualTo("refresh-token");
     }
 
     @Test
@@ -102,7 +109,8 @@ class TokenServiceImplTest {
         RequestContext context = new RequestContext("127.0.0.1", "", "/login");
 
         when(jwtUtil.generateAccessToken(user)).thenReturn("acc");
-        when(jwtUtil.generateRefreshToken(user)).thenReturn("ref");
+        when(refreshTokenUtil.generateToken()).thenReturn("ref");
+        when(refreshTokenUtil.hash("ref")).thenReturn("ref-hash");
 
         doThrow(new IllegalStateException("DB Error"))
                 .when(refreshTokenRepository)

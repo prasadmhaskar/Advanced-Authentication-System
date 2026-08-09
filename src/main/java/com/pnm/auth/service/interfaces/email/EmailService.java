@@ -14,5 +14,5 @@ public interface EmailService {
 
     void sendSetPasswordEmail(String email, String token);
 
-    void sendHighRiskAlert(User user, String ip, String userAgent, List<String> reasons);
+    void sendHighRiskAlert(String userEmail, String ip, String userAgent, List<String> reasons);
 }

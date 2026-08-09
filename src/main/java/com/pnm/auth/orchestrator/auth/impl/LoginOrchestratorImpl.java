@@ -63,8 +63,7 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
         log.info("LoginOrchestrator: started for email={}", MaskingUtil.maskEmail(email));
 
         // Load user
-        Optional<User> userOpt = userValidationService.findUserByEmail(email);
-        User user = userOpt.orElse(null);
+        User user = userValidationService.findUserByEmail(email).orElse(null);
 
         String message = user == null ? "Non-registered user trying to login" : "Invalid password entered";
 
@@ -111,11 +110,11 @@ public class LoginOrchestratorImpl implements LoginOrchestrator {
                     .build();
         } else {
             // Risk engine - only for non-mfa users
-            risk = riskEngineService.evaluateRisk(user, ip, userAgent);
+            risk = riskEngineService.evaluateRisk(user.getId(), ip, userAgent);
         }
             if (risk.getScore() >= highRiskScore) {
                 log.warn("LoginOrchestrator: HIGH RISK → login blocked for ip={} and security email sent to email={}", ip, MaskingUtil.maskEmail(user.getEmail()));
-                emailService.sendHighRiskAlert(user, ip, userAgent, risk.getReasons());
+                emailService.sendHighRiskAlert(user.getEmail(), ip, userAgent, risk.getReasons());
                 eventPublisher.publishEvent(new FailureEvent(user.getId(), user.getEmail(), ip, userAgent, "High risk Email login"));
                 throw new HighRiskLoginException("Login blocked due to high risk activity.");
             }

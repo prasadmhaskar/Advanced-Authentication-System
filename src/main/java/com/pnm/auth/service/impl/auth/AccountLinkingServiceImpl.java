@@ -68,7 +68,7 @@ public class AccountLinkingServiceImpl implements AccountLinkingService {
         String ip = ctx.ip();
         String userAgent = ctx.userAgent();
 
-        var risk = riskEngineService.evaluateRisk(user, ip, userAgent);
+        var risk = riskEngineService.evaluateRisk(user.getId(), ip, userAgent);
 
         if (risk.getScore() >= highRiskScore) {
             log.warn("AccountLinking: HIGH RISK link attempt blocked ip={}", ip);

@@ -17,6 +17,7 @@ import com.pnm.auth.service.impl.cache.CacheManagementService;
 import com.pnm.auth.service.interfaces.audit.AuditService;
 import com.pnm.auth.service.interfaces.auth.TokenService;
 import com.pnm.auth.util.MaskingUtil;
+import com.pnm.auth.util.RefreshTokenUtil;
 import com.pnm.auth.util.UserAgentParser;
 import com.pnm.auth.web.context.RequestContext;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final CacheManagementService cacheManagementService;
+    private final RefreshTokenUtil refreshTokenUtil;
 
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
@@ -53,7 +55,8 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
         log.info("RefreshTokenOrchestrator: started");
 
         // Load token
-        RefreshToken stored = refreshTokenRepository.findByToken(rawToken)
+        String tokenHash = refreshTokenUtil.hash(rawToken);
+        RefreshToken stored = refreshTokenRepository.findByTokenHash(tokenHash)
                 .orElseThrow(() -> new InvalidTokenException("Invalid refresh token"));
 
         User user = stored.getUser();
@@ -72,10 +75,10 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
         }
 
         // Reuse detection
-        int rowsUpdated = refreshTokenRepository.markAsUsed(rawToken);
+        int rowsUpdated = refreshTokenRepository.markAsUsed(tokenHash);
 
         if (rowsUpdated == 0) {
-            return handlePotentialReuse(rawToken, user, ctx);
+            return handlePotentialReuse(tokenHash, user, ctx);
         }
 
         // Generate New Tokens
@@ -83,7 +86,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
             AuthenticationResult result = tokenService.generateTokens(user, ctx);
 
             // Cache for a grace period to handle network retries
-            cacheResultForGracePeriod(rawToken, result);
+            cacheResultForGracePeriod(tokenHash, result);
 
             eventPublisher.publishEvent(new SuccessEvent(user.getId(), user.getEmail(), ctx.ip(), ctx.userAgent(), "Tokens refreshed"));
             log.info("RefreshTokenOrchestrator: finished for email={}", MaskingUtil.maskEmail(user.getEmail()));
@@ -97,11 +100,11 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
     }
 
 
-    private AuthenticationResult handlePotentialReuse(String rawToken, User user, RequestContext ctx) {
+    private AuthenticationResult handlePotentialReuse(String tokenHash, User user, RequestContext ctx) {
         log.warn("RefreshTokenOrchestrator: Token already used (Race/Reuse) userId={}", user.getId());
 
         // Check a grace period
-        String graceKey = REFRESH_GRACE_KEY_PREFIX + rawToken;
+        String graceKey = REFRESH_GRACE_KEY_PREFIX + tokenHash;
 
         // Retry Mechanism
         // We poll Redis 3 times with 150ms delays.
@@ -159,9 +162,9 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
         throw new InvalidCredentialsException("Session compromised. Please login again.");
     }
 
-    private void cacheResultForGracePeriod(String rawToken, AuthenticationResult result) {
+    private void cacheResultForGracePeriod(String tokenHash, AuthenticationResult result) {
         try {
-            String graceKey = REFRESH_GRACE_KEY_PREFIX + rawToken;
+            String graceKey = REFRESH_GRACE_KEY_PREFIX + tokenHash;
             String jsonResult = objectMapper.writeValueAsString(result);
             redisTemplate.opsForValue().set(graceKey, jsonResult, 60, TimeUnit.SECONDS);
         } catch (Exception e) {

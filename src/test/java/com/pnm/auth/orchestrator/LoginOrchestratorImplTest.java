@@ -106,7 +106,7 @@ class LoginOrchestratorImplTest {
 
         when(userValidationService.findUserByEmail(request.getEmail().toLowerCase()))
                 .thenReturn(Optional.of(user));
-        when(riskEngineService.evaluateRisk(eq(user), any(), any()))
+        when(riskEngineService.evaluateRisk(eq(user.getId()), any(), any()))
                 .thenReturn(RiskResult.builder().score(60).reasons(List.of("new-device")).build());
         MfaResult mfaResult = MfaResult.builder()
                 .outcome(AuthOutcome.OTP_REQUIRED)
@@ -130,13 +130,13 @@ class LoginOrchestratorImplTest {
 
         when(userValidationService.findUserByEmail(request.getEmail().toLowerCase()))
                 .thenReturn(Optional.of(user));
-        when(riskEngineService.evaluateRisk(eq(user), any(), any()))
+        when(riskEngineService.evaluateRisk(eq(user.getId()), any(), any()))
                 .thenReturn(RiskResult.builder().score(90).reasons(List.of("impossible-travel")).build());
 
         assertThatThrownBy(() -> orchestrator.login(request, ctx))
                 .isInstanceOf(HighRiskLoginException.class);
 
-        verify(emailService).sendHighRiskAlert(eq(user), eq("192.168.1.12"), any(), eq(List.of("impossible-travel")));
+        verify(emailService).sendHighRiskAlert(eq(user.getEmail()), eq("192.168.1.12"), any(), eq(List.of("impossible-travel")));
         ArgumentCaptor<FailureEvent> eventCaptor = ArgumentCaptor.forClass(FailureEvent.class);
         verify(eventPublisher).publishEvent(eventCaptor.capture());
         assertThat(eventCaptor.getValue().message()).contains("High risk");
@@ -152,7 +152,7 @@ class LoginOrchestratorImplTest {
 
         when(userValidationService.findUserByEmail(request.getEmail().toLowerCase()))
                 .thenReturn(Optional.of(user));
-        when(riskEngineService.evaluateRisk(eq(user), any(), any()))
+        when(riskEngineService.evaluateRisk(eq(user.getId()), any(), any()))
                 .thenReturn(RiskResult.builder().score(10).reasons(List.of()).build());
         AuthenticationResult tokenResult = AuthenticationResult.builder()
                 .accessToken("access-token")
@@ -189,4 +189,3 @@ class LoginOrchestratorImplTest {
         return user;
     }
 }
-

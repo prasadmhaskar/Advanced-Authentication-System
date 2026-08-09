@@ -27,6 +27,9 @@ public enum AuditAction {
 
     // refresh token
     REFRESH_TOKEN_ROTATION,
-    REFRESH_TOKEN_REUSE
+    REFRESH_TOKEN_REUSE,
+
+    // access token
+    ACCESS_TOKEN_COMPROMISE
 
     }

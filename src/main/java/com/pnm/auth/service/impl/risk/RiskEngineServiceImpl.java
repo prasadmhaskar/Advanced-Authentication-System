@@ -31,11 +31,11 @@ public class RiskEngineServiceImpl implements RiskEngineService {
 
 
     @Override
-    public RiskResult evaluateRisk(User user, String ip, String userAgent) {
-        log.info("Evaluating risk for email={} ip={}", MaskingUtil.maskEmail(user.getEmail()), ip);
+    public RiskResult evaluateRisk(Long userId, String ip, String userAgent) {
+        log.info("Evaluating risk for ip={}", ip);
 
         try {
-            UserIpLogResponse response = ipMonitoringService.recordIpDetails(user.getId(), ip, userAgent);
+            UserIpLogResponse response = ipMonitoringService.recordIpDetails(userId, ip, userAgent);
 
             int score = response.getRiskScore();
             List<String> reasons = response.getRiskReason() != null

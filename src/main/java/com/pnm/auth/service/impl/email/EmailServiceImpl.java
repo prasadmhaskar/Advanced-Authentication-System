@@ -1,6 +1,5 @@
 package com.pnm.auth.service.impl.email;
 
-import com.pnm.auth.domain.entity.User;
 import com.pnm.auth.service.interfaces.email.EmailService;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
@@ -85,9 +84,9 @@ public class EmailServiceImpl implements EmailService {
     @Async("emailExecutor")
     @Retry(name = "emailRetry")
     @CircuitBreaker(name = "emailCB", fallbackMethod = "fallbackHighRiskAlert")
-    public void sendHighRiskAlert(User user, String ip, String userAgent, List<String> reasons) {
+    public void sendHighRiskAlert(String userEmail, String ip, String userAgent, List<String> reasons) {
 
-        log.warn("Sending suspicious login alert to user={} from IP={}", user.getEmail(), ip);
+        log.warn("Sending suspicious login alert to user={} from IP={}", userEmail, ip);
 
         String subject = "⚠ Suspicious Login Attempt Blocked";
         String reasonText = String.join(", ", reasons);
@@ -107,12 +106,12 @@ public class EmailServiceImpl implements EmailService {
                 Regards,
                 Security Team
                 """.formatted(
-                user.getFullName(),
+                userEmail,
                 ip,
                 userAgent,
                 reasonText
         );
-        sendEmail(user.getEmail(), subject, body);
+        sendEmail(userEmail, subject, body);
     }
 
     // Main method for sending email
@@ -145,9 +144,7 @@ public class EmailServiceImpl implements EmailService {
         log.error("EmailService FALLBACK: OTP email failed email={} otp=REDACTED reason={}", email, ex.getMessage());
     }
 
-    public void fallbackHighRiskAlert(User user, String ip, String userAgent, List<String> reasons, Throwable ex) {
-        log.error("SuspiciousLoginAlertService: Failed to send alert email={} reason={}", user.getEmail(),reasons, ex);
+    public void fallbackHighRiskAlert(String userEmail, String ip, String userAgent, List<String> reasons, Throwable ex) {
+        log.error("SuspiciousLoginAlertService: Failed to send alert email={} reason={}", userEmail, reasons, ex);
     }
 }
-
-

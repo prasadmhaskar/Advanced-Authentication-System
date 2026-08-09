@@ -74,12 +74,10 @@ class EmailServiceImplTest {
     @Test
     @DisplayName("sendHighRiskAlert should send details about the suspicious login attempt")
     void sendHighRiskAlert_sendsAlertDetails() {
-        User user = new User();
-        user.setFullName("Jane Doe");
-        user.setEmail("jane.doe@example.com");
+        String userEmail = "jane.doe@example.com";
 
         emailService.sendHighRiskAlert(
-                user,
+                userEmail,
                 "203.0.113.10",
                 "Chrome on Linux",
                 List.of("New device", "Unrecognized location")

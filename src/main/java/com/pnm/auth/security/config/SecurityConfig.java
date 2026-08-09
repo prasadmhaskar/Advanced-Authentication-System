@@ -205,7 +205,6 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder();
     }
 
-
     @Bean
     public FilterRegistrationBean<RequestContextFilter> requestContextFilterRegistration() {
         RequestContextFilter filter = new RequestContextFilter();
@@ -214,4 +213,3 @@ public class SecurityConfig {
         return registration;
     }
 }
-

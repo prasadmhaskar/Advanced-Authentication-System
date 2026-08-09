@@ -34,7 +34,8 @@ class JwtUtilUnitTest {
         jwtUtil = new JwtUtil();
         setField(jwtUtil, "jwtSecretKey", BASE64_SECRET);
         setField(jwtUtil, "jwtAccessExpiration", 60_000L);
-        setField(jwtUtil, "jwtRefreshExpiration", 120_000L);
+        setField(jwtUtil, "jwtIssuer", "advanced-auth-system");
+        setField(jwtUtil, "jwtAudience", "advanced-auth-api");
         jwtUtil.init();
     }
 
@@ -49,23 +50,29 @@ class JwtUtilUnitTest {
         assertEquals(user.getEmail(), jwtUtil.extractUsername(token));
         assertEquals(user.getRoles(), jwtUtil.extractRoles(token));
 
-        Claims claims = jwtUtil.extractAllClaims(token);
+        Claims claims = jwtUtil.parseAccessToken(token);
         assertEquals(user.getEmail(), claims.getSubject());
         assertEquals(user.getId().longValue(), ((Number) claims.get("userId")).longValue());
         assertEquals(user.getTokenVersion().longValue(), ((Number) claims.get("tv")).longValue());
+        assertEquals("access", claims.get("token_use", String.class));
         assertFalse(jwtUtil.isTokenExpired(token));
     }
 
     @Test
-    @DisplayName("generateRefreshToken should omit roles claim")
-    void generateRefreshToken_omitsRoles() {
-        User user = buildUser();
+    @DisplayName("parseAccessToken should reject a JWT intended for refresh")
+    void parseAccessToken_rejectsNonAccessToken() {
+        SecretKey signingKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(BASE64_SECRET));
+        String token = Jwts.builder()
+                .subject("user@example.com")
+                .issuer("advanced-auth-system")
+                .audience().add("advanced-auth-api").and()
+                .claim("token_use", "refresh")
+                .issuedAt(new Date())
+                .expiration(new Date(System.currentTimeMillis() + 60_000L))
+                .signWith(signingKey)
+                .compact();
 
-        String token = jwtUtil.generateRefreshToken(user);
-
-        Claims claims = jwtUtil.extractAllClaims(token);
-        assertEquals(user.getEmail(), claims.getSubject());
-        assertNull(claims.get("roles"));
+        assertThrows(IllegalArgumentException.class, () -> jwtUtil.parseAccessToken(token));
     }
 
     @Test
@@ -87,29 +94,32 @@ class JwtUtilUnitTest {
     }
 
     @Test
-    @DisplayName("extractAllClaims should throw for expired tokens")
-    void extractAllClaims_throwsOnExpiredToken() throws Exception {
+    @DisplayName("parseAccessToken should throw for expired tokens")
+    void parseAccessToken_throwsOnExpiredToken() throws Exception {
         setField(jwtUtil, "jwtAccessExpiration", -1_000L);
         String token = jwtUtil.generateAccessToken(buildUser());
 
-        assertThrows(ExpiredJwtException.class, () -> jwtUtil.extractAllClaims(token));
+        assertThrows(ExpiredJwtException.class, () -> jwtUtil.parseAccessToken(token));
     }
 
     @Test
-    @DisplayName("extractAllClaims should reject tokens signed with a different secret")
-    void extractAllClaims_rejectsInvalidSignature() {
+    @DisplayName("parseAccessToken should reject tokens signed with a different secret")
+    void parseAccessToken_rejectsInvalidSignature() {
         String otherSecret = Base64.getEncoder()
                 .encodeToString("different-secret-key-for-tests-123".getBytes(StandardCharsets.UTF_8));
         SecretKey otherKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(otherSecret));
         String token = Jwts.builder()
                 .subject("user@example.com")
                 .claim("roles", List.of("ROLE_USER"))
+                .claim("token_use", "access")
+                .issuer("advanced-auth-system")
+                .audience().add("advanced-auth-api").and()
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + 60_000L))
                 .signWith(otherKey)
                 .compact();
 
-        assertThrows(SignatureException.class, () -> jwtUtil.extractAllClaims(token));
+        assertThrows(SignatureException.class, () -> jwtUtil.parseAccessToken(token));
     }
 
     @Test
@@ -134,4 +144,3 @@ class JwtUtilUnitTest {
         field.set(target, value);
     }
 }
-

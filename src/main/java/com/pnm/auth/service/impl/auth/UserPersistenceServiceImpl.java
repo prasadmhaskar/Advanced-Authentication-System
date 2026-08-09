@@ -12,7 +12,6 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 
 @Service
@@ -31,7 +30,6 @@ public class UserPersistenceServiceImpl implements UserPersistenceService {
     private final UserIpLogRepository userIpLogRepository;
     private final UserOAuthProviderRepository userOAuthProviderRepository;
     private final VerificationTokenRepository verificationTokenRepository;
-
 
     public record UserCreationResult(User user, String token) {}
 

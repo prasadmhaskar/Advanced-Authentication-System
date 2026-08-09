@@ -24,7 +24,7 @@ public class VerificationServiceImpl implements VerificationService {
     private long verificationExpiryMinutes;
 
     @Override
-    @Transactional
+    @Transactional()
     public String createVerificationToken(User user, String type) {
 
         log.info("VerificationService.createVerificationToken: Started for email={} type={}",

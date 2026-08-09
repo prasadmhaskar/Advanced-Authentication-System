@@ -29,8 +29,11 @@ public class JwtUtil {
     @Value("${jwt.access.expiration}")
     private Long jwtAccessExpiration;
 
-    @Value("${jwt.refresh.expiration}")
-    private Long jwtRefreshExpiration;
+    @Value("${jwt.issuer}")
+    private String jwtIssuer;
+
+    @Value("${jwt.audience}")
+    private String jwtAudience;
 
     private SecretKey cachedSecretKey;
 
@@ -54,7 +57,10 @@ public class JwtUtil {
                 .claim("userId", user.getId())
                 .claim("roles", user.getRoles())
                 .claim("tv", user.getTokenVersion())
+                .claim("token_use", "access")
                 .id(UUID.randomUUID().toString())
+                .issuer(jwtIssuer)
+                .audience().add(jwtAudience).and()
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + jwtAccessExpiration))
                 .signWith(getSigningKey())
@@ -64,50 +70,42 @@ public class JwtUtil {
         return token;
     }
 
-    public String generateRefreshToken(User user) {
-        log.info("JwtUtil.generateRefreshToken: Generating refresh token for email={}", user.getEmail());
-        String token = Jwts.builder()
-                .subject(user.getEmail())
-                .issuedAt(new Date())
-                .id(UUID.randomUUID().toString())
-                .expiration(new Date(System.currentTimeMillis() + jwtRefreshExpiration))
-                .signWith(getSigningKey())
-                .compact();
-
-        log.info("JwtUtil.generateRefreshToken: created refresh token for email={}", user.getEmail());
-        return token;
-    }
-
     // ------------------------- TOKEN EXTRACTION -------------------------
 
     public String extractUsername(String token) {
         log.debug("JwtUtil.extractUsername: Extracting username");
-        return extractAllClaims(token).getSubject();
+        return parseAccessToken(token).getSubject();
     }
 
     public List<String> extractRoles(String token) {
         log.debug("JwtUtil.extractRoles: Extracting roles");
-        Claims claims = extractAllClaims(token);
+        Claims claims = parseAccessToken(token);
         return claims.get("roles", List.class);
     }
 
     // ------------------------- TOKEN VALIDATION -------------------------
 
     public boolean isTokenExpired(String token) {
-        boolean expired = extractAllClaims(token).getExpiration().before(new Date());
+        boolean expired = parseAccessToken(token).getExpiration().before(new Date());
         log.info("JwtUtil.isTokenExpired: Checking token expired or not");
         return expired;
     }
 
     // ------------------------- CLAIMS -------------------------
 
-    public Claims extractAllClaims(String token) {
+    public Claims parseAccessToken(String token) {
         try {
-            return Jwts.parser()
+            Claims claims = Jwts.parser()
                     .verifyWith(getSigningKey())
+                    .requireIssuer(jwtIssuer)
+                    .requireAudience(jwtAudience)
                     .build()
                     .parseSignedClaims(token)
                     .getPayload();
+            if (!"access".equals(claims.get("token_use", String.class))) {
+                throw new IllegalArgumentException("JWT is not an access token");
+            }
+            return claims;
         } catch (ExpiredJwtException e) {
             log.warn("JwtUtil: Token expired. Subject: {}", e.getClaims().getSubject());
             throw e;
@@ -135,7 +133,7 @@ public class JwtUtil {
     }
 
     public long getExpirationTimestamp(String token) {
-        return extractAllClaims(token).getExpiration().getTime();
+        return parseAccessToken(token).getExpiration().getTime();
     }
 
 }

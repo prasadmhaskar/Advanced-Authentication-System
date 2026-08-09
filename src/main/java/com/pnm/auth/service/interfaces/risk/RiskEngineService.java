@@ -5,6 +5,6 @@ import com.pnm.auth.domain.entity.User;
 
 public interface RiskEngineService {
 
-    RiskResult evaluateRisk(User user, String ip, String userAgent);
+    RiskResult evaluateRisk(Long userId, String ip, String userAgent);
 }
 
