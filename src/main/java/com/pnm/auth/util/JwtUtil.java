@@ -51,7 +51,7 @@ public class JwtUtil {
     // ------------------------- TOKEN CREATION -------------------------
 
     public String generateAccessToken(User user) {
-        log.info("JwtUtil.generateAccessToken: Generating access token for email={}", user.getEmail());
+        log.info("JwtUtil.generateAccessToken: Generating access token for email={}", MaskingUtil.maskEmail(user.getEmail()));
         String token = Jwts.builder()
                 .subject(user.getEmail())
                 .claim("userId", user.getId())

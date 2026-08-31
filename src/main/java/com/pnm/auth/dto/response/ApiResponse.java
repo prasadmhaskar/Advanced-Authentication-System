@@ -32,7 +32,7 @@ public class ApiResponse<T> {
     private Map<String, Object> meta;
 
 
-    // SUCCESS (no meta)
+    // SUCCESS
     public static <T> ApiResponse<T> success(String code, String message, T data, String path) {
         return ApiResponse.<T>builder()
                 .success(true)
@@ -58,7 +58,7 @@ public class ApiResponse<T> {
                 .build();
     }
 
-    // ERROR (no meta)
+    // ERROR
     public static <T> ApiResponse<T> error(String code, String message, String path) {
         return ApiResponse.<T>builder()
                 .success(false)

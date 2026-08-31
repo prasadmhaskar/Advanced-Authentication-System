@@ -7,7 +7,6 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.MDC;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
-
 import java.lang.reflect.Method;
 import java.util.*;
 
@@ -91,8 +90,7 @@ public class ServiceLoggingAspect {
     // guard for DTO containing password fields
     private boolean isSensitive(String name, Object value) {
         if (SENSITIVE_PARAM_NAMES.contains(name.toLowerCase())) return true;
-        if (value instanceof char[] || value instanceof byte[]) return true;
-        return false;
+        return value instanceof char[] || value instanceof byte[];
     }
 
     private String toShortString(Object v) {
@@ -113,12 +111,35 @@ public class ServiceLoggingAspect {
 
     private String summarizeResult(Object r) {
         if (r == null) return "null";
-        if (r instanceof Collection) {
-            return r.getClass().getSimpleName() + "[size=" + ((Collection<?>) r).size() + "]";
+
+        Class<?> clazz = r.getClass();
+
+        // Check for sensitive DTOs by package or annotation
+        if (clazz.getPackage().getName().contains("dto") ||
+                clazz.getSimpleName().endsWith("DTO") ||
+                clazz.getSimpleName().endsWith("Response")) {
+            return clazz.getSimpleName() + " <REDACTED>";
         }
-        String s = r.toString();
-        if (s.length() > 500) return s.substring(0, 500) + "...(truncated)";
-        return s;
+
+        if (r instanceof Collection<?> c) {
+            return clazz.getSimpleName() + "[size=" + c.size() + "]";
+        }
+
+        if (clazz.isArray()) {
+            int length = java.lang.reflect.Array.getLength(r);
+            return clazz.getComponentType().getSimpleName() + "[] size=" + length;
+        }
+
+        // For primitive/wrapper types and simple classes, show the value
+        String className = clazz.getSimpleName();
+        if (className.equals("String") || className.equals("Integer") ||
+                className.equals("Long") || className.equals("Boolean")) {
+            String s = r.toString();
+            return s.length() > 100 ? s.substring(0, 100) + "...(truncated)" : s;
+        }
+
+        // For other classes, just return class name
+        return clazz.getSimpleName();
     }
 
     private String safe(String s) {

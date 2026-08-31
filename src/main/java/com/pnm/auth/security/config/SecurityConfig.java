@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PostAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -35,10 +36,10 @@ import org.springframework.security.web.header.HeaderWriterFilter;
 import java.io.IOException;
 
 @Configuration
-@EnableWebSecurity
+@EnableWebSecurity      //Configures web-level URL filtering
 @RequiredArgsConstructor
 @Slf4j
-@EnableMethodSecurity(securedEnabled = true, jsr250Enabled = true, prePostEnabled = true)
+@EnableMethodSecurity       //Activates internal business logic method protection (@PreAuthorize and @PostAuthorize)
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
@@ -75,7 +76,6 @@ public class SecurityConfig {
                 // Authorization Rules
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/admin/**", "/actuator/**").hasRole("ADMIN")
-                        .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/login",

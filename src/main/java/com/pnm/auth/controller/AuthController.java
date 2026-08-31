@@ -7,8 +7,10 @@ import com.pnm.auth.dto.response.ApiResponse;
 import com.pnm.auth.dto.response.DeviceTrustResponse;
 import com.pnm.auth.dto.response.UserDetailsResponse;
 import com.pnm.auth.orchestrator.auth.interfaces.*;
+import com.pnm.auth.repository.UserRepository;
 import com.pnm.auth.service.impl.user.UserContextService;
 import com.pnm.auth.service.interfaces.device.DeviceTrustService;
+import com.pnm.auth.util.AuthUtil;
 import com.pnm.auth.util.MaskingUtil;
 import com.pnm.auth.web.context.RequestContext;
 import com.pnm.auth.web.filter.RequestContextFilter;
@@ -21,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -388,13 +391,12 @@ public class AuthController {
         );
     }
 
-
     @PostMapping("/logout")
     @Operation(
             summary = "Logout",
             description = """
             * Logs out the user, invalidates their session/refresh tokens, and clears security context.
-            * If 'logoutFromAllDevices'= 'true' then, logs out from all active sessions/devices. 
+            * If 'logoutFromAllDevices'= 'true' then, logs out from all active sessions/devices.
             * If 'logoutFromAllDevices'= 'false' then, logs out only the current device."
         """
     )

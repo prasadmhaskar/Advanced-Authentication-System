@@ -49,10 +49,10 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
         } finally {
             long duration = System.currentTimeMillis() - startTime;
 
-            MDC.put("status", String.valueOf(response.getStatus()));
-            MDC.put("durationMs", String.valueOf(duration));
+            String status = String.valueOf(response.getStatus());
+            String durationMs = String.valueOf(duration);
 
-            log.info("request_end");
+            log.info("request_end [Status:{}] [Duration:{} ms]", status, durationMs);
 
             response.setHeader("X-Request-Id", requestId);
             MDC.clear();

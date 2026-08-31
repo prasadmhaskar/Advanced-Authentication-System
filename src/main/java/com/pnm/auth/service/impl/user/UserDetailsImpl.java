@@ -10,7 +10,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.stream.Collectors;
 
 @Getter
 @NoArgsConstructor
@@ -52,8 +51,6 @@ public class UserDetailsImpl implements UserDetails {
         return email;
     }
 
-    @Override public boolean isAccountNonExpired() { return true; }
     @Override public boolean isAccountNonLocked() { return active; }
-    @Override public boolean isCredentialsNonExpired() { return true; }
     @Override public boolean isEnabled() { return active; }
 }

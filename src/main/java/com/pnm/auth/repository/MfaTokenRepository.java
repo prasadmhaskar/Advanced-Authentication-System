@@ -26,7 +26,7 @@ public interface MfaTokenRepository extends JpaRepository<MfaToken, Long> {
     @Query("""
         DELETE FROM MfaToken t
         WHERE t.used = true
-          AND t.expiresAt < :cutoff
+        AND t.expiresAt < :cutoff
     """)
     int deleteUsedTokensBefore(@Param("cutoff") LocalDateTime cutoff);
 

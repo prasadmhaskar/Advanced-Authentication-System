@@ -155,7 +155,7 @@ public class RefreshTokenOrchestratorImpl implements RefreshTokenOrchestrator {
         // Evict cache
         cacheManagementService.evictUserFromCache(managedUser.getEmail());
 
-        // Audit toke reuse
+        // Audit token reuse
         auditService.recordAudit(AuditAction.REFRESH_TOKEN_REUSE, managedUser.getId(), managedUser.getId(),
                 "Token reuse detected", ctx.ip(), ctx.userAgent());
 
