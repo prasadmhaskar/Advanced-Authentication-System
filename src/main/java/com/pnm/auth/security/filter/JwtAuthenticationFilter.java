@@ -18,6 +18,7 @@ import com.pnm.auth.util.IpUtils;
 import com.pnm.auth.util.JwtUtil;
 import com.pnm.auth.util.MaskingUtil;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -64,17 +65,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
             return;
         }
-
+//Core java, spring boot, SQL, ESP, DSA, Front End, LLD, HLD,
             jwt = authHeader.substring(7);
 
-            try {
-                claims = jwtUtil.parseAccessToken(jwt);
-                username = claims.getSubject();
-            } catch (Exception e) {
-                log.warn("Invalid JWT: {}", e.getMessage());
-            }
+        try {
+            claims = jwtUtil.parseAccessToken(jwt);
+            username = claims.getSubject();
+        } catch (ExpiredJwtException e) {
+            log.warn("Expired JWT received: {}", e.getMessage());
+            writeError(response, request, "TOKEN_EXPIRED", "Access token has expired. Please refresh your token.");
+            return;
+        } catch (Exception e) {
+            log.warn("Invalid JWT: {}", e.getMessage());
+            writeError(response, request, "INVALID_TOKEN", "Invalid authentication token.");
+            return;
+        }
 
-            // A token is parsed and verified as an access token before it can
+
+        // A token is parsed and verified as an access token before it can
             // reach any stateful checks.
             if (username != null && blacklistedTokenStore.isBlacklisted(jwt)) {
                 log.warn("Blocked blacklisted token usage");
